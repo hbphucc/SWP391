@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
+using SEAL.NET.Models.Enums;
 
 namespace SEAL.NET.Models.Entities
 {
@@ -11,6 +12,14 @@ namespace SEAL.NET.Models.Entities
 
         public bool IsApproved { get; set; } = false;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public StudentType? StudentType { get; set; }
+
+        [MaxLength(50)]
+        public string? StudentCode { get; set; }
+
+        [MaxLength(150)]
+        public string? SchoolName { get; set; }
 
         public ICollection<Team> LedTeams { get; set; } = new List<Team>();
         public ICollection<TeamMember> TeamMemberships { get; set; } = new List<TeamMember>();

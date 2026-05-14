@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using SEAL.NET.DTOs.Auth;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -31,12 +32,24 @@ namespace SEAL.NET.Controllers
             if (userExists != null)
                 return BadRequest(new { message = "Email is already used." });
 
+            if (model.StudentType == StudentType.External &&
+            string.IsNullOrWhiteSpace(model.SchoolName))
+            {
+                return BadRequest(new
+                {
+                    message = "School name is required for external students."
+                });
+            }
+
             var user = new ApplicationUser
             {
                 UserName = model.Email,
                 Email = model.Email,
                 FullName = model.FullName,
-                IsApproved = true
+                StudentType = model.StudentType,
+                StudentCode = model.StudentCode,
+                SchoolName = model.SchoolName,
+                IsApproved = false
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);
