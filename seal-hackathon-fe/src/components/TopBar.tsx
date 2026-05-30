@@ -136,7 +136,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       results.push({ type: "Track", title: "AI/ML Track", link: "/dashboard/tracks" });
     }
     if (results.length === 0) {
-      results.push({ type: "Search", title: `Search for "${q}"`, link: "#" });
+      results.push({ type: "Empty", title: `Không tìm thấy dữ liệu cho "${q}"`, link: "#" });
     }
     
     setSearchResults(results);
@@ -187,10 +187,16 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
           {searchResults.length > 0 && (
             <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '8px', zIndex: 100 }}>
               {searchResults.map((res, i) => (
-                <Link key={i} href={res.link} className="dropdown-item" onClick={() => { setSearchResults([]); setSearchQuery(""); }}>
-                  <span style={{ fontSize: '0.7rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>{res.type}</span>
-                  {res.title}
-                </Link>
+                res.type === "Empty" ? (
+                  <div key={i} className="dropdown-item" style={{ color: 'var(--color-text-3)', cursor: 'default' }}>
+                    {res.title}
+                  </div>
+                ) : (
+                  <Link key={i} href={res.link} className="dropdown-item" onClick={() => { setSearchResults([]); setSearchQuery(""); }}>
+                    <span style={{ fontSize: '0.7rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>{res.type}</span>
+                    {res.title}
+                  </Link>
+                )
               ))}
             </div>
           )}
@@ -198,6 +204,9 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       </div>
 
       <div className={styles.right}>
+        {/* Google Translate Widget Container */}
+        <div id="google_translate_element" style={{ display: "inline-block", marginTop: "4px" }}></div>
+        
         {/* Theme toggle */}
         <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle theme">
           {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}

@@ -1,10 +1,11 @@
-// databaseService.js
+// databaseService.ts
 // Simulated Backend using LocalStorage to handle 1000+ users efficiently
 
 import { 
   mockEvents, mockTeams, mockUsersPending, mockSubmissions, 
   mockAwardsConfig, mockTracks, mockScoringTeams, mockLeaderboard 
 } from '../mockData';
+import { User, Team, Event, Round, CriteriaTemplate, Track, Submission, AwardConfig, AuditLog, PendingApproval } from '../types/models';
 
 const DB_KEY = 'seal_hackathon_db';
 
@@ -15,18 +16,18 @@ const FIRST_NAMES = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh',
 const MIDDLE_NAMES = ['Văn', 'Thị', 'Thanh', 'Minh', 'Hải', 'Ngọc', 'Thành', 'Thu', 'Đức', 'Gia'];
 const LAST_NAMES = ['A', 'B', 'C', 'D', 'Hùng', 'Linh', 'Khoa', 'Tâm', 'Nam', 'An', 'Bảo', 'Châu', 'Dũng', 'Giang', 'Hà', 'Khang', 'Lan', 'Mai', 'Nhi', 'Phong', 'Quang', 'Sơn', 'Trang', 'Tuấn', 'Uyên', 'Vy', 'Yến'];
 
-function getRandomItem(arr) {
+function getRandomItem(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function getRandomSkills(count) {
+function getRandomSkills(count: number): string[] {
   const shuffled = [...SKILLS].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 }
 
 // Khởi tạo 1,000 người dùng tự do (Free Agents) chưa có nhóm
-function generateInitialUsers() {
-  const users = [];
+function generateInitialUsers(): User[] {
+  const users: User[] = [];
   for (let i = 0; i < 1000; i++) {
     const fullName = `${getRandomItem(FIRST_NAMES)} ${getRandomItem(MIDDLE_NAMES)} ${getRandomItem(LAST_NAMES)}`;
     users.push({
@@ -44,20 +45,35 @@ function generateInitialUsers() {
   return users;
 }
 
+interface DatabaseStructure {
+  users: User[];
+  teams: Team[];
+  events: Event[];
+  tracks: Track[];
+  submissions: Submission[];
+  awards: AwardConfig[];
+  pendingUsers: User[];
+  scoringTeams: any[];
+  pendingApprovals: PendingApproval[];
+  criteriaTemplates: CriteriaTemplate[];
+  auditLogs: AuditLog[];
+}
+
 // Khởi tạo dữ liệu
 function initDB() {
   if (typeof window === 'undefined') return;
   
   const storedDB = localStorage.getItem(DB_KEY);
   if (!storedDB) {
-    const db = {
+    const db: DatabaseStructure = {
       users: generateInitialUsers(),
-      teams: mockTeams,
-      events: mockEvents,
-      tracks: mockTracks,
-      submissions: mockSubmissions,
-      awards: mockAwardsConfig,
-      pendingUsers: mockUsersPending,
+      teams: mockTeams as any,
+      events: mockEvents as any,
+      tracks: mockTracks as any,
+      submissions: mockSubmissions as any,
+      awards: mockAwardsConfig as any,
+      pendingUsers: mockUsersPending as any,
+      scoringTeams: mockScoringTeams as any,
       pendingApprovals: [
         { id: 'APP-1', type: 'TEAM', name: 'CyberNinjas', members: 4, track: 'Cybersecurity', date: new Date().toISOString(), status: 'Pending' },
         { id: 'APP-2', type: 'USER', name: 'Phạm Văn Hùng', role: 'Fullstack Dev', track: 'Web', date: new Date().toISOString(), status: 'Pending' },
@@ -125,28 +141,28 @@ function initDB() {
 // Gọi ngay khi file được import
 initDB();
 
-const getFallbackDB = () => ({
+const getFallbackDB = (): DatabaseStructure => ({
   users: [],
-  teams: mockTeams,
-  events: mockEvents,
-  tracks: mockTracks,
-  submissions: mockSubmissions,
-  awards: mockAwardsConfig,
-  pendingUsers: mockUsersPending,
-  scoringTeams: mockScoringTeams,
+  teams: mockTeams as any,
+  events: mockEvents as any,
+  tracks: mockTracks as any,
+  submissions: mockSubmissions as any,
+  awards: mockAwardsConfig as any,
+  pendingUsers: mockUsersPending as any,
+  scoringTeams: mockScoringTeams as any,
   pendingApprovals: [],
   criteriaTemplates: [],
   auditLogs: []
 });
 
 export const databaseService = {
-  getDB: () => {
+  getDB: (): DatabaseStructure => {
     if (typeof window === 'undefined') return getFallbackDB();
     const data = localStorage.getItem(DB_KEY);
-    return data ? JSON.parse(data) : getFallbackDB();
+    return data ? JSON.parse(data) as DatabaseStructure : getFallbackDB();
   },
   
-  saveDB: (db) => {
+  saveDB: (db: DatabaseStructure) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(DB_KEY, JSON.stringify(db));
     }
@@ -163,9 +179,9 @@ export const databaseService = {
     };
   },
 
-  getPendingApprovals: () => databaseService.getDB().pendingApprovals,
+  getPendingApprovals: (): PendingApproval[] => databaseService.getDB().pendingApprovals,
 
-  approveRequest: (id) => {
+  approveRequest: (id: string) => {
     const db = databaseService.getDB();
     db.pendingApprovals = db.pendingApprovals.filter(app => app.id !== id);
     db.auditLogs.unshift({
@@ -178,7 +194,7 @@ export const databaseService = {
     databaseService.saveDB(db);
   },
 
-  rejectRequest: (id) => {
+  rejectRequest: (id: string) => {
     const db = databaseService.getDB();
     db.pendingApprovals = db.pendingApprovals.filter(app => app.id !== id);
     db.auditLogs.unshift({
@@ -193,103 +209,103 @@ export const databaseService = {
 
   // ================= ADMIN ENTITIES CRUD =================
   // Teams
-  getTeams: () => databaseService.getDB().teams || [],
-  updateTeam: (updatedTeam) => {
+  getTeams: (): Team[] => databaseService.getDB().teams || [],
+  updateTeam: (updatedTeam: Team) => {
     const db = databaseService.getDB();
     db.teams = db.teams.map(t => t.id === updatedTeam.id ? updatedTeam : t);
     databaseService.saveDB(db);
   },
   
   // Events
-  getEvents: () => databaseService.getDB().events || [],
-  addEvent: (event) => {
+  getEvents: (): Event[] => databaseService.getDB().events || [],
+  addEvent: (event: Event) => {
     const db = databaseService.getDB();
     db.events.push(event);
     databaseService.saveDB(db);
   },
-  updateEvent: (updatedEvent) => {
+  updateEvent: (updatedEvent: Event) => {
     const db = databaseService.getDB();
     db.events = db.events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
     databaseService.saveDB(db);
   },
-  deleteEvent: (id) => {
+  deleteEvent: (id: string) => {
     const db = databaseService.getDB();
     db.events = db.events.filter(e => e.id !== id);
     databaseService.saveDB(db);
   },
 
   // Submissions
-  getSubmissions: () => databaseService.getDB().submissions || [],
-  updateSubmission: (updatedSub) => {
+  getSubmissions: (): Submission[] => databaseService.getDB().submissions || [],
+  updateSubmission: (updatedSub: Submission) => {
     const db = databaseService.getDB();
     db.submissions = db.submissions.map(s => s.id === updatedSub.id ? updatedSub : s);
     databaseService.saveDB(db);
   },
 
   // Tracks
-  getTracks: () => databaseService.getDB().tracks || [],
-  addTrack: (track) => {
+  getTracks: (): Track[] => databaseService.getDB().tracks || [],
+  addTrack: (track: Track) => {
     const db = databaseService.getDB();
     db.tracks.push(track);
     databaseService.saveDB(db);
   },
-  updateTrack: (updatedTrack) => {
+  updateTrack: (updatedTrack: Track) => {
     const db = databaseService.getDB();
     db.tracks = db.tracks.map(t => t.id === updatedTrack.id ? updatedTrack : t);
     databaseService.saveDB(db);
   },
-  deleteTrack: (id) => {
+  deleteTrack: (id: string) => {
     const db = databaseService.getDB();
     db.tracks = db.tracks.filter(t => t.id !== id);
     databaseService.saveDB(db);
   },
 
   // Awards
-  getAwards: () => databaseService.getDB().awards || [],
-  updateAward: (updatedAward) => {
+  getAwards: (): AwardConfig[] => databaseService.getDB().awards || [],
+  updateAward: (updatedAward: AwardConfig) => {
     const db = databaseService.getDB();
     db.awards = db.awards.map(a => a.id === updatedAward.id ? updatedAward : a);
     databaseService.saveDB(db);
   },
   
   // Pending Users
-  getPendingUsers: () => databaseService.getDB().pendingUsers || [],
-  removePendingUser: (id) => {
+  getPendingUsers: (): User[] => databaseService.getDB().pendingUsers || [],
+  removePendingUser: (id: string) => {
     const db = databaseService.getDB();
     db.pendingUsers = db.pendingUsers.filter(u => u.id !== id);
     databaseService.saveDB(db);
   },
 
   // Criteria Templates
-  getCriteriaTemplates: () => databaseService.getDB().criteriaTemplates || [],
-  addCriteriaTemplate: (template) => {
+  getCriteriaTemplates: (): CriteriaTemplate[] => databaseService.getDB().criteriaTemplates || [],
+  addCriteriaTemplate: (template: CriteriaTemplate) => {
     const db = databaseService.getDB();
     db.criteriaTemplates.push(template);
     databaseService.saveDB(db);
   },
-  updateCriteriaTemplate: (updatedTemplate) => {
+  updateCriteriaTemplate: (updatedTemplate: CriteriaTemplate) => {
     const db = databaseService.getDB();
     db.criteriaTemplates = db.criteriaTemplates.map(t => t.id === updatedTemplate.id ? updatedTemplate : t);
     databaseService.saveDB(db);
   },
-  deleteCriteriaTemplate: (id) => {
+  deleteCriteriaTemplate: (id: string) => {
     const db = databaseService.getDB();
     db.criteriaTemplates = db.criteriaTemplates.filter(t => t.id !== id);
     databaseService.saveDB(db);
   },
 
   // Scoring Teams
-  getScoringTeams: () => databaseService.getDB().scoringTeams || [],
-  updateScoringTeam: (updatedTeam) => {
+  getScoringTeams: (): any[] => databaseService.getDB().scoringTeams || [],
+  updateScoringTeam: (updatedTeam: any) => {
     const db = databaseService.getDB();
     db.scoringTeams = db.scoringTeams.map(t => t.id === updatedTeam.id ? updatedTeam : t);
     databaseService.saveDB(db);
   },
 
   // ================= AUDIT LOG =================
-  getAuditLogs: () => databaseService.getDB().auditLogs,
+  getAuditLogs: (): AuditLog[] => databaseService.getDB().auditLogs,
 
-  logAction: (user, action, icon = 'info') => {
+  logAction: (user: string, action: string, icon = 'info') => {
     const db = databaseService.getDB();
     db.auditLogs.unshift({
       id: `LOG-${Date.now()}`,
@@ -302,18 +318,13 @@ export const databaseService = {
   },
 
   // ================= MATCHMAKING ALGORITHM =================
-  /**
-   * Tự động quét 1000+ users và tìm ra Top 10 tốt nhất cho nhóm.
-   * teamRoles: mảng các vai trò ĐÃ CÓ trong nhóm (vd: ['Frontend Dev', 'Team Leader'])
-   */
-  getTop10BestMatches: (teamRoles = [], searchTerm = '') => {
+  getTop10BestMatches: (teamRoles: string[] = [], searchTerm: string = '') => {
     const db = databaseService.getDB();
-    let freeAgents = db.users.filter(u => !u.teamId);
+    let freeAgents = db.users.filter((u: User) => !u.teamId);
 
-    // Bắt buộc lọc theo search term trước nếu có
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
-      freeAgents = freeAgents.filter(user => {
+      freeAgents = freeAgents.filter((user: User) => {
         const hasRole = user.role.toLowerCase().includes(lowerSearch);
         const hasSkill = user.skills.some(s => s.toLowerCase().includes(lowerSearch));
         const hasName = user.name.toLowerCase().includes(lowerSearch);
@@ -321,16 +332,13 @@ export const databaseService = {
       });
     }
 
-    // Xác định các vai trò bị THIẾU
     const allRoles = ROLES;
     const missingRoles = allRoles.filter(r => !teamRoles.includes(r));
 
-    // Tính điểm từng user
-    const scoredUsers = freeAgents.map(user => {
+    const scoredUsers = freeAgents.map((user: User) => {
       let score = 0;
-      let matchReasons = [];
+      let matchReasons: string[] = [];
 
-      // Trọng số 1: Vai trò đang thiếu (Quan trọng nhất)
       if (missingRoles.includes(user.role)) {
         score += 5000;
         matchReasons.push('Fills Missing Role');
@@ -339,30 +347,24 @@ export const databaseService = {
       }
 
       if (searchTerm) {
-        score += 10000; // Search term là ưu tiên tuyệt đối
+        score += 10000;
         matchReasons.push('Matches Search');
       }
 
-      // Trọng số 3: Tỉ lệ hoàn thành / Kinh nghiệm (XP)
       score += user.xp;
 
-      // Tính % Phù hợp giả lập dựa trên score
       const matchPercentage = Math.min(99, Math.max(40, Math.floor((score / 15000) * 100)));
 
       return { ...user, matchScore: score, matchPercentage, matchReasons };
     });
 
-    // Thuật toán: Sort giảm dần theo điểm, sau đó lấy Top N
     scoredUsers.sort((a, b) => b.matchScore - a.matchScore);
 
-    // Lấy đúng số lượng: Nếu có searchTerm lấy Top 3 (như yêu cầu), nếu không lấy Top 10.
     const limit = searchTerm ? 3 : 10;
     return scoredUsers.slice(0, limit);
   },
 
-  // Lấy User theo XP để xem huy hiệu
-  getUserXP: (email) => {
-    // Giả lập lấy XP của current user
+  getUserXP: (email: string) => {
     const db = databaseService.getDB();
     const user = db.users.find(u => u.email === email) || { xp: 2400, achievements: ['First Commit', 'Bug Hunter'] };
     return user;

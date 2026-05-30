@@ -97,13 +97,21 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
   const visibleSections = NAV_SECTIONS.map(section => {
     if (isAdminPortal) {
       if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Admin Dashboard", href: "/admin" }] };
-      if (section.title === "Events") return { ...section, items: [{ icon: Calendar, label: "Events", href: "/admin/events" }] };
+      if (section.title === "Events") return { ...section, items: [
+        { icon: Calendar, label: "Events", href: "/admin/events" },
+        { icon: Users, label: "Teams", href: "/admin/teams" },
+        { icon: Tag, label: "Tracks", href: "/admin/tracks" }
+      ] };
       if (section.title === "System") return { ...section, items: [
         { icon: Users, label: "User Approvals", href: "/admin/users" },
         { icon: Shield, label: "System Alerts", href: "/admin/system-notifications" },
         { icon: Settings, label: "Settings", href: "/admin/settings" }
       ]};
-      if (section.title === "Judging") return { ...section, items: [{ icon: FileText, label: "Criteria", href: "/admin/criteria" }] };
+      if (section.title === "Judging") return { ...section, items: [
+        { icon: FileText, label: "Criteria", href: "/admin/criteria" },
+        { icon: Target, label: "Assignments", href: "/admin/assignments" },
+        { icon: Trophy, label: "Scoring Queue", href: "/admin/judging" }
+      ] };
       return null;
     } else if (pathname.startsWith("/mentor")) {
       if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Mentor Dashboard", href: "/mentor" }] };

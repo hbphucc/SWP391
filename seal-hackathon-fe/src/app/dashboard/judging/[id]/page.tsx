@@ -11,22 +11,31 @@ const CRITERIA = [
   { id: 4, name: "Code Quality",             weight: 20, description: "Code readability, documentation, and best practices" },
 ];
 
-const SUBMISSION = {
-  team: "CodeCraft", track: "AI & Machine Learning", round: "Qualifying Round",
-  event: "SEAL Spring 2026", repoUrl: "https://github.com/codecraft/seal-project",
-  demoUrl: "https://demo.codecraft.app", reportUrl: "https://docs.google.com/presentation/...",
-  submittedAt: "May 10, 2026 14:30",
+const MOCK_DB: Record<string, any> = {
+  "1": { team: "CodeCraft", track: "AI & ML", round: "Qualifying", status: "pending", scores: { 1: 0, 2: 0, 3: 0, 4: 0 }, feedback: "" },
+  "2": { team: "InnovateSEAL", track: "Web Dev", round: "Qualifying", status: "scored", scores: { 1: 85, 2: 90, 3: 75, 4: 88 }, feedback: "Excellent innovation, but presentation could be more engaging." },
+  "3": { team: "AlphaCoders", track: "Mobile App", round: "Qualifying", status: "pending", scores: { 1: 0, 2: 0, 3: 0, 4: 0 }, feedback: "" },
+  "4": { team: "ByteBuilders", track: "Open Innov", round: "Qualifying", status: "pending", scores: { 1: 0, 2: 0, 3: 0, 4: 0 }, feedback: "" },
+  "5": { team: "TechVision", track: "AI & ML", round: "Qualifying", status: "locked", scores: { 1: 92, 2: 88, 3: 95, 4: 90 }, feedback: "Outstanding project. Very robust technical architecture and brilliant demo." },
 };
 
 export default function JudgingScorePage({ params }: { params: { id: string } }) {
-  const [scores, setScores]   = useState<Record<number,number>>({ 1: 75, 2: 80, 3: 70, 4: 85 });
-  // Make it read-only for users
-  const locked = true;
+  const data = MOCK_DB[params.id] || MOCK_DB["1"];
+  const SUBMISSION = {
+    team: data.team, track: data.track, round: data.round,
+    event: "SEAL Spring 2026", repoUrl: `https://github.com/${data.team.toLowerCase()}/seal-project`,
+    demoUrl: `https://demo.${data.team.toLowerCase()}.app`, reportUrl: "https://docs.google.com/presentation/...",
+    submittedAt: "May 10, 2026 14:30",
+  };
+
+  const [scores, setScores]   = useState<Record<number,number>>(data.scores);
+  // Make it read-only for users if it's locked or if they are just viewing
+  const locked = data.status === "locked" || data.status === "scored";
   const weightedTotal = CRITERIA.reduce((sum, c) => sum + (scores[c.id] ?? 0) * (c.weight / 100), 0);
   const getScoreColor = (s: number) => s >= 80 ? "#10b981" : s >= 60 ? "#f59e0b" : "#f43f5e";
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div style={{ maxWidth: 800, height: "calc(100vh - 100px)", overflowY: "auto", overflowX: "hidden", paddingRight: "10px" }}>
       <div className="page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
@@ -138,7 +147,7 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
           rows={4}
           placeholder="No feedback provided yet."
           disabled={true}
-          value={"Great technical implementation, but the presentation could be improved."}
+          value={data.feedback || ""}
         />
       </div>
 

@@ -24,8 +24,27 @@ export default function SubmissionsPage() {
     // Simulate submission
     message.loading({ content: "Submitting project...", key: "submit" });
     setTimeout(() => {
-      message.success({ content: "Project submitted successfully!", key: "submit" });
-      setIsSubmitted(true);
+      try {
+        const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
+        const stored = JSON.parse(localStorage.getItem("mock_submissions") || "[]");
+        const newSubmission = {
+          id: Date.now().toString(),
+          team: currentUser.name ? `${currentUser.name}'s Team` : "My Awesome Team",
+          track: form.track === "ai" ? "AI & ML" : form.track === "web3" ? "Web3" : form.track === "mobile" ? "Mobile" : "Open Innov",
+          round: "Qualifying",
+          status: "pending",
+          deadline: new Date().toLocaleDateString(),
+          details: form
+        };
+        stored.push(newSubmission);
+        localStorage.setItem("mock_submissions", JSON.stringify(stored));
+        message.success({ content: "Project submitted successfully!", key: "submit" });
+        setIsSubmitted(true);
+        // Dispatch event for any other components listening
+        window.dispatchEvent(new Event("storage"));
+      } catch (err) {
+        message.error({ content: "Submission failed!", key: "submit" });
+      }
     }, 1500);
   };
 

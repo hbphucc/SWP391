@@ -23,6 +23,7 @@ export default function RegisterPage() {
     confirmPassword: "",
     studentId: "",
     university: "",
+    customUniversity: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,20 +36,26 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await apiRequest("/Auth/register", {
-        method: "POST",
-        auth: false,
-        body: JSON.stringify({
-          fullName: form.fullName,
-          email: form.email,
-          password: form.password,
-          studentType: studentType === "fpt" ? 0 : 1,
-          studentCode: form.studentId,
-          schoolName: studentType === "fpt" ? "FPT University" : form.university,
-        }),
-      });
+      // MOCK DATA FOR FRONTEND DEVELOPMENT
+      // Simulate API call to backend DTO structure
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const payload = {
+        fullName: form.fullName,
+        email: form.email,
+        password: form.password,
+        studentType: studentType === "fpt" ? 0 : 1,
+        studentCode: form.studentId,
+        schoolName: studentType === "fpt" ? "FPT University" : (form.university === "Khác (Other / International)" ? form.customUniversity : form.university),
+      };
+      
+      const mockUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
+      mockUsers.push(payload);
+      localStorage.setItem("mock_users", JSON.stringify(mockUsers));
+      
+      console.log("Mock Register Payload:", payload);
 
-      message.success("Account created. Please wait for admin approval.");
+      message.success("Account created successfully (Mock Mode). Please login.");
       router.push("/auth/login");
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not create account.");
@@ -138,15 +145,25 @@ export default function RegisterPage() {
                   </div>
 
                   {studentType === "external" && (
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="uni">University Name</label>
-                      <input id="uni" type="text" className="form-input" list="vn-universities" placeholder="Type to search your university..." value={form.university} onChange={(e) => setForm({ ...form, university: e.target.value })} required />
-                      <datalist id="vn-universities">
-                        {vnUniversities.map((uni: string, idx: number) => (
-                          <option key={idx} value={uni} />
-                        ))}
-                      </datalist>
-                    </div>
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="uni">University Name</label>
+                        <input id="uni" type="text" className="form-input" list="vn-universities" placeholder="Type to search your university..." value={form.university} onChange={(e) => setForm({ ...form, university: e.target.value })} required />
+                        <datalist id="vn-universities">
+                          {vnUniversities.map((uni: string, idx: number) => (
+                            <option key={idx} value={uni} />
+                          ))}
+                          <option value="Khác (Other / International)" />
+                        </datalist>
+                      </div>
+
+                      {form.university === "Khác (Other / International)" && (
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="customUni">Specify your University</label>
+                          <input id="customUni" type="text" className="form-input" placeholder="Enter your international university name..." value={form.customUniversity} onChange={(e) => setForm({ ...form, customUniversity: e.target.value })} required />
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}

@@ -31,6 +31,19 @@ export default function RankingsPage() {
 
   const filtered = RANKINGS.filter(r => trackFilter === "All" ? true : r.track === trackFilter);
 
+  const exportRankingsCSV = () => {
+    const header = "Rank,Team,Track,Score,Judges,Status\n";
+    const rows = filtered.map(r => `${r.rank},${r.team},${r.track},${r.score},${r.judges},${r.status}`).join("\n");
+    const csvContent = header + rows;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `leaderboard_${trackFilter.replace(/\s+/g, "_").toLowerCase()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -38,7 +51,7 @@ export default function RankingsPage() {
           <h1 className="page-title">Rankings & Leaderboard</h1>
           <p className="page-subtitle">SEAL Spring 2026 · Qualifying Round</p>
         </div>
-        <button className="btn btn-secondary"><Download size={15} /> Export CSV</button>
+        <button className="btn btn-secondary" onClick={exportRankingsCSV}><Download size={15} /> Export CSV</button>
       </div>
 
       {/* Top 3 Podium */}

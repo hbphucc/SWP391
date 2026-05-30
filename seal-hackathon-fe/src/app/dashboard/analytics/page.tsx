@@ -34,107 +34,122 @@ const AGREE_COLOR: Record<string, string> = {
 export default function AnalyticsPage() {
   const avgICC = (ICC_DATA.reduce((s, d) => s + d.icc, 0) / ICC_DATA.length).toFixed(3);
 
+  const exportAnalyticsCSV = () => {
+    const header = "Criterion,ICC,Alpha,Agreement\n";
+    const rows = ICC_DATA.map(d => `${d.criterion},${d.icc},${d.alpha},${d.agreement}`).join("\n");
+    const csvContent = header + rows;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'analytics_export.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div>
-      <div className="page-header">
+    <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Research & Analytics</h1>
           <p className="page-subtitle">Inter-Rater Reliability (ICC) Analysis · SEAL Spring 2026</p>
         </div>
-        <button className="btn btn-secondary"><Download size={15} /> Export CSV</button>
+        <button className="btn btn-secondary" onClick={exportAnalyticsCSV}><Download size={15} style={{ marginRight: "0.5rem" }} /> Export CSV</button>
       </div>
 
-      {/* RQ Banner */}
-      <div style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "var(--radius-lg)", padding: "1.25rem 1.5rem", marginBottom: "2rem" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-          <Info size={18} style={{ color: "var(--color-primary)", flexShrink: 0, marginTop: 2 }} />
-          <div>
-            <div style={{ fontWeight: 700, marginBottom: "0.25rem" }}>Research Question</div>
-            <p style={{ fontSize: "0.875rem", color: "var(--color-text-2)" }}>
-              <strong style={{ color: "var(--color-text)" }}>RQ:</strong> How consistent are hackathon evaluation scores across different judges evaluating the same submission in academic software engineering competitions?
-            </p>
+      <div style={{ overflowY: "auto", flex: 1, paddingRight: "0.5rem" }}>
+        {/* RQ Banner */}
+        <div style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "var(--radius-lg)", padding: "1.25rem 1.5rem", marginBottom: "2rem" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+            <Info size={18} style={{ color: "var(--color-primary)", flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: "0.25rem", color: "var(--color-text-1)" }}>Research Question</div>
+              <p style={{ fontSize: "0.875rem", color: "var(--color-text-2)" }}>
+                <strong style={{ color: "var(--color-text-1)" }}>RQ:</strong> How consistent are hackathon evaluation scores across different judges evaluating the same submission in academic software engineering competitions?
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Summary Stats */}
-      <div className="grid-4" style={{ marginBottom: "2rem" }}>
-        {[
-          { label: "Overall ICC",       val: avgICC,  color: "#10b981",  sub: "Intraclass Correlation" },
-          { label: "Avg Krippendorff α", val: "0.74",  color: "#6366f1",  sub: "Alpha coefficient" },
-          { label: "Judges Analyzed",   val: "8",      color: "#06b6d4",  sub: "Internal + Guest" },
-          { label: "Submissions",       val: "22",     color: "#f59e0b",  sub: "Qualifying Round" },
-        ].map(s => (
-          <div key={s.label} className="glass-card">
-            <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>
-            <div style={{ fontWeight: 600, fontSize: "0.85rem", marginTop: "0.25rem" }}>{s.label}</div>
-            <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
+        {/* Summary Stats */}
+        <div className="glass-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+          {[
+            { label: "Overall ICC",       val: avgICC,  color: "#10b981",  sub: "Intraclass Correlation" },
+            { label: "Avg Krippendorff α", val: "0.74",  color: "#6366f1",  sub: "Alpha coefficient" },
+            { label: "Judges Analyzed",   val: "8",      color: "#06b6d4",  sub: "Internal + Guest" },
+            { label: "Submissions",       val: "22",     color: "#f59e0b",  sub: "Qualifying Round" },
+          ].map(s => (
+            <div key={s.label} className="glass-card" style={{ transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", marginTop: "0.25rem", color: "var(--color-text-1)" }}>{s.label}</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
 
-      <div className="grid-2" style={{ marginBottom: "2rem" }}>
-        {/* ICC by Criterion */}
-        <div className="glass-card">
-          <h4 style={{ marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <TrendingUp size={16} style={{ color: "var(--color-primary)" }} /> ICC by Criterion
-          </h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
-            {ICC_DATA.map(d => (
-              <div key={d.criterion}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: "0.4rem" }}>
-                  <span style={{ fontWeight: 500 }}>{d.criterion}</span>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <span className={`badge ${AGREE_COLOR[d.agreement]}`}>{d.agreement}</span>
-                    <strong>{d.icc}</strong>
+        <div className="glass-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "1.5rem", marginBottom: "2rem" }}>
+          {/* ICC by Criterion */}
+          <div className="glass-card">
+            <h4 style={{ marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-1)" }}>
+              <TrendingUp size={16} style={{ color: "var(--color-primary)" }} /> ICC by Criterion
+            </h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {ICC_DATA.map(d => (
+                <div key={d.criterion}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: "0.5rem" }}>
+                    <span style={{ fontWeight: 500, color: "var(--color-text-2)" }}>{d.criterion}</span>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <span className={`glass-badge ${d.agreement === "Very High" ? "success" : d.agreement === "High" ? "primary" : d.agreement === "Moderate" ? "warning" : "danger"}`}>{d.agreement}</span>
+                      <strong style={{ color: "var(--color-text-1)" }}>{d.icc}</strong>
+                    </div>
+                  </div>
+                  <div className="progress" style={{ background: "rgba(255,255,255,0.05)" }}>
+                    <div className="progress-fill" style={{
+                      width: `${d.icc * 100}%`,
+                      background: d.icc >= 0.8 ? "linear-gradient(90deg,#10b981,#34d399)" : d.icc >= 0.65 ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "linear-gradient(90deg,#f59e0b,#fbbf24)",
+                    }} />
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: "0.4rem" }}>
+                    Krippendorff α: {d.alpha}
                   </div>
                 </div>
-                <div className="progress">
-                  <div className="progress-fill" style={{
-                    width: `${d.icc * 100}%`,
-                    background: d.icc >= 0.8 ? "linear-gradient(90deg,#10b981,#34d399)" : d.icc >= 0.65 ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "linear-gradient(90deg,#f59e0b,#fbbf24)",
-                  }} />
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-                  Krippendorff α: {d.alpha}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Radar: Internal vs Guest */}
+          <div className="glass-card">
+            <h4 style={{ marginBottom: "1.25rem", color: "var(--color-text-1)" }}>Judge Type Comparison</h4>
+            <ResponsiveContainer width="100%" height={220}>
+              <RadarChart data={RADAR_DATA}>
+                <PolarGrid stroke="rgba(148,163,184,0.1)" />
+                <PolarAngleAxis dataKey="criterion" tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
+                <PolarRadiusAxis domain={[60, 100]} tick={{ fill: "var(--color-text-3)", fontSize: 10 }} />
+                <Radar name="Internal Judge" dataKey="internalAvg" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
+                <Radar name="Guest Judge"    dataKey="guestAvg"    stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
+                <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
+                <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} />
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Radar: Internal vs Guest */}
-        <div className="glass-card">
-          <h4 style={{ marginBottom: "1.25rem" }}>Judge Type Comparison</h4>
-          <ResponsiveContainer width="100%" height={220}>
-            <RadarChart data={RADAR_DATA}>
-              <PolarGrid stroke="rgba(148,163,184,0.1)" />
-              <PolarAngleAxis dataKey="criterion" tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-              <PolarRadiusAxis domain={[60, 100]} tick={{ fill: "var(--color-text-3)", fontSize: 10 }} />
-              <Radar name="Internal Judge" dataKey="internalAvg" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
-              <Radar name="Guest Judge"    dataKey="guestAvg"    stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
+        {/* Score Variance Chart */}
+        <div className="glass-card" style={{ marginBottom: "1rem" }}>
+          <h4 style={{ marginBottom: "1.25rem", color: "var(--color-text-1)" }}>Score Variance Across Judges (per Team)</h4>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={VARIANCE_DATA} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
+              <XAxis dataKey="name" tick={{ fill: "var(--color-text-2)", fontSize: 12 }} />
+              <YAxis domain={[60, 100]} tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
               <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
-              <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} />
-            </RadarChart>
+              <Bar dataKey="J1" name="Judge 1" fill="#6366f1" radius={[4,4,0,0]} />
+              <Bar dataKey="J2" name="Judge 2" fill="#8b5cf6" radius={[4,4,0,0]} />
+              <Bar dataKey="J3" name="Judge 3" fill="#06b6d4" radius={[4,4,0,0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
-
-      {/* Score Variance Chart */}
-      <div className="glass-card">
-        <h4 style={{ marginBottom: "1.25rem" }}>Score Variance Across Judges (per Team)</h4>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={VARIANCE_DATA} barGap={4}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
-            <XAxis dataKey="name" tick={{ fill: "var(--color-text-2)", fontSize: 12 }} />
-            <YAxis domain={[60, 100]} tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-            <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} />
-            <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
-            <Bar dataKey="J1" name="Judge 1" fill="#6366f1" radius={[4,4,0,0]} />
-            <Bar dataKey="J2" name="Judge 2" fill="#8b5cf6" radius={[4,4,0,0]} />
-            <Bar dataKey="J3" name="Judge 3" fill="#06b6d4" radius={[4,4,0,0]} />
-          </BarChart>
-        </ResponsiveContainer>
       </div>
     </div>
   );

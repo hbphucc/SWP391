@@ -20,12 +20,23 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 export default function JudgingQueuePage() {
   const [activeTab, setActiveTab] = useState("queue"); // "queue" or "calibration"
   const [filter, setFilter] = useState("all");
-  const filtered = QUEUE.filter(q => filter === "all" ? true : q.status === filter);
+  const [queueData, setQueueData] = useState<any[]>(QUEUE);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("mock_submissions") || "[]");
+      if (stored.length > 0) {
+        setQueueData([...QUEUE, ...stored]);
+      }
+    } catch(e) {}
+  }, []);
+
+  const filtered = queueData.filter(q => filter === "all" ? true : q.status === filter);
   const [calibrationDone, setCalibrationDone] = useState(false);
 
   return (
-    <div>
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Judging Results</h1>
           <p className="page-subtitle">View the evaluation progress and scores of teams</p>
@@ -35,9 +46,9 @@ export default function JudgingQueuePage() {
 
           <div className="grid-3" style={{ marginBottom: "2rem" }}>
             {[
-              { label: "Pending",  val: QUEUE.filter(q=>q.status==="pending").length, color: "#f59e0b" },
-              { label: "In Draft", val: QUEUE.filter(q=>q.status==="scored").length,  color: "#06b6d4" },
-              { label: "Locked",   val: QUEUE.filter(q=>q.status==="locked").length,  color: "#10b981" },
+              { label: "Pending",  val: queueData.filter(q=>q.status==="pending").length, color: "#f59e0b" },
+              { label: "In Draft", val: queueData.filter(q=>q.status==="scored").length,  color: "#06b6d4" },
+              { label: "Locked",   val: queueData.filter(q=>q.status==="locked").length,  color: "#10b981" },
             ].map(s => (
               <div key={s.label} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                 <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>
@@ -54,9 +65,9 @@ export default function JudgingQueuePage() {
             ))}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", flex: 1, paddingRight: "0.5rem" }}>
             {filtered.map(q => (
-              <div key={q.id} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem" }}>
+              <div key={q.id} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem", flexShrink: 0 }}>
                 {STATUS_ICON[q.status]}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{q.team}</div>

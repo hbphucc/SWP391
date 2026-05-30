@@ -22,18 +22,50 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const payload = await apiRequest<{
-        token: string;
-        expiration: string;
-        user: { id: string; fullName: string; email: string; roles: string[] };
-      }>("/Auth/login", {
-        method: "POST",
-        auth: false,
-        body: JSON.stringify({ email: form.email, password: form.password }),
-      });
+      // MOCK DATA FOR FRONTEND DEVELOPMENT
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      let payload;
+      
+      const mockUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
+      const foundUser = mockUsers.find((u: any) => u.email === form.email && u.password === form.password);
+
+      if (!foundUser && form.email !== "admin@fpt.edu.vn") {
+        throw new Error("Tài khoản hoặc mật khẩu không chính xác. Hoặc chưa có trong mock data.");
+      }
+
+      if (form.email === "admin@fpt.edu.vn" || (foundUser && foundUser.email.includes("admin"))) {
+        payload = {
+          token: "mock-jwt-token-admin-123",
+          expiration: new Date(Date.now() + 86400000).toISOString(),
+          user: { 
+            id: "1", 
+            fullName: foundUser ? foundUser.fullName : "Admin User", 
+            email: form.email, 
+            roles: ["Admin"],
+            university: foundUser ? foundUser.schoolName : "FPT University",
+            studentId: foundUser ? foundUser.studentCode : "ADMIN123" 
+          }
+        };
+      } else {
+        payload = {
+          token: "mock-jwt-token-user-123",
+          expiration: new Date(Date.now() + 86400000).toISOString(),
+          user: { 
+            id: Date.now().toString(), 
+            fullName: foundUser.fullName, 
+            email: foundUser.email, 
+            roles: ["Member"],
+            university: foundUser.schoolName,
+            studentId: foundUser.studentCode
+          }
+        };
+      }
+
+      console.log("Mock Login Successful:", payload);
 
       const currentUser = saveAuthSession(payload, form.remember);
-      message.success("Dang nhap thanh cong!");
+      message.success("Logged in successfully (Mock Mode)!");
       router.push(currentUser.roles.includes("Admin") ? "/admin" : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Khong the dang nhap. Vui long thu lai.");
