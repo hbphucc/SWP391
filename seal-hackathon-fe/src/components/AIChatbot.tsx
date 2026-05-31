@@ -21,7 +21,9 @@ export default function AIChatbot() {
             setIsLoggedIn(true);
             try {
                 const user = JSON.parse(stored);
-                if (user.role) {
+                if (user.roles && user.roles.includes('Admin')) {
+                    setRole('Admin');
+                } else if (user.role) {
                     setRole(user.role);
                 }
             } catch (e) {}
@@ -70,8 +72,8 @@ export default function AIChatbot() {
     }
   }, [messages, isOpen]);
 
-  // Chỉ hiển thị cho User thường đã đăng nhập
-  if (!isLoggedIn || role === 'Admin') return null;
+  // Hiển thị cho cả User chưa đăng nhập và User đã đăng nhập (trừ Admin)
+  if (role === 'Admin') return null;
 
   const handleSendQuestion = (questionText?: string) => {
     const textToSend = questionText || inputValue;
@@ -237,7 +239,11 @@ export default function AIChatbot() {
                       size="small" 
                       icon={<ArrowRightOutlined />}
                       onClick={() => {
-                        router.push(msg.action!.path);
+                        if (!isLoggedIn) {
+                          router.push(`/auth/login?redirect=${encodeURIComponent(msg.action!.path)}`);
+                        } else {
+                          router.push(msg.action!.path);
+                        }
                         setIsOpen(false);
                       }}
                       style={{ alignSelf: 'flex-start', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '12px' }}
