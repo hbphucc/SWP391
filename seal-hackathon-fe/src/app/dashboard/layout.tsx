@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
     if (!stored) {
       router.push("/auth/login");
     }
@@ -41,3 +41,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
+

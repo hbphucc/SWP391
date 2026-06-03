@@ -15,7 +15,7 @@ export default function MatchmakingPage() {
 
   useEffect(() => {
     // 1. Get User and Team from LocalStorage
-    const userStr = localStorage.getItem("currentUser");
+    const userStr = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     let user = null;
     if (userStr) {
       user = JSON.parse(userStr);
@@ -213,3 +213,4 @@ export default function MatchmakingPage() {
     </div>
   );
 }
+

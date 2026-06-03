@@ -33,7 +33,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
   const [newLeaderId, setNewLeaderId] = useState("");
 
   useEffect(() => {
-    const user = localStorage.getItem("currentUser");
+    const user = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (user) {
       const parsed = JSON.parse(user);
       setCurrentUser(parsed);

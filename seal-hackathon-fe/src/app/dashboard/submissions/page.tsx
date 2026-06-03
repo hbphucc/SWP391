@@ -25,7 +25,7 @@ export default function SubmissionsPage() {
     message.loading({ content: "Submitting project...", key: "submit" });
     setTimeout(() => {
       try {
-        const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
+        const currentUser = JSON.parse((localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser")) || "{}");
         const stored = JSON.parse(localStorage.getItem("mock_submissions") || "[]");
         const newSubmission = {
           id: Date.now().toString(),
@@ -138,3 +138,4 @@ export default function SubmissionsPage() {
     </div>
   );
 }
+

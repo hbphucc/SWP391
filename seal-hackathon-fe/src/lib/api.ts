@@ -90,7 +90,8 @@ export function saveAuthSession(
 
   tokenStorage.setItem("seal_token", payload.token);
   otherStorage.removeItem("seal_token");
-  localStorage.setItem("currentUser", JSON.stringify(currentUser));
+  tokenStorage.setItem("currentUser", JSON.stringify(currentUser));
+  otherStorage.removeItem("currentUser");
   window.dispatchEvent(new Event("storage"));
 
   return currentUser;
@@ -98,6 +99,7 @@ export function saveAuthSession(
 
 export function clearAuthSession() {
   localStorage.removeItem("currentUser");
+  sessionStorage.removeItem("currentUser");
   localStorage.removeItem("seal_token");
   sessionStorage.removeItem("seal_token");
   window.dispatchEvent(new Event("storage"));

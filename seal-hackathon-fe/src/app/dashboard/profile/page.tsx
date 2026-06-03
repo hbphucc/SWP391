@@ -17,7 +17,7 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (stored) {
       try {
         const parsedUser = JSON.parse(stored);
@@ -135,3 +135,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useContext } from "react";
 import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, RefreshCw, Key, Languages } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./TopBar.module.css";
+import { ALL_LANGUAGES } from "@/lib/languages";
 import Link from "next/link";
 import { ThemeContext } from "./ThemeProvider";
 import { App, Modal, Input, Dropdown } from "antd";
@@ -43,7 +44,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const unreadCount = notifications.filter(n => n.unread).length;
 
   const loadUser = () => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (stored) {
       try { 
         const parsed = JSON.parse(stored);
@@ -51,10 +52,8 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
         setAvatar(localStorage.getItem(`avatar_${parsed.email}`));
       } catch(e){}
     } else {
-      const defaultUser = { name: "Hải Trần", email: "hai@student.fpt.edu.vn", role: "Member", id: "USR-001" };
-      localStorage.setItem("currentUser", JSON.stringify(defaultUser));
-      setCurrentUser(defaultUser);
-      setAvatar(localStorage.getItem(`avatar_${defaultUser.email}`));
+      setCurrentUser(null);
+      setAvatar(null);
     }
   };
 
@@ -167,42 +166,11 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     router.push("/auth/login");
   };
 
-  const [languages, setLanguages] = useState<any[]>([
-    { key: "vi", label: "Tiếng Việt" },
-    { key: "en", label: "English" }
-  ]);
+  const [languages, setLanguages] = useState<any[]>(
+    ALL_LANGUAGES.map(l => ({ key: l.key, label: l.label, onClick: () => changeLanguage(l.key) }))
+  );
 
-  useEffect(() => {
-    // Dynamically extract all languages from Google Translate widget
-    const extractLanguages = () => {
-      const select = document.querySelector(".goog-te-combo") as HTMLSelectElement;
-      if (select && select.options.length > 0) {
-        const langArray = Array.from(select.options)
-          .filter(opt => opt.value !== "")
-          .map(opt => ({
-            key: opt.value,
-            label: opt.text,
-            onClick: () => changeLanguage(opt.value)
-          }));
-        
-        if (langArray.length > 0) {
-          setLanguages(langArray);
-          return true; // Success
-        }
-      }
-      return false; // Not loaded yet
-    };
-
-    // Try extracting immediately, if fail, try every 1s until success
-    if (!extractLanguages()) {
-      const interval = setInterval(() => {
-        if (extractLanguages()) {
-          clearInterval(interval);
-        }
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, []);
+  // Removed dynamic extraction in favor of ALL_LANGUAGES
 
   const changeLanguage = (langCode: string) => {
     const select = document.querySelector(".goog-te-combo") as HTMLSelectElement;
@@ -211,6 +179,8 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       select.dispatchEvent(new Event("change"));
     }
   };
+
+  if (!currentUser) return null;
 
   return (
     <header
@@ -402,3 +372,4 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     </header>
   );
 }
+

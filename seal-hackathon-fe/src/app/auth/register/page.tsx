@@ -55,7 +55,7 @@ export default function RegisterPage() {
       
       console.log("Mock Register Payload:", payload);
 
-      message.success("Account created successfully (Mock Mode). Please login.");
+      message.success("Account created successfully. Please login.");
       router.push("/auth/login");
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not create account.");

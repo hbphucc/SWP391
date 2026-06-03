@@ -13,7 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { message } = App.useApp();
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
     if (!stored) {
       router.push("/admin/login");
       return;
@@ -53,3 +53,4 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   );
 }
+

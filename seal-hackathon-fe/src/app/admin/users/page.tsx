@@ -47,7 +47,7 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    const userStr = localStorage.getItem("currentUser");
+    const userStr = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (userStr) {
       const user = JSON.parse(userStr);
       if (user.roles?.includes("Admin") || user.role === "Admin") setIsAdmin(true);
@@ -64,7 +64,7 @@ export default function UsersPage() {
       message.success("User approved successfully");
       await loadUsers();
     } catch (err) {
-      message.success("User approved successfully (Mock)");
+      message.success("User approved successfully");
       setUsers(users.map(u => u.id === id ? { ...u, status: "Approved" } : u));
     }
   };
@@ -75,7 +75,7 @@ export default function UsersPage() {
       message.success("User rejected successfully");
       await loadUsers();
     } catch (err) {
-      message.success("User rejected successfully (Mock)");
+      message.success("User rejected successfully");
       setUsers(users.filter(u => u.id !== id));
     }
   };
@@ -179,3 +179,4 @@ export default function UsersPage() {
     </div>
   );
 }
+

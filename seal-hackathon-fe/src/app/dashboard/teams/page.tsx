@@ -42,7 +42,7 @@ export default function TeamsPage() {
   };
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
+    const user = JSON.parse((localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser")) || "{}");
     setCurrentUser(user);
 
     const team = localStorage.getItem(`myTeam_${user.email}`);
@@ -512,3 +512,4 @@ export default function TeamsPage() {
     </div>
   );
 }
+

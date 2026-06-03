@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { App } from "antd";
 import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react";
@@ -10,11 +10,33 @@ import styles from "../auth.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect");
   const { message } = App.useApp();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "", remember: false });
+
+  useEffect(() => {
+    const stored = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
+    if (stored) {
+      if (redirectUrl) {
+        router.push(redirectUrl);
+        return;
+      }
+      try {
+        const user = JSON.parse(stored);
+        if (user.roles && user.roles.includes("Admin")) {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
+      } catch (e) {
+        router.push("/dashboard");
+      }
+    }
+  }, [router, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +53,7 @@ export default function LoginPage() {
       const foundUser = mockUsers.find((u: any) => u.email === form.email && u.password === form.password);
 
       if (!foundUser && form.email !== "admin@fpt.edu.vn") {
-        throw new Error("Tài khoản hoặc mật khẩu không chính xác. Hoặc chưa có trong mock data.");
+        throw new Error("Tài khoản hoặc mật khẩu không chính xác.");
       }
 
       if (form.email === "admin@fpt.edu.vn" || (foundUser && foundUser.email.includes("admin"))) {
@@ -65,8 +87,13 @@ export default function LoginPage() {
       console.log("Mock Login Successful:", payload);
 
       const currentUser = saveAuthSession(payload, form.remember);
-      message.success("Logged in successfully (Mock Mode)!");
-      router.push(currentUser.roles.includes("Admin") ? "/admin" : "/dashboard");
+      message.success("Logged in successfully!");
+      
+      if (redirectUrl) {
+        router.push(redirectUrl);
+      } else {
+        router.push(currentUser.roles.includes("Admin") ? "/admin" : "/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Khong the dang nhap. Vui long thu lai.");
     } finally {
@@ -136,7 +163,7 @@ export default function LoginPage() {
                     onChange={(e) => setForm({ ...form, remember: e.target.checked })}
                     style={{ accentColor: "var(--color-primary)" }}
                   />
-                  Remember me
+                  Remember password
                 </label>
                 <Link href="/auth/forgot-password" className={styles.forgotLink}>Forgot password?</Link>
               </div>
@@ -174,3 +201,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

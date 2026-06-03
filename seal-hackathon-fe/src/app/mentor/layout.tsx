@@ -12,7 +12,7 @@ export default function MentorLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (!stored) {
       router.push("/auth/login");
     } else {
@@ -47,3 +47,4 @@ export default function MentorLayout({ children }: { children: React.ReactNode }
     </div>
   );
 }
+

@@ -239,7 +239,8 @@ export default function AIChatbot() {
                       size="small" 
                       icon={<ArrowRightOutlined />}
                       onClick={() => {
-                        if (!isLoggedIn) {
+                        const currentUser = localStorage.getItem('currentUser');
+                        if (!currentUser) {
                           router.push(`/auth/login?redirect=${encodeURIComponent(msg.action!.path)}`);
                         } else {
                           router.push(msg.action!.path);

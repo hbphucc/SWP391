@@ -143,7 +143,7 @@ export default function AdminEventsPage() {
               </div>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {selectedEvent.rounds.map((round: any, index: number) => (
+                {(selectedEvent.rounds || []).map((round: any, index: number) => (
                   <div key={round.id} style={{ display: "flex", alignItems: "center", gap: "1rem", background: "var(--color-surface-2)", padding: "1.25rem", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border-2)", transition: "all 0.2s ease" }}>
                     
                     <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(99,102,241,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-primary)", fontWeight: "bold" }}>

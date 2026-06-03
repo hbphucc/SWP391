@@ -65,11 +65,11 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
   const pathname = usePathname();
   const router = useRouter();
   const isAdminPortal = pathname.startsWith("/admin");
-  const [currentUser, setCurrentUser] = useState({ name: "Loading...", role: "Member", email: "" });
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
 
   const loadUser = () => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (stored) {
       try { 
         const parsed = JSON.parse(stored);
@@ -77,9 +77,8 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         setAvatar(localStorage.getItem(`avatar_${parsed.email}`));
       } catch(e){}
     } else {
-      const defaultUser = { name: "Hải Trần", role: "Member", email: "hai@student.fpt.edu.vn" };
-      setCurrentUser(defaultUser);
-      setAvatar(localStorage.getItem(`avatar_${defaultUser.email}`));
+      setCurrentUser(null);
+      setAvatar(null);
     }
   };
 
@@ -129,6 +128,8 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
     if (href === "/admin") return pathname === "/admin";
     return pathname.startsWith(href);
   };
+
+  if (!currentUser) return null;
 
   return (
     <>
@@ -215,3 +216,4 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
     </>
   );
 }
+
