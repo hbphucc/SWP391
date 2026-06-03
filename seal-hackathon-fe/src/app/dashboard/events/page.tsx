@@ -78,7 +78,7 @@ export default function UserEventsPage() {
         />
       </div>
 
-      <Card bordered={false} styles={{ body: { padding: 0 } }} style={{ background: 'transparent' }}>
+      <Card variant="borderless" styles={{ body: { padding: 0 } }} style={{ background: 'transparent' }}>
         <Table 
           columns={columns} 
           dataSource={filteredEvents} 

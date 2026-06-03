@@ -82,7 +82,7 @@ export default function AdminTracksPage() {
       title: 'TRACK NAME', 
       dataIndex: 'name', 
       key: 'name',
-      render: (text: string) => <b>{text}</b>
+      render: (text: string) => <b style={{ color: "var(--color-text-1)" }}>{text}</b>
     },
     { title: 'DESCRIPTION', dataIndex: 'desc', key: 'desc', ellipsis: true },
     { title: 'MENTOR', dataIndex: 'mentor', key: 'mentor', render: (text: string) => text || <Text type="secondary">Unassigned</Text> },
@@ -92,7 +92,7 @@ export default function AdminTracksPage() {
       key: 'actions',
       render: (_: any, record: any) => (
         <Space>
-          <Button type="text" icon={<EditOutlined />} onClick={() => showEditDrawer(record)} />
+          <Button type="text" icon={<EditOutlined />} onClick={() => showEditDrawer(record)} style={{ color: "var(--color-primary)" }} />
           <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
         </Space>
       )
@@ -100,61 +100,66 @@ export default function AdminTracksPage() {
   ];
 
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ maxWidth: 1100, overflow: 'hidden' }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Track Management</Title>
-          <Text type="secondary">Manage competition tracks, categories, and assign mentors.</Text>
+          <h1 className="page-title">Track Management</h1>
+          <p className="page-subtitle">Manage competition tracks, categories, and assign mentors.</p>
         </div>
         <Space>
           <Input 
             placeholder="Search tracks or mentors..." 
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 300, borderRadius: '20px' }}
-            prefix={<SearchOutlined />}
+            style={{ width: 300, borderRadius: '20px', background: "rgba(15,23,42,0.6)", color: "white", border: "1px solid var(--color-border-1)" }}
+            prefix={<SearchOutlined style={{ color: "var(--color-text-3)" }} />}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: '20px' }}>
+          <Button type="primary" className="btn btn-primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: '20px' }}>
             Create Track
           </Button>
         </Space>
       </div>
 
-      <Card bordered={false} bodyStyle={{ padding: 0 }} style={{ background: 'transparent' }}>
+      <div className="glass-card" style={{ padding: 0 }}>
         <Table 
           columns={columns} 
           dataSource={filteredTracks} 
           pagination={{ pageSize: 10 }} 
-          rowKey="id" 
+          rowKey="id"
+          style={{ background: 'transparent' }}
+          className="custom-antd-table"
         />
-      </Card>
+      </div>
 
       <Drawer
-        title={isEditMode ? "Edit Track" : "Create New Track"}
+        title={<span style={{ color: "var(--color-text-1)" }}>{isEditMode ? "Edit Track" : "Create New Track"}</span>}
         placement="right"
         width={480}
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
+        drawerStyle={{ background: "var(--color-bg-1)" }}
+        headerStyle={{ borderBottom: "1px solid var(--color-border-1)", background: "var(--color-bg-2)" }}
+        bodyStyle={{ background: "var(--color-bg-1)" }}
         extra={
           <Space>
-            <Button onClick={() => setDrawerVisible(false)}>Cancel</Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button onClick={() => setDrawerVisible(false)} style={{ background: "transparent", color: "var(--color-text-1)", borderColor: "var(--color-border-2)" }}>Cancel</Button>
+            <Button type="primary" className="btn btn-primary" onClick={() => form.submit()}>
               {isEditMode ? 'Save Changes' : 'Create Track'}
             </Button>
           </Space>
         }
       >
         <Form layout="vertical" form={form} onFinish={handleFinish}>
-          <Form.Item name="name" label="Track Name" rules={[{ required: true, message: 'Please enter track name' }]}>
-            <Input placeholder="e.g., AI & Machine Learning" />
+          <Form.Item name="name" label={<span style={{ color: "var(--color-text-2)" }}>Track Name</span>} rules={[{ required: true, message: 'Please enter track name' }]}>
+            <Input placeholder="e.g., AI & Machine Learning" style={{ background: "rgba(15,23,42,0.6)", color: "white", border: "1px solid var(--color-border-1)" }} />
           </Form.Item>
           
-          <Form.Item name="desc" label="Description">
-            <Input.TextArea rows={3} placeholder="Brief description of this track..." />
+          <Form.Item name="desc" label={<span style={{ color: "var(--color-text-2)" }}>Description</span>}>
+            <Input.TextArea rows={3} placeholder="Brief description of this track..." style={{ background: "rgba(15,23,42,0.6)", color: "white", border: "1px solid var(--color-border-1)" }} />
           </Form.Item>
 
-          <Form.Item name="mentor" label="Assigned Mentor">
-            <Input placeholder="e.g., Dr. Nguyen Van A" />
+          <Form.Item name="mentor" label={<span style={{ color: "var(--color-text-2)" }}>Assigned Mentor</span>}>
+            <Input placeholder="e.g., Dr. Nguyen Van A" style={{ background: "rgba(15,23,42,0.6)", color: "white", border: "1px solid var(--color-border-1)" }} />
           </Form.Item>
         </Form>
       </Drawer>

@@ -98,7 +98,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
         const reason = reasons[Math.floor(Math.random() * reasons.length)];
         
         notification.error({
-          message: "Invitation Declined",
+          title: "Invitation Declined",
           description: `${target} has declined your invitation. Reason: "${reason}"`,
           duration: 7,
           placement: "topRight"

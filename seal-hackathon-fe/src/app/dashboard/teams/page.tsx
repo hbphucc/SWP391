@@ -21,15 +21,23 @@ export default function TeamsPage() {
   const [mentors, setMentors] = useState<any[]>([]);
   const [joinSearch, setJoinSearch] = useState("");
   const availableTeams = [
-    { id: "T-1", name: "Cyber Ninjas", track: "Security", membersCount: 3, lookingFor: ["Frontend", "Design"] },
-    { id: "T-2", name: "AI Innovators", track: "AI & ML", membersCount: 4, lookingFor: ["Backend"] },
-    { id: "T-3", name: "Web3 Pioneers", track: "Blockchain", membersCount: 2, lookingFor: ["Smart Contract", "Fullstack"] }
+    { id: "T-1", name: "Cyber Ninjas", track: "Security", membersCount: 3, lookingFor: ["Frontend", "Design"], joinMode: "approval" },
+    { id: "T-2", name: "AI Innovators", track: "AI & ML", membersCount: 4, lookingFor: ["Backend"], joinMode: "auto" },
+    { id: "T-3", name: "Web3 Pioneers", track: "Blockchain", membersCount: 2, lookingFor: ["Smart Contract", "Fullstack"], joinMode: "approval" }
   ];
 
   const handleRequestJoin = (team: any) => {
     message.loading({ content: `Sending join request to ${team.name}...`, key: "join" });
     setTimeout(() => {
-      message.success({ content: `Request sent! The leader of ${team.name} will review your application.`, key: "join", duration: 5 });
+      if (team.joinMode === "auto") {
+        if (team.membersCount >= 5) {
+          message.error({ content: `${team.name} is full!`, key: "join" });
+        } else {
+          message.success({ content: `Successfully joined ${team.name} (Auto-Accept enabled)!`, key: "join", duration: 5 });
+        }
+      } else {
+        message.success({ content: `Request sent! The leader of ${team.name} will review your application.`, key: "join", duration: 5 });
+      }
     }, 1500);
   };
 
@@ -63,22 +71,45 @@ export default function TeamsPage() {
     message.success("Team created successfully! You are the Leader.");
   };
 
-  const handleKick = (email: string) => {
+  const handleKick = (email: string, name: string) => {
     if (!myTeam) return;
+
     if (!isLeader) {
       message.error("Chỉ có Leader mới được quyền kick thành viên!");
       return;
     }
+
     modal.confirm({
-      title: "Xác nhận",
-      content: "Bạn có muốn kick người này hay không?",
-      okText: "Có",
-      cancelText: "Không",
+      title: "Kick Member",
+      content: `Are you sure you want to remove ${name} from the team?`,
+      okText: "Yes, Remove",
+      okType: "danger",
+      cancelText: "Cancel",
       onOk: () => {
         const updatedMembers = myTeam.members.filter((m:any) => m.email !== email);
         const updatedTeam = { ...myTeam, members: updatedMembers };
         saveTeam(updatedTeam);
-        message.success("Đã kick thành viên khỏi nhóm.");
+        message.success("Member removed from team.");
+      }
+    });
+  };
+
+  const handlePromote = (email: string, name: string) => {
+    if (!myTeam) return;
+    modal.confirm({
+      title: "Transfer Leadership",
+      content: `Are you sure you want to promote ${name} to Leader? You will become a regular member.`,
+      okText: "Yes, Promote",
+      cancelText: "Cancel",
+      onOk: () => {
+        const updatedMembers = myTeam.members.map((m: any) => {
+          if (m.email === email) return { ...m, role: "Leader" };
+          if (m.email === currentUser.email) return { ...m, role: "Member" };
+          return m;
+        });
+        const updatedTeam = { ...myTeam, members: updatedMembers };
+        saveTeam(updatedTeam);
+        message.success(`Leadership transferred to ${name}.`);
       }
     });
   };
@@ -88,25 +119,29 @@ export default function TeamsPage() {
     const isLeader = myTeam.members.find((m:any) => m.email === currentUser.email)?.role === "Leader";
     
     if (isLeader && myTeam.members.length > 1) {
-      modal.confirm({
+      modal.warning({
         title: "Transfer Leadership Required",
-        content: "You are the Leader. You must transfer leadership to another member or disband the team before leaving.",
-        okText: "Disband Team",
-        cancelText: "Cancel",
-        onOk: () => {
-          localStorage.removeItem(`myTeam_${currentUser.email}`);
-          setMyTeam(null);
-          message.success("Team disbanded successfully.");
-        }
+        content: "You are the Leader. Please promote another member to Leader first before you leave.",
+        okText: "Understood",
       });
     } else {
       modal.confirm({
-        title: "Leave Team",
-        content: "Are you sure you want to leave this team?",
+        title: isLeader ? "Disband Team" : "Leave Team",
+        content: isLeader ? "You are the only member left. Leaving will delete the team. Are you sure?" : "Are you sure you want to leave this team?",
+        okText: isLeader ? "Disband" : "Leave",
+        okType: "danger",
         onOk: () => {
-          localStorage.removeItem(`myTeam_${currentUser.email}`);
-          setMyTeam(null);
-          message.success("You have left the team.");
+          if (isLeader) {
+            localStorage.removeItem(`myTeam_${currentUser.email}`);
+            setMyTeam(null);
+            message.success("Team disbanded.");
+          } else {
+            const updatedMembers = myTeam.members.filter((m:any) => m.email !== currentUser.email);
+            saveTeam({ ...myTeam, members: updatedMembers });
+            localStorage.removeItem(`myTeam_${currentUser.email}`); // Remove my association
+            setMyTeam(null);
+            message.success("You have left the team.");
+          }
         }
       });
     }
@@ -172,14 +207,14 @@ export default function TeamsPage() {
       if (isAccepted) {
         if (isLeader) {
           notification.success({
-            message: "Invitation Accepted!",
+            title: "Invitation Accepted!",
             description: `${target} has accepted your invitation and joined the team!`,
             duration: 5,
             placement: "topRight"
           });
         } else {
           notification.info({
-            message: "Chờ phê duyệt",
+            title: "Chờ phê duyệt",
             description: `${target} đã đồng ý tham gia! Đang chờ Trưởng nhóm phê duyệt.`,
             duration: 6,
             placement: "topRight"
@@ -200,7 +235,7 @@ export default function TeamsPage() {
         const reasons = ["I'm in another team.", "I'm busy.", "Skills don't match."];
         const reason = reasons[Math.floor(Math.random() * reasons.length)];
         notification.error({
-          message: "Invitation Declined",
+          title: "Invitation Declined",
           description: `${target} declined. Reason: "${reason}"`,
           duration: 7,
           placement: "topRight"
@@ -213,7 +248,7 @@ export default function TeamsPage() {
   const handleSOSMentor = () => {
     const hasMentor = myTeam.members.some((m: any) => m.role.includes("Mentor"));
     if (hasMentor) {
-      message.error("Mỗi nhóm chỉ có thể kêu gọi 1 Mentor duy nhất!");
+      message.error("Your team already has a mentor! You can only request 1 SOS Mentor.");
       return;
     }
     message.loading({ content: "Broadcasting SOS to all available mentors...", key: "sos" });
@@ -289,7 +324,12 @@ export default function TeamsPage() {
                 <div key={t.id} style={{ padding: "1rem", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <h4 style={{ margin: "0 0 0.25rem 0", fontSize: "1.1rem" }}>{t.name} <span className="badge badge-neutral">{t.membersCount}/5 Members</span></h4>
-                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginBottom: "4px" }}>Track: <strong>{t.track}</strong></div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginBottom: "4px" }}>
+                      Track: <strong>{t.track}</strong>
+                      <span className={`badge ${t.joinMode === "auto" ? "badge-success" : "badge-warning"}`} style={{ marginLeft: "0.5rem" }}>
+                        {t.joinMode === "auto" ? "Auto-Accept" : "Requires Approval"}
+                      </span>
+                    </div>
                     <div style={{ fontSize: "0.8rem", color: "#10b981" }}>Looking for: {t.lookingFor.join(", ")}</div>
                   </div>
                   <button className="btn btn-primary btn-sm" onClick={() => handleRequestJoin(t)}><UserPlus size={14} /> Request to Join</button>
@@ -385,9 +425,16 @@ export default function TeamsPage() {
                           </div>
                         )}
                         {m.email !== currentUser.email && m.status !== "pending_approval" && (
-                          <button className="btn btn-ghost danger btn-sm" onClick={() => handleKick(m.email)}>
-                            Kick
-                          </button>
+                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                            {!m.role.includes("Mentor") && (
+                              <button className="btn btn-secondary btn-sm" onClick={() => handlePromote(m.email, m.name)}>
+                                Promote to Leader
+                              </button>
+                            )}
+                            <button className="btn btn-ghost danger btn-sm" onClick={() => handleKick(m.email, m.name)}>
+                              Kick
+                            </button>
+                          </div>
                         )}
                       </td>
                     )}

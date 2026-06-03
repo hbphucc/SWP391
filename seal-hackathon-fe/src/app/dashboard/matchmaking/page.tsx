@@ -66,14 +66,14 @@ export default function MatchmakingPage() {
       if (isAccepted) {
         if (isLeader) {
           notification.success({
-            message: "Lời mời được chấp nhận!",
+            title: "Lời mời được chấp nhận!",
             description: `${targetUser.name} đã vô nhóm thành công!`,
             duration: 5,
             placement: "topRight"
           });
         } else {
           notification.info({
-            message: "Chờ phê duyệt",
+            title: "Chờ phê duyệt",
             description: `${targetUser.name} đã đồng ý tham gia! Đang chờ Trưởng nhóm phê duyệt.`,
             duration: 6,
             placement: "topRight"
@@ -101,7 +101,7 @@ export default function MatchmakingPage() {
         const reason = reasons[Math.floor(Math.random() * reasons.length)];
         
         notification.error({
-          message: "Lời mời bị từ chối",
+          title: "Lời mời bị từ chối",
           description: `${targetUser.name} đã từ chối lời mời. (Lý do: ${reason})`,
           duration: 7,
           placement: "topRight"

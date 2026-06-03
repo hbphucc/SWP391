@@ -55,18 +55,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   return parseResponse<T>(response);
 }
 
-export function toCurrentUser(user: {
-  id: string;
-  fullName?: string;
-  name?: string;
-  email: string;
-  roles?: string[];
-  role?: string;
-}): CurrentUser {
+export function toCurrentUser(user: any): CurrentUser {
   const roles = user.roles?.length ? user.roles : [user.role ?? "Member"];
   const fullName = user.fullName ?? user.name ?? user.email;
 
   return {
+    ...user,
     id: user.id,
     name: fullName,
     fullName,
@@ -79,11 +73,13 @@ export function toCurrentUser(user: {
 export function saveAuthSession(
   payload: {
     token: string;
+    expiration?: string;
     user: {
       id: string;
       fullName: string;
       email: string;
       roles: string[];
+      [key: string]: any;
     };
   },
   remember: boolean,

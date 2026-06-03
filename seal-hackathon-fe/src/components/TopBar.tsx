@@ -1,11 +1,11 @@
 "use client";
 import { useState, useRef, useEffect, useContext } from "react";
-import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, RefreshCw, Key } from "lucide-react";
+import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, RefreshCw, Key, Languages } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./TopBar.module.css";
 import Link from "next/link";
 import { ThemeContext } from "./ThemeProvider";
-import { App, Modal, Input } from "antd";
+import { App, Modal, Input, Dropdown } from "antd";
 import { clearAuthSession } from "@/lib/api";
 
 const DEFAULT_NOTIFS = [
@@ -136,7 +136,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       results.push({ type: "Track", title: "AI/ML Track", link: "/dashboard/tracks" });
     }
     if (results.length === 0) {
-      results.push({ type: "Search", title: `Search for "${q}"`, link: "#" });
+      results.push({ type: "Empty", title: `Không tìm thấy dữ liệu cho "${q}"`, link: "#" });
     }
     
     setSearchResults(results);
@@ -167,6 +167,51 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     router.push("/auth/login");
   };
 
+  const [languages, setLanguages] = useState<any[]>([
+    { key: "vi", label: "Tiếng Việt" },
+    { key: "en", label: "English" }
+  ]);
+
+  useEffect(() => {
+    // Dynamically extract all languages from Google Translate widget
+    const extractLanguages = () => {
+      const select = document.querySelector(".goog-te-combo") as HTMLSelectElement;
+      if (select && select.options.length > 0) {
+        const langArray = Array.from(select.options)
+          .filter(opt => opt.value !== "")
+          .map(opt => ({
+            key: opt.value,
+            label: opt.text,
+            onClick: () => changeLanguage(opt.value)
+          }));
+        
+        if (langArray.length > 0) {
+          setLanguages(langArray);
+          return true; // Success
+        }
+      }
+      return false; // Not loaded yet
+    };
+
+    // Try extracting immediately, if fail, try every 1s until success
+    if (!extractLanguages()) {
+      const interval = setInterval(() => {
+        if (extractLanguages()) {
+          clearInterval(interval);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
+  const changeLanguage = (langCode: string) => {
+    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement;
+    if (select) {
+      select.value = langCode;
+      select.dispatchEvent(new Event("change"));
+    }
+  };
+
   return (
     <header
       className={styles.topbar}
@@ -187,10 +232,16 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
           {searchResults.length > 0 && (
             <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', marginTop: '8px', zIndex: 100 }}>
               {searchResults.map((res, i) => (
-                <Link key={i} href={res.link} className="dropdown-item" onClick={() => { setSearchResults([]); setSearchQuery(""); }}>
-                  <span style={{ fontSize: '0.7rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>{res.type}</span>
-                  {res.title}
-                </Link>
+                res.type === "Empty" ? (
+                  <div key={i} className="dropdown-item" style={{ color: 'var(--color-text-3)', cursor: 'default' }}>
+                    {res.title}
+                  </div>
+                ) : (
+                  <Link key={i} href={res.link} className="dropdown-item" onClick={() => { setSearchResults([]); setSearchQuery(""); }}>
+                    <span style={{ fontSize: '0.7rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>{res.type}</span>
+                    {res.title}
+                  </Link>
+                )
               ))}
             </div>
           )}
@@ -198,6 +249,16 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       </div>
 
       <div className={styles.right}>
+        {/* Google Translate Hidden Widget Container */}
+        <div id="google_translate_element" style={{ opacity: 0, position: "absolute", zIndex: -1, pointerEvents: "none" }}></div>
+        
+        {/* Custom Language Dropdown */}
+        <Dropdown menu={{ items: languages, style: { maxHeight: "400px", overflowY: "auto" } }} placement="bottomRight" trigger={['click']}>
+          <button className={styles.iconBtn} title="Change language">
+            <Languages size={18} />
+          </button>
+        </Dropdown>
+        
         {/* Theme toggle */}
         <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle theme">
           {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
