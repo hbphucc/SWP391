@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.Models.Enums;
 using SEAL.NET.DTOs.Team;
+using SEAL.NET.Services.Interfaces;
+using System.Security.Claims;
 
 namespace SEAL.NET.Controllers
 {
@@ -13,10 +15,23 @@ namespace SEAL.NET.Controllers
     public class AdminTeamsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notificationService;
+        private readonly IAuditLogService _auditLogService;
 
-        public AdminTeamsController(ApplicationDbContext context)
+        public AdminTeamsController(
+            ApplicationDbContext context,
+            INotificationService notificationService,
+            IAuditLogService auditLogService)
         {
             _context = context;
+            _notificationService = notificationService;
+            _auditLogService = auditLogService;
+        }
+
+        private Guid? GetActorUserId()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(userId, out var parsed) ? parsed : null;
         }
 
         [HttpGet]
@@ -71,6 +86,17 @@ namespace SEAL.NET.Controllers
             team.Status = TeamStatus.Approved;
 
             await _context.SaveChangesAsync();
+            await _notificationService.CreateForUsersAsync(
+                team.Members.Select(m => m.UserId),
+                "Team approved",
+                $"Team {team.TeamName} has been approved.",
+                "team");
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "approve_team",
+                "Team",
+                team.TeamId.ToString(),
+                $"Approved team {team.TeamName}.");
 
             return Ok(new { message = "Team approved successfully." });
         }
@@ -78,7 +104,9 @@ namespace SEAL.NET.Controllers
         [HttpPut("{teamId}/reject")]
         public async Task<IActionResult> RejectTeam(Guid teamId)
         {
-            var team = await _context.Teams.FindAsync(teamId);
+            var team = await _context.Teams
+                .Include(t => t.Members)
+                .FirstOrDefaultAsync(t => t.TeamId == teamId);
 
             if (team == null)
                 return NotFound(new { message = "Team not found." });
@@ -86,6 +114,17 @@ namespace SEAL.NET.Controllers
             team.Status = TeamStatus.Eliminated;
 
             await _context.SaveChangesAsync();
+            await _notificationService.CreateForUsersAsync(
+                team.Members.Select(m => m.UserId),
+                "Team rejected",
+                $"Team {team.TeamName} was rejected.",
+                "team");
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "reject_team",
+                "Team",
+                team.TeamId.ToString(),
+                $"Rejected team {team.TeamName}.");
 
             return Ok(new { message = "Team rejected successfully." });
         }
@@ -95,6 +134,7 @@ namespace SEAL.NET.Controllers
             var team = await _context.Teams
                 .Include(t => t.Category)
                 .Include(t => t.CurrentRound)
+                .Include(t => t.Members)
                 .FirstOrDefaultAsync(t => t.TeamId == teamId);
 
             if (team == null)
@@ -108,6 +148,17 @@ namespace SEAL.NET.Controllers
             team.EliminatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            await _notificationService.CreateForUsersAsync(
+                team.Members.Select(m => m.UserId),
+                "Team eliminated",
+                $"Team {team.TeamName} was eliminated. Reason: {request.Reason}",
+                "team");
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "eliminate_team",
+                "Team",
+                team.TeamId.ToString(),
+                $"Eliminated team {team.TeamName}. Reason: {request.Reason}");
 
             return Ok(new
             {

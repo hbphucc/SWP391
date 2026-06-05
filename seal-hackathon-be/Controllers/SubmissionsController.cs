@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
@@ -158,6 +158,75 @@ namespace SEAL.NET.Controllers
                 .ToListAsync();
 
             return Ok(submissions);
+        }
+
+        [HttpGet("scoring-queue")]
+        [Authorize(Roles = "Admin,Judge")]
+        public async Task<IActionResult> GetScoringQueue()
+        {
+            var userId = GetCurrentUserId();
+            var isAdmin = User.IsInRole("Admin");
+
+            IQueryable<Submission> query = _context.Submissions;
+
+            if (!isAdmin)
+            {
+                var assignments = await _context.JudgeAssignments
+                    .Where(a => a.JudgeId == userId)
+                    .ToListAsync();
+
+                var roundIds = assignments.Select(a => a.RoundId).ToList();
+                var categoryIds = assignments.Select(a => a.CategoryId).ToList();
+
+                query = query.Where(s =>
+                    roundIds.Contains(s.RoundId) &&
+                    categoryIds.Contains(s.Team!.CategoryId));
+            }
+
+            var submissions = await query
+                .Include(s => s.Team)
+                    .ThenInclude(t => t.Category)
+                .Include(s => s.Round)
+                .ToListAsync();
+
+            var submissionIds = submissions.Select(s => s.SubmissionId).ToList();
+
+            var userScores = await _context.Scores
+                .Where(s => submissionIds.Contains(s.SubmissionId) && s.JudgeId == userId)
+                .ToListAsync();
+
+            var result = submissions.Select(s =>
+            {
+                var scoresForSub = userScores.Where(sc => sc.SubmissionId == s.SubmissionId).ToList();
+                var status = "pending";
+                if (scoresForSub.Any())
+                {
+                    status = scoresForSub.All(sc => sc.IsLocked) ? "locked" : "scored";
+                }
+
+                return new
+                {
+                    s.SubmissionId,
+                    s.RepositoryUrl,
+                    s.DemoUrl,
+                    s.SlideUrl,
+                    s.SubmittedAt,
+                    status,
+                    team = new
+                    {
+                        s.Team!.TeamId,
+                        s.Team.TeamName,
+                        category = s.Team.Category!.CategoryName
+                    },
+                    round = new
+                    {
+                        s.Round!.RoundId,
+                        s.Round.RoundName
+                    }
+                };
+            }).ToList();
+
+            return Ok(result);
         }
     }
 }

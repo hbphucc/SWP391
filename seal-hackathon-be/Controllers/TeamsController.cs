@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +6,7 @@ using SEAL.NET.Data;
 using SEAL.NET.DTOs.Team;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Models.Enums;
+using SEAL.NET.Services.Interfaces;
 using System.Security.Claims;
 
 namespace SEAL.NET.Controllers
@@ -17,19 +18,96 @@ namespace SEAL.NET.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly INotificationService _notificationService;
 
         public TeamsController(
             ApplicationDbContext context,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            INotificationService notificationService)
         {
             _context = context;
             _userManager = userManager;
+            _notificationService = notificationService;
         }
 
-        private Guid GetCurrentUserId()
+        private Guid? TryGetCurrentUserId()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return Guid.Parse(userId!);
+            var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(raw, out var id) ? id : null;
+        }
+
+        private Guid GetCurrentUserId() => TryGetCurrentUserId() ?? Guid.Empty;
+
+        private async Task<Team?> GetCurrentUserTeamAsync(Guid userId)
+        {
+            return await _context.TeamMembers
+                .Where(tm => tm.UserId == userId)
+                .Include(tm => tm.Team!)
+                    .ThenInclude(t => t.Category)
+                .Include(tm => tm.Team!)
+                    .ThenInclude(t => t.CurrentRound)
+                .Include(tm => tm.Team!)
+                    .ThenInclude(t => t.Members)
+                        .ThenInclude(m => m.User)
+                .Select(tm => tm.Team)
+                .FirstOrDefaultAsync();
+        }
+
+        private async Task<ApplicationUser?> FindUserByStudentCodeOrEmailAsync(string studentCodeOrEmail)
+        {
+            var normalized = studentCodeOrEmail.Trim().ToLower();
+
+            var matches = await _context.Users
+                .Where(u =>
+                (u.StudentCode != null && u.StudentCode.ToLower() == normalized) ||
+                (u.Email != null && u.Email.ToLower() == normalized))
+                .Take(2)
+                .ToListAsync();
+
+            if (matches.Count > 1)
+                throw new InvalidOperationException("More than one user matches this student code or email. Please contact an administrator.");
+
+            return matches.FirstOrDefault();
+        }
+
+        private async Task<IActionResult?> ValidateCanAddMemberAsync(Team team, Guid currentUserId, ApplicationUser user)
+        {
+            if (team.LeaderId != currentUserId)
+                return Forbid();
+
+            if (team.Status != TeamStatus.Pending)
+                return BadRequest(new { message = "Cannot modify members after team approval." });
+
+            if (team.Members.Count >= 5)
+                return BadRequest(new { message = "A team can have maximum 5 members." });
+
+            if (user.Id == currentUserId)
+                return BadRequest(new { message = "You cannot add yourself to your own team." });
+
+            if (!user.IsApproved)
+                return BadRequest(new { message = "This user's account is disabled or not allowed to access." });
+
+            var alreadyInTeam = team.Members.Any(m => m.UserId == user.Id);
+            if (alreadyInTeam)
+                return BadRequest(new { message = "User is already in this team." });
+
+            var eventId = team.Category!.EventId;
+
+            var categoryIdsInSameEvent = await _context.Categories
+                .Where(c => c.EventId == eventId)
+                .Select(c => c.CategoryId)
+                .ToListAsync();
+
+            var alreadyJoinedEvent = await _context.TeamMembers
+                .Include(tm => tm.Team)
+                .AnyAsync(tm =>
+                    tm.UserId == user.Id &&
+                    categoryIdsInSameEvent.Contains(tm.Team!.CategoryId));
+
+            if (alreadyJoinedEvent)
+                return BadRequest(new { message = "User already joined another team in this event." });
+
+            return null;
         }
 
         [HttpPost]
@@ -43,7 +121,7 @@ namespace SEAL.NET.Controllers
                 return Unauthorized(new { message = "User not found." });
 
             if (!leader.IsApproved)
-                return BadRequest(new { message = "Your account has not been approved yet." });
+                return BadRequest(new { message = "Your account is disabled or not allowed to access." });
 
             var category = await _context.Categories
                 .Include(c => c.Event)
@@ -54,7 +132,32 @@ namespace SEAL.NET.Controllers
 
             var eventId = category.EventId;
 
+            var memberIdsFromCodes = new List<Guid>();
+            var memberCodes = request.MemberStudentCodesOrEmails
+                .Concat(request.MemberStudentCodes)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var memberCode in memberCodes)
+            {
+                ApplicationUser? member;
+                try
+                {
+                    member = await FindUserByStudentCodeOrEmailAsync(memberCode);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return BadRequest(new { message = ex.Message });
+                }
+
+                if (member == null)
+                    return BadRequest(new { message = $"No active user found for student code or email: {memberCode}." });
+
+                memberIdsFromCodes.Add(member.Id);
+            }
+
             var allMemberIds = request.MemberIds
+                .Concat(memberIdsFromCodes)
                 .Append(leaderId)
                 .Distinct()
                 .ToList();
@@ -78,7 +181,7 @@ namespace SEAL.NET.Controllers
             if (unapprovedUsers.Any())
                 return BadRequest(new
                 {
-                    message = "One or more members have not been approved.",
+                    message = "One or more members' accounts are disabled or not allowed to access.",
                     users = unapprovedUsers
                 });
 
@@ -156,17 +259,7 @@ namespace SEAL.NET.Controllers
         {
             var userId = GetCurrentUserId();
 
-            var team = await _context.TeamMembers
-                .Where(tm => tm.UserId == userId)
-                .Include(tm => tm.Team!)
-                    .ThenInclude(t => t.Category)
-                .Include(tm => tm.Team!)
-                    .ThenInclude(t => t.CurrentRound)
-                .Include(tm => tm.Team!)
-                    .ThenInclude(t => t.Members)
-                        .ThenInclude(m => m.User)
-                .Select(tm => tm.Team)
-                .FirstOrDefaultAsync();
+            var team = await GetCurrentUserTeamAsync(userId);
 
             if (team == null)
                 return NotFound(new { message = "You have not joined any team yet." });
@@ -191,9 +284,213 @@ namespace SEAL.NET.Controllers
                 {
                     m.UserId,
                     m.User!.FullName,
-                    m.User.Email
+                    m.User.Email,
+                    m.User.StudentCode,
+                    m.Role
                 })
             });
+        }
+
+        [HttpPost("my-team/members")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> AddMemberToMyTeam([FromBody] AddTeamMemberByStudentCodeRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            var team = await GetCurrentUserTeamAsync(currentUserId);
+
+            if (team == null)
+                return NotFound(new { message = "You have not joined any team yet." });
+
+            ApplicationUser? user;
+            try
+            {
+                user = await FindUserByStudentCodeOrEmailAsync(request.StudentCodeOrEmail);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+
+            if (user == null)
+                return NotFound(new { message = "No active user found for that student code or email." });
+
+            var validationResult = await ValidateCanAddMemberAsync(team, currentUserId, user);
+            if (validationResult != null)
+                return validationResult;
+
+            _context.TeamMembers.Add(new TeamMember
+            {
+                TeamId = team.TeamId,
+                UserId = user.Id,
+                Role = "Member"
+            });
+
+            await _context.SaveChangesAsync();
+            await _notificationService.CreateAsync(
+                user.Id,
+                "Added to team",
+                $"You were added to team {team.TeamName}.",
+                "team");
+
+            return Ok(new { message = "Member added successfully." });
+        }
+
+        [HttpDelete("my-team/members/{studentCode}")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> RemoveMemberFromMyTeam(string studentCode)
+        {
+            var currentUserId = GetCurrentUserId();
+            var team = await GetCurrentUserTeamAsync(currentUserId);
+
+            if (team == null)
+                return NotFound(new { message = "You have not joined any team yet." });
+
+            if (team.LeaderId != currentUserId)
+                return Forbid();
+
+            if (team.Status != TeamStatus.Pending)
+                return BadRequest(new { message = "Cannot modify members after team approval." });
+
+            ApplicationUser? user;
+            try
+            {
+                user = await FindUserByStudentCodeOrEmailAsync(studentCode);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            if (team.LeaderId == user.Id)
+                return BadRequest(new { message = "Leader cannot be removed from the team." });
+
+            var member = team.Members.FirstOrDefault(m => m.UserId == user.Id);
+            if (member == null)
+                return NotFound(new { message = "Member not found in this team." });
+
+            _context.TeamMembers.Remove(member);
+            await _context.SaveChangesAsync();
+            await _notificationService.CreateAsync(
+                user.Id,
+                "Removed from team",
+                $"You were removed from team {team.TeamName}.",
+                "team");
+
+            return Ok(new { message = "Member removed successfully." });
+        }
+
+        [HttpPost("leave")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> LeaveTeam()
+        {
+            var currentUserId = GetCurrentUserId();
+            var team = await GetCurrentUserTeamAsync(currentUserId);
+
+            if (team == null)
+                return NotFound(new { message = "You have not joined any team yet." });
+
+            if (team.LeaderId == currentUserId && team.Members.Count > 1)
+                return BadRequest(new { message = "Team leader must transfer leadership or remove other members before leaving." });
+
+            var membership = team.Members.FirstOrDefault(m => m.UserId == currentUserId);
+            if (membership == null)
+                return NotFound(new { message = "Team membership not found." });
+
+            if (team.LeaderId == currentUserId && team.Members.Count == 1)
+            {
+                _context.Teams.Remove(team);
+            }
+            else
+            {
+                _context.TeamMembers.Remove(membership);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "You have left the team." });
+        }
+
+        [HttpPut("my-team")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> UpdateMyTeam([FromBody] UpdateMyTeamRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            var team = await GetCurrentUserTeamAsync(currentUserId);
+
+            if (team == null)
+                return NotFound(new { message = "You have not joined any team yet." });
+
+            if (team.LeaderId != currentUserId)
+                return Forbid();
+
+            if (team.Status != TeamStatus.Pending)
+                return BadRequest(new { message = "Cannot modify team after approval." });
+
+            var duplicateTeamName = await _context.Teams.AnyAsync(t =>
+                t.TeamId != team.TeamId &&
+                t.CategoryId == team.CategoryId &&
+                t.TeamName.ToLower() == request.TeamName.ToLower());
+
+            if (duplicateTeamName)
+                return BadRequest(new { message = "Team name already exists in this category." });
+
+            team.TeamName = request.TeamName.Trim();
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Team updated successfully." });
+        }
+
+        [HttpPut("transfer-leader")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> TransferLeader([FromBody] TransferLeaderRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            var team = await GetCurrentUserTeamAsync(currentUserId);
+
+            if (team == null)
+                return NotFound(new { message = "You have not joined any team yet." });
+
+            if (team.LeaderId != currentUserId)
+                return Forbid();
+
+            if (team.Status != TeamStatus.Pending)
+                return BadRequest(new { message = "Cannot transfer leader after team approval." });
+
+            ApplicationUser? newLeader;
+            try
+            {
+                newLeader = await FindUserByStudentCodeOrEmailAsync(request.NewLeaderStudentCodeOrEmail);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+
+            if (newLeader == null)
+                return NotFound(new { message = "No team member found for that student code or email." });
+
+            var newLeaderMembership = team.Members.FirstOrDefault(m => m.UserId == newLeader.Id);
+            if (newLeaderMembership == null)
+                return BadRequest(new { message = "New leader must be an existing team member." });
+
+            var currentLeaderMembership = team.Members.FirstOrDefault(m => m.UserId == currentUserId);
+            if (currentLeaderMembership != null)
+                currentLeaderMembership.Role = "Member";
+
+            newLeaderMembership.Role = "Leader";
+            team.LeaderId = newLeader.Id;
+
+            await _context.SaveChangesAsync();
+            await _notificationService.CreateAsync(
+                newLeader.Id,
+                "Team leadership transferred",
+                $"You are now the leader of team {team.TeamName}.",
+                "team");
+
+            return Ok(new { message = "Team leader transferred successfully." });
         }
 
         [HttpPost("{teamId}/members")]
@@ -210,41 +507,13 @@ namespace SEAL.NET.Controllers
             if (team == null)
                 return NotFound(new { message = "Team not found." });
 
-            if (team.LeaderId != currentUserId)
-                return Forbid();
-
-            if (team.Status != TeamStatus.Pending)
-                return BadRequest(new { message = "Cannot modify members after team approval." });
-
-            if (team.Members.Count >= 5)
-                return BadRequest(new { message = "A team can have maximum 5 members." });
-
             var user = await _userManager.FindByIdAsync(request.UserId.ToString());
             if (user == null)
                 return NotFound(new { message = "User not found." });
 
-            if (!user.IsApproved)
-                return BadRequest(new { message = "This user has not been approved yet." });
-
-            var alreadyInTeam = team.Members.Any(m => m.UserId == request.UserId);
-            if (alreadyInTeam)
-                return BadRequest(new { message = "User is already in this team." });
-
-            var eventId = team.Category!.EventId;
-
-            var categoryIdsInSameEvent = await _context.Categories
-                .Where(c => c.EventId == eventId)
-                .Select(c => c.CategoryId)
-                .ToListAsync();
-
-            var alreadyJoinedEvent = await _context.TeamMembers
-                .Include(tm => tm.Team)
-                .AnyAsync(tm =>
-                    tm.UserId == request.UserId &&
-                    categoryIdsInSameEvent.Contains(tm.Team!.CategoryId));
-
-            if (alreadyJoinedEvent)
-                return BadRequest(new { message = "User already joined another team in this event." });
+            var validationResult = await ValidateCanAddMemberAsync(team, currentUserId, user);
+            if (validationResult != null)
+                return validationResult;
 
             _context.TeamMembers.Add(new TeamMember
             {
@@ -254,6 +523,11 @@ namespace SEAL.NET.Controllers
             });
 
             await _context.SaveChangesAsync();
+            await _notificationService.CreateAsync(
+                user.Id,
+                "Added to team",
+                $"You were added to team {team.TeamName}.",
+                "team");
 
             return Ok(new { message = "Member added successfully." });
         }
@@ -286,8 +560,76 @@ namespace SEAL.NET.Controllers
 
             _context.TeamMembers.Remove(member);
             await _context.SaveChangesAsync();
+            await _notificationService.CreateAsync(
+                userId,
+                "Removed from team",
+                $"You were removed from team {team.TeamName}.",
+                "team");
 
             return Ok(new { message = "Member removed successfully." });
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetTeamById(Guid id)
+        {
+            var userId = GetCurrentUserId();
+            var isAdminOrJudgeOrMentor = User.IsInRole("Admin") || User.IsInRole("Judge") || User.IsInRole("Mentor");
+
+            var team = await _context.Teams
+                .Include(t => t.Category)
+                    .ThenInclude(c => c.Event)
+                .Include(t => t.CurrentRound)
+                .Include(t => t.Members)
+                    .ThenInclude(m => m.User)
+                .Include(t => t.Submissions)
+                    .ThenInclude(s => s.Round)
+                .FirstOrDefaultAsync(t => t.TeamId == id);
+
+            if (team == null)
+                return NotFound(new { message = "Team not found." });
+
+            var isMember = team.Members.Any(m => m.UserId == userId);
+            if (!isMember && !isAdminOrJudgeOrMentor)
+                return Forbid();
+
+            return Ok(new
+            {
+                team.TeamId,
+                team.TeamName,
+                status = team.Status.ToString(),
+                registeredAt = team.CreatedAt.ToString("MMM dd, yyyy"),
+                category = new
+                {
+                    team.Category!.CategoryId,
+                    team.Category.CategoryName,
+                    eventId = team.Category.EventId,
+                    eventName = team.Category.Event!.EventName
+                },
+                currentRound = team.CurrentRound == null ? null : new
+                {
+                    team.CurrentRound.RoundId,
+                    team.CurrentRound.RoundName
+                },
+                members = team.Members.Select(m => new
+                {
+                    id = m.UserId,
+                    name = m.User!.FullName,
+                    email = m.User.Email,
+                    role = m.Role,
+                    studentCode = m.User.StudentCode,
+                    schoolName = m.User.SchoolName,
+                    joined = m.User.CreatedAt.ToString("MMM dd")
+                }),
+                submissions = team.Submissions.Select(s => new
+                {
+                    s.SubmissionId,
+                    s.RepositoryUrl,
+                    s.DemoUrl,
+                    s.SlideUrl,
+                    s.SubmittedAt,
+                    roundName = s.Round!.RoundName
+                })
+            });
         }
     }
 }

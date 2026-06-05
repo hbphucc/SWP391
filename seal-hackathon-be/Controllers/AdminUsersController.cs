@@ -1,9 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SEAL.NET.DTOs.User;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Services.Interfaces;
+using System.Security.Claims;
 
 namespace SEAL.NET.Controllers
 {
@@ -14,6 +16,8 @@ namespace SEAL.NET.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole<Guid>> _roleManager;
+        private readonly INotificationService _notificationService;
+        private readonly IAuditLogService _auditLogService;
 
         private static readonly string[] AllowedRoles =
         {
@@ -26,10 +30,20 @@ namespace SEAL.NET.Controllers
 
         public AdminUsersController(
             UserManager<ApplicationUser> userManager,
-            RoleManager<IdentityRole<Guid>> roleManager)
+            RoleManager<IdentityRole<Guid>> roleManager,
+            INotificationService notificationService,
+            IAuditLogService auditLogService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _notificationService = notificationService;
+            _auditLogService = auditLogService;
+        }
+
+        private Guid? GetActorUserId()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(userId, out var parsed) ? parsed : null;
         }
 
         [HttpGet]
@@ -107,6 +121,18 @@ namespace SEAL.NET.Controllers
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
+            await _notificationService.CreateAsync(
+                user.Id,
+                "Account approved",
+                "Your SEAL account has been approved. You can now sign in.",
+                "account");
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "approve_user",
+                "User",
+                user.Id.ToString(),
+                $"Approved user {user.Email}.");
+
             return Ok(new { message = "User approved successfully." });
         }
 
@@ -124,6 +150,18 @@ namespace SEAL.NET.Controllers
 
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
+
+            await _notificationService.CreateAsync(
+                user.Id,
+                "Account rejected",
+                "Your SEAL account approval was rejected.",
+                "account");
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "reject_user",
+                "User",
+                user.Id.ToString(),
+                $"Rejected user {user.Email}.");
 
             return Ok(new { message = "User rejected successfully." });
         }
@@ -157,6 +195,13 @@ namespace SEAL.NET.Controllers
             if (!addResult.Succeeded)
                 return BadRequest(addResult.Errors);
 
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "update_user_role",
+                "User",
+                user.Id.ToString(),
+                $"Updated user {user.Email} role to {request.Role}.");
+
             return Ok(new
             {
                 message = "User role updated successfully.",
@@ -184,6 +229,49 @@ namespace SEAL.NET.Controllers
                 return BadRequest(result.Errors);
 
             return Ok(new { message = "User deleted successfully." });
+        }
+
+        [HttpPost("create-judge")]
+        public async Task<IActionResult> CreateGuestJudge([FromBody] CreateGuestJudgeRequest request)
+        {
+            var existing = await _userManager.FindByEmailAsync(request.Email);
+            if (existing != null)
+                return BadRequest(new { message = "Email is already in use." });
+
+            var user = new ApplicationUser
+            {
+                UserName = request.Email,
+                Email = request.Email,
+                FullName = request.Name,
+                SchoolName = request.Company,
+                IsApproved = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var tempPassword = "Judge@" + Guid.NewGuid().ToString("N").Substring(0, 8) + "1!";
+
+            var result = await _userManager.CreateAsync(user, tempPassword);
+            if (!result.Succeeded)
+                return BadRequest(result.Errors);
+
+            if (!await _roleManager.RoleExistsAsync("Judge"))
+                await _roleManager.CreateAsync(new IdentityRole<Guid>("Judge"));
+
+            await _userManager.AddToRoleAsync(user, "Judge");
+
+            await _auditLogService.LogAsync(
+                GetActorUserId(),
+                "create_guest_judge",
+                "User",
+                user.Id.ToString(),
+                $"Created guest judge {user.Email}.");
+
+            return Ok(new
+            {
+                message = "Guest judge account created successfully.",
+                email = user.Email,
+                password = tempPassword
+            });
         }
     }
 }

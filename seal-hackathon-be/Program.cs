@@ -30,6 +30,8 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 
 
 builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 
 builder.Services.AddAuthentication(options =>
@@ -73,8 +75,37 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var traceId = System.Diagnostics.Activity.Current?.Id ?? context.TraceIdentifier;
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
+        var env = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var response = new
+        {
+            message = env.IsDevelopment() ? ex.ToString() : "An unexpected error occurred. Please contact support.",
+            traceId = traceId
+        };
+
+        await context.Response.WriteAsJsonAsync(response);
+    }
+});
+
 using (var scope = app.Services.CreateScope())
 {
+    if (app.Environment.IsDevelopment())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+    }
+
     await DbSeeder.SeedRolesAndAdminAsync(scope.ServiceProvider);
 }
 
