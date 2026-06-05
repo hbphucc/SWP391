@@ -1,136 +1,112 @@
-﻿"use client";
-import { useState } from "react";
-import { FileText, Plus, Trash2, Edit2, Copy, Save } from "lucide-react";
-import { App, Table, Button, Modal, Form, Input, InputNumber, Tag } from "antd";
+"use client";
+import { useState, useEffect } from "react";
+import { FileText } from "lucide-react";
+import { App, Table, Tag } from "antd";
+import { apiRequest } from "@/lib/api";
 
-interface Criterion {
-  name: string;
+interface RoundDto {
+  roundId: string;
+  roundName: string;
+}
+
+interface EventDto {
+  eventId: string;
+  eventName: string;
+  rounds: RoundDto[];
+}
+
+interface CriteriaDto {
+  criteriaId: string;
+  criteriaName: string;
   weight: number;
+  maxScore: number;
+  roundId: string;
 }
 
-interface Template {
-  id: string;
-  name: string;
-  description: string;
-  criteria: Criterion[];
+interface CriteriaRow {
+  key: string;
+  event: string;
+  round: string;
+  criteria: CriteriaDto[];
 }
 
-export default function CriteriaTemplatesPage() {
+export default function CriteriaPage() {
   const { message } = App.useApp();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [templates] = useState<Template[]>([
-    {
-      id: "T1",
-      name: "SEAL Standard Hackathon",
-      description: "Default scoring rubric for general software engineering hackathons.",
-      criteria: [
-        { name: "Technical Implementation", weight: 30 },
-        { name: "Innovation & Creativity", weight: 25 },
-        { name: "Presentation & Demo", weight: 25 },
-        { name: "Code Quality", weight: 20 },
-      ]
-    },
-    {
-      id: "T2",
-      name: "AI & Machine Learning Track",
-      description: "Specialized rubric for AI models and data accuracy.",
-      criteria: [
-        { name: "Model Accuracy", weight: 35 },
-        { name: "Innovation", weight: 20 },
-        { name: "Real-world Application", weight: 25 },
-        { name: "Performance/Latency", weight: 20 },
-      ]
-    }
-  ]);
+  const [rows, setRows] = useState<CriteriaRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const events = await apiRequest<EventDto[]>("/Events", { auth: false });
+        const built: CriteriaRow[] = [];
 
-  const handleCreateOrUpdate = () => {
-    // Basic mock save
-    message.success(`Template ${editingTemplate ? "updated" : "created"} successfully!`);
-    setIsModalOpen(false);
-  };
+        await Promise.all(
+          events.flatMap((event) =>
+            (event.rounds ?? []).map(async (round) => {
+              try {
+                const criteria = await apiRequest<CriteriaDto[]>(`/rounds/${round.roundId}/criteria`, { auth: false });
+                if (criteria.length > 0) {
+                  built.push({
+                    key: round.roundId,
+                    event: event.eventName,
+                    round: round.roundName,
+                    criteria,
+                  });
+                }
+              } catch {
+                /* skip rounds whose criteria cannot be loaded */
+              }
+            }),
+          ),
+        );
+
+        setRows(built);
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Could not load criteria.");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [message]);
 
   const columns = [
-    { title: 'Template Name', dataIndex: 'name', key: 'name', render: (t: string) => <b>{t}</b> },
-    { title: 'Description', dataIndex: 'description', key: 'description' },
-    { 
-      title: 'Criteria breakdown', key: 'criteria', 
-      render: (_: unknown, record: Template) => (
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {record.criteria.map((c: Criterion, i: number) => (
-            <Tag key={i} color="blue">{c.name} ({c.weight}%)</Tag>
+    { title: "Event", dataIndex: "event", key: "event", render: (t: string) => <b>{t}</b> },
+    { title: "Round", dataIndex: "round", key: "round" },
+    {
+      title: "Criteria breakdown",
+      key: "criteria",
+      render: (_: unknown, record: CriteriaRow) => (
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+          {record.criteria.map((c) => (
+            <Tag key={c.criteriaId} color="blue">{c.criteriaName} ({c.weight}%)</Tag>
           ))}
         </div>
-      ) 
+      ),
     },
-    {
-      title: 'Action', key: 'action', render: (_: unknown, record: Template) => (
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Button size="small" onClick={() => { setEditingTemplate(record); setIsModalOpen(true); }} icon={<Edit2 size={14} />} />
-          <Button size="small" icon={<Copy size={14} />} onClick={() => message.success("Template cloned!")} />
-          <Button size="small" danger icon={<Trash2 size={14} />} />
-        </div>
-      )
-    }
   ];
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h1 className="page-title"><FileText size={28} /> Scoring Criteria Templates</h1>
-          <p className="page-subtitle">Manage reusable grading rubrics for events</p>
+          <h1 className="page-title"><FileText size={28} /> Scoring Criteria</h1>
+          <p className="page-subtitle">Grading rubric configured per event round</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setEditingTemplate(null); setIsModalOpen(true); }}>
-          <Plus size={16} /> New Template
-        </button>
       </div>
 
       <div className="card">
-        <Table dataSource={templates} columns={columns} rowKey="id" pagination={false} />
+        <Table
+          dataSource={rows}
+          columns={columns}
+          rowKey="key"
+          loading={loading}
+          pagination={false}
+          locale={{ emptyText: loading ? "Loading criteria…" : "No criteria configured yet. Add criteria when creating an event." }}
+        />
       </div>
-
-      <Modal 
-        title={editingTemplate ? "Edit Template" : "Create New Template"}
-        open={isModalOpen} 
-        onCancel={() => setIsModalOpen(false)}
-        footer={null}
-        width={600}
-      >
-        <Form layout="vertical" onFinish={handleCreateOrUpdate} initialValues={editingTemplate || {}}>
-          <Form.Item name="name" label="Template Name" rules={[{ required: true }]}>
-            <Input placeholder="e.g. Standard Hackathon Rubric" />
-          </Form.Item>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={2} placeholder="Brief description of when to use this template" />
-          </Form.Item>
-          
-          <div style={{ background: "rgba(15,23,42,0.5)", padding: 16, borderRadius: 8, marginBottom: 20 }}>
-            <h4 style={{ marginBottom: 10 }}>Criteria List</h4>
-            <p style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginBottom: 10 }}>
-              (Mock view: In a real scenario, you would dynamically add/remove criteria rows here)
-            </p>
-            {editingTemplate ? editingTemplate.criteria.map((c: Criterion, i: number) => (
-              <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center' }}>
-                <Input value={c.name} style={{ flex: 1 }} readOnly />
-                <InputNumber value={c.weight} readOnly style={{ width: 80 }} />
-                <span style={{ color: "var(--color-text-2)" }}>%</span>
-              </div>
-            )) : (
-              <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center' }}>
-                <Input placeholder="Criterion Name" style={{ flex: 1 }} />
-                <InputNumber placeholder="Weight" style={{ width: 80 }} />
-                <span style={{ color: "var(--color-text-2)" }}>%</span>
-              </div>
-            )}
-          </div>
-
-          <Button type="primary" htmlType="submit" icon={<Save size={16} />} block>
-            Save Template
-          </Button>
-        </Form>
-      </Modal>
     </div>
   );
 }
