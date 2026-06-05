@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { App } from "antd";
-import { ArrowRight, CheckCircle, KeyRound, Lock, Mail, Trophy } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle, KeyRound, Lock, Mail, Trophy } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import styles from "../auth.module.css";
 
@@ -67,12 +67,21 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className={styles.authBg}>
+    <div className={styles.authBg} style={{ justifyContent: "center", alignItems: "center" }}>
       <div className={styles.orb1} />
       <div className={styles.orb2} />
       <div className={styles.orb3} />
 
       <div className={styles.card}>
+        <button 
+          onClick={() => router.push("/auth/login")} 
+          className="btn btn-ghost" 
+          style={{ position: "absolute", top: "1.5rem", left: "1.5rem", padding: "0.5rem" }}
+          aria-label="Back to login"
+        >
+          <ArrowLeft size={20} />
+        </button>
+
         <div className={styles.logoWrap}>
           <div className={styles.logoIcon}>
             <Trophy size={24} />
