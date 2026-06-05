@@ -142,11 +142,6 @@ export default function DashboardPage() {
           <h1 className="page-title">Dashboard Overview</h1>
           <p className="page-subtitle">Welcome back · {metrics?.upcomingEvent || "SEAL Hackathon"} is live 🚀</p>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <Link href="/dashboard/events/create">
-            <button className="btn btn-primary"><Calendar size={16} /> New Event</button>
-          </Link>
-        </div>
       </div>
 
       {/* Stats */}
@@ -259,11 +254,10 @@ export default function DashboardPage() {
             </div>
             <div className={styles.quickActions}>
               {[
-                { label: "Create Event",    href: "/dashboard/events",  icon: Calendar, color: "#6366f1" },
-                { label: "Register Team",   href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
-                { label: "Score Submissions",href: "/dashboard/judging",       icon: Target,  color: "#06b6d4" },
-                { label: "View Rankings",   href: "/dashboard/rankings",       icon: Trophy,  color: "#f59e0b" },
-                { label: "Manage Prizes",   href: "/dashboard/prizes",         icon: Award,   color: "#f43f5e" },
+                { label: "Register Team",    href: "/dashboard/teams",    icon: Users,   color: "#8b5cf6" },
+                { label: "Score Submissions", href: "/dashboard/judging",  icon: Target,  color: "#06b6d4" },
+                { label: "View Rankings",    href: "/dashboard/rankings", icon: Trophy,  color: "#f59e0b" },
+                { label: "Manage Prizes",    href: "/dashboard/prizes",   icon: Award,   color: "#f43f5e" },
               ].map(q => {
                 const Icon = q.icon;
                 return (

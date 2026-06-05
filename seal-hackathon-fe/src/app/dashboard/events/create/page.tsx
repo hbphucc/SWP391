@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
-import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Target } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Target, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App } from "antd";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, fetchCurrentUser } from "@/lib/api";
 
 const TRACKS_OPTIONS = ["AI & Machine Learning", "Web Development", "Mobile App", "Cybersecurity", "Open Innovation"];
 const SEASONS = ["Spring", "Summer", "Fall"];
@@ -14,6 +14,25 @@ export default function CreateEventPage() {
   const { message } = App.useApp();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check admin role — redirect non-admin users
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((user) => {
+        if (user.roles.includes("Admin")) {
+          setIsAdmin(true);
+          setAuthChecked(true);
+        } else {
+          message.error("Access denied. Only administrators can create events.");
+          router.replace("/dashboard");
+        }
+      })
+      .catch(() => {
+        router.replace("/dashboard");
+      });
+  }, [router, message]);
   const [form, setForm] = useState({
     name: "", season: "Spring", year: new Date().getFullYear().toString(),
     description: "", maxTeamSize: "5", minTeamSize: "3",
@@ -120,10 +139,24 @@ export default function CreateEventPage() {
     }
   };
 
+  // Show loading while checking role
+  if (!authChecked) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: "1rem", color: "var(--color-text-2)" }}>
+        <div style={{ width: 32, height: 32, border: "3px solid rgba(99,102,241,0.3)", borderTop: "3px solid #6366f1", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        Verifying access...
+      </div>
+    );
+  }
+
+  if (!isAdmin) return null;
+
   return (
     <div style={{ maxWidth: 760 }}>
       <div className="page-header">
         <div>
+
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
             <Link href="/dashboard/events"><button className="btn btn-ghost btn-sm btn-icon"><ChevronLeft size={16} /></button></Link>
             <h1 className="page-title">Create New Event</h1>

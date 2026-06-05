@@ -10,6 +10,7 @@ import { clearAuthSession, fetchCurrentUser } from "@/lib/api";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
   const { message } = App.useApp();
 
@@ -22,6 +23,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!user.roles.includes("Admin")) {
           message.error("Access denied. Admin privileges required.");
           router.push("/dashboard");
+        } else {
+          setAuthChecked(true);
         }
       })
       .catch(() => {
@@ -34,6 +37,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       active = false;
     };
   }, [router, message]);
+
+  // Block rendering until role verified — prevents flash of admin content for non-admin users
+  if (!authChecked) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "var(--color-bg, #0f0f1a)",
+          color: "var(--color-text-2, #a0aec0)",
+          flexDirection: "column",
+          gap: "1rem",
+          fontSize: "0.95rem",
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            border: "3px solid rgba(99,102,241,0.3)",
+            borderTop: "3px solid #6366f1",
+            borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+          }}
+        />
+        Verifying access...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.shell}>
@@ -59,4 +94,3 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   );
 }
-
