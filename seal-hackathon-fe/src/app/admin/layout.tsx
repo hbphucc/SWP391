@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import styles from "../dashboard/layout.module.css";
 import { App } from "antd";
+import { clearAuthSession, fetchCurrentUser } from "@/lib/api";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -13,20 +14,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { message } = App.useApp();
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
-    if (!stored) {
-      router.push("/admin/login");
-      return;
-    }
-    try {
-      const user = JSON.parse(stored);
-      if (user.role !== "Admin") {
-        message.error("Access denied. Admin privileges required.");
-        router.push("/dashboard");
-      }
-    } catch (e) {
-      router.push("/admin/login");
-    }
+    let active = true;
+
+    fetchCurrentUser()
+      .then((user) => {
+        if (!active) return;
+        if (!user.roles.includes("Admin")) {
+          message.error("Access denied. Admin privileges required.");
+          router.push("/dashboard");
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        clearAuthSession();
+        router.push("/admin/login");
+      });
+
+    return () => {
+      active = false;
+    };
   }, [router, message]);
 
   return (

@@ -1,115 +1,164 @@
 "use client";
-import { useState, useEffect } from "react";
-import { User, Save, Upload, Mail, Book, GraduationCap, MapPin, Target } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, Save, Mail, Phone, Lock } from "lucide-react";
 import { App } from "antd";
+import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
 
-export default function ProfilePage() {
+export default function AdminProfilePage() {
   const { message } = App.useApp();
-  const [user, setUser] = useState<any>({
-    name: "Loading...",
-    email: "",
-    role: "Member",
-    university: "",
-    studentId: "",
-    skills: "",
-    bio: ""
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
-    if (stored) {
-      try {
-        const parsedUser = JSON.parse(stored);
-        setUser(parsedUser);
-        setAvatarUrl(localStorage.getItem(`avatar_${parsedUser.email}`));
-      } catch (e) {}
-    }
-  }, []);
+    fetchCurrentUser()
+      .then(setUser)
+      .catch((err) => message.error(err instanceof Error ? err.message : "Could not load profile."))
+      .finally(() => setLoading(false));
+  }, [message]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("currentUser", JSON.stringify(user));
-    message.success("Profile updated successfully!");
-    // Dispatch a custom event to notify TopBar/Sidebar of changes
-    window.dispatchEvent(new Event("storage"));
-  };
+    if (!user) return;
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        localStorage.setItem(`avatar_${user.email}`, dataUrl);
-        setAvatarUrl(dataUrl);
-        // Force re-render of this component and others
-        window.dispatchEvent(new Event("storage"));
-        // Force local state update for immediate feedback
-        setUser({ ...user, _t: Date.now() }); 
-        message.success("Avatar updated successfully!");
-      };
-      reader.readAsDataURL(file);
+    setSaving(true);
+    try {
+      const updated = await apiRequest<CurrentUser>("/Auth/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          fullName: user.fullName,
+          phoneNumber: user.phoneNumber || null,
+          studentCode: user.studentCode || null,
+        }),
+      });
+
+      setUser(updated);
+      localStorage.setItem("currentUser", JSON.stringify(updated));
+      window.dispatchEvent(new Event("storage"));
+      message.success("Profile updated successfully.");
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not update profile.");
+    } finally {
+      setSaving(false);
     }
   };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      message.error("Password confirmation does not match.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiRequest("/Auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      message.success("Password changed successfully.");
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not change password.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="empty-state">
+        <span className="spinner" />
+        <div className="empty-title">Loading profile</div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div style={{ maxWidth: 820 }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Admin Profile</h1>
-          <p className="page-subtitle">View your administrator account information</p>
+          <p className="page-subtitle">Manage your administrator account through the backend API</p>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start", flexWrap: "wrap" }}>
-        {/* Avatar Section */}
-        <div className="glass-card" style={{ flex: "1 1 250px", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", textAlign: "center" }}>
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="Avatar" style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--color-primary)" }} />
-          ) : (
-            <div className="avatar-placeholder" style={{ width: 120, height: 120, fontSize: "2.5rem", borderRadius: "50%" }}>
-              {user.name.charAt(0)}
+      <div className="glass-card">
+        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
+            <div className="avatar-placeholder" style={{ width: 64, height: 64, fontSize: "1.5rem", borderRadius: "50%" }}>
+              {user.fullName.charAt(0)}
             </div>
-          )}
-          <div>
-            <h3 style={{ fontSize: "1.2rem", margin: "0.25rem 0" }}>{user.name}</h3>
-            <span className="badge badge-primary">{user.role}</span>
+            <div>
+              <h3 style={{ margin: 0 }}>{user.fullName}</h3>
+              <span className="badge badge-primary">{user.role}</span>
+            </div>
           </div>
-          <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer" }}>
-            <Upload size={14} /> Change Avatar
-            <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarUpload} />
-          </label>
-        </div>
 
-        {/* Profile Info Form */}
-        <div className="glass-card" style={{ flex: "2 1 400px" }}>
-          <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            <div className="grid-2">
-              <div className="form-group">
-                <label className="form-label"><User size={13} style={{ display: 'inline', marginRight: 4 }} /> Full Name</label>
-                <input className="form-input" value={user.name || ""} onChange={(e) => setUser({ ...user, name: e.target.value })} required disabled={user.role === "Admin"} />
-              </div>
-              <div className="form-group">
-                <label className="form-label"><Mail size={13} style={{ display: 'inline', marginRight: 4 }} /> Email Address</label>
-                <input className="form-input" type="email" value={user.email || ""} disabled />
-                <span className="form-hint">Email cannot be changed</span>
-              </div>
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label"><User size={13} style={{ display: "inline", marginRight: 4 }} /> Full Name</label>
+              <input className="form-input" value={user.fullName || ""} onChange={(e) => setUser({ ...user, fullName: e.target.value, name: e.target.value })} required />
             </div>
+            <div className="form-group">
+              <label className="form-label"><Mail size={13} style={{ display: "inline", marginRight: 4 }} /> Email Address</label>
+              <input className="form-input" type="email" value={user.email || ""} disabled />
+            </div>
+          </div>
 
-            {user.role === "Admin" ? (
-              <div style={{ marginTop: "1rem", color: "var(--color-rose)", fontSize: "0.85rem", textAlign: "right" }}>
-                Administrator profile cannot be modified.
-              </div>
-            ) : (
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
-                <button type="submit" className="btn btn-primary">
-                  <Save size={16} /> Save Changes
-                </button>
-              </div>
-            )}
-          </form>
-        </div>
+          <div className="form-group" style={{ maxWidth: 380 }}>
+            <label className="form-label"><Phone size={13} style={{ display: "inline", marginRight: 4 }} /> Phone Number</label>
+            <input className="form-input" value={user.phoneNumber || ""} onChange={(e) => setUser({ ...user, phoneNumber: e.target.value })} />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? <span className="spinner" /> : <><Save size={16} /> Save Changes</>}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="glass-card" style={{ marginTop: "2rem" }}>
+        <form onSubmit={handlePasswordChange} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
+            <Lock size={18} /> Change Password
+          </h3>
+
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Current Password</label>
+              <input className="form-input" type="password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">New Password</label>
+              <input className="form-input" type="password" value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} required />
+            </div>
+          </div>
+
+          <div className="form-group" style={{ maxWidth: 380 }}>
+            <label className="form-label">Confirm New Password</label>
+            <input className="form-input" type="password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} required />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="submit" className="btn btn-secondary" disabled={saving}>
+              Change Password
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

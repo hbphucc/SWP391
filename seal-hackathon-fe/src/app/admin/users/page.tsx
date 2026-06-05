@@ -1,22 +1,57 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Users, UserPlus, CheckCircle, XCircle, Mail, Shield, Building2 } from "lucide-react";
-import { App, Table, Tag, Button, Modal, Form, Input, Select, DatePicker } from "antd";
-import { apiRequest } from "@/lib/api";
+import { App, Table, Tag, Button, Modal, Form, Input } from "antd";
+import { apiRequest, fetchCurrentUser } from "@/lib/api";
+
+interface UserItem {
+  id: string;
+  name: string;
+  email: string;
+  type: string;
+  status: string;
+  uni: string;
+}
+
+interface BackendUser {
+  id: string;
+  fullName: string;
+  email: string;
+  studentType?: string | null;
+  roles?: string[];
+  isApproved: boolean;
+  schoolName?: string | null;
+}
+
+interface CreatedJudge {
+  email: string;
+  password: string;
+  fullName?: string;
+  company?: string;
+}
+
+interface CreateJudgeValues {
+  name: string;
+  email: string;
+  company?: string;
+}
 
 export default function UsersPage() {
   const { message } = App.useApp();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("pending");
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [createdJudge, setCreatedJudge] = useState<CreatedJudge | null>(null);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiRequest<any[]>("/admin/users");
+      const data = await apiRequest<BackendUser[]>("/admin/users");
       setUsers(data.map((user) => ({
         id: user.id,
         name: user.fullName,
@@ -30,19 +65,24 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [message]);
 
   useEffect(() => {
-    const userStr = localStorage.getItem("currentUser");
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      if (user.role === "Admin") setIsAdmin(true);
-    }
+    fetchCurrentUser()
+      .then((user) => setIsAdmin(user.roles.includes("Admin")))
+      .catch(() => setIsAdmin(false))
+      .finally(() => setAuthChecked(true));
   }, []);
 
   useEffect(() => {
-    if (isAdmin) loadUsers();
-  }, [isAdmin]);
+    if (isAdmin) {
+      const trigger = async () => {
+        await Promise.resolve();
+        void loadUsers();
+      };
+      void trigger();
+    }
+  }, [isAdmin, loadUsers]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -64,9 +104,25 @@ export default function UsersPage() {
     }
   };
 
-  const handleCreateJudge = (values: any) => {
-    message.success(`Guest Judge ${values.name} created! Email sent with temporary credentials.`);
-    setIsModalOpen(false);
+  const handleCreateJudge = async (values: CreateJudgeValues) => {
+    setSubmitting(true);
+    try {
+      const res = await apiRequest<CreatedJudge>("/admin/users/create-judge", {
+        method: "POST",
+        body: JSON.stringify({
+          name: values.name,
+          email: values.email,
+          company: values.company
+        })
+      });
+      setCreatedJudge(res);
+      message.success("Guest judge account generated successfully!");
+      await loadUsers();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not create guest judge.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const columns = [
@@ -80,7 +136,7 @@ export default function UsersPage() {
       <Tag color={t === "Pending" ? "warning" : "success"}>{t}</Tag>
     )},
     {
-      title: 'Action', key: 'action', render: (_: any, record: any) => (
+      title: 'Action', key: 'action', render: (_: unknown, record: UserItem) => (
         record.status === "Pending" ? (
           <div style={{ display: 'flex', gap: '8px' }}>
             <Button size="small" type="primary" onClick={() => handleApprove(record.id)} icon={<CheckCircle size={14} />}>Approve</Button>
@@ -90,6 +146,15 @@ export default function UsersPage() {
       )
     }
   ];
+
+  if (!authChecked) {
+    return (
+      <div className="empty-state">
+        <span className="spinner" />
+        <div className="empty-title">Checking access</div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
@@ -133,29 +198,65 @@ export default function UsersPage() {
       </div>
 
       <Modal 
-        title={<><Shield size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} /> Create Guest Judge Account</>}
+        title={<><Shield size={18} style={{ marginRight: 8, verticalAlign: 'middle', display: 'inline' }} /> Create Guest Judge Account</>}
         open={isModalOpen} 
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => { setIsModalOpen(false); setCreatedJudge(null); }}
         footer={null}
       >
-        <Form layout="vertical" onFinish={handleCreateJudge} style={{ marginTop: 20 }}>
-          <Form.Item name="name" label="Judge Name" rules={[{ required: true }]}>
-            <Input prefix={<Users size={16} />} placeholder="Dr. John Doe" />
-          </Form.Item>
-          <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email' }]}>
-            <Input prefix={<Mail size={16} />} placeholder="judge@example.com" />
-          </Form.Item>
-          <Form.Item name="company" label="Company / University" rules={[{ required: true }]}>
-            <Input prefix={<Building2 size={16} />} placeholder="Tech Corp" />
-          </Form.Item>
-          <Form.Item name="expiration" label="Account Expiration" rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem", marginBottom: 20 }}>
-            * Temporary credentials will be emailed securely. The account will only have access to assigned judging rounds.
+        {createdJudge ? (
+          <div style={{ padding: "10px 0" }}>
+            <div style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+              <strong style={{ color: "#10b981", display: "block", marginBottom: "0.5rem" }}>Account Generated Successfully!</strong>
+              <p style={{ fontSize: "0.85rem", color: "var(--color-text-2)", margin: 0 }}>
+                Please copy the temporary credentials below. The password will only be shown once.
+              </p>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: "1rem" }}>
+              <label className="form-label">Email Address</label>
+              <Input.Search
+                value={createdJudge.email}
+                enterButton="Copy"
+                onSearch={() => {
+                  navigator.clipboard.writeText(createdJudge.email);
+                  message.success("Email copied!");
+                }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Temporary Password</label>
+              <Input.Search
+                value={createdJudge.password}
+                enterButton="Copy"
+                onSearch={() => {
+                  navigator.clipboard.writeText(createdJudge.password);
+                  message.success("Password copied!");
+                }}
+              />
+            </div>
+
+            <Button type="primary" block style={{ marginTop: "1.5rem" }} onClick={() => { setIsModalOpen(false); setCreatedJudge(null); }}>
+              Done
+            </Button>
           </div>
-          <Button type="primary" htmlType="submit" block>Generate Account</Button>
-        </Form>
+        ) : (
+          <Form layout="vertical" onFinish={handleCreateJudge} style={{ marginTop: 20 }}>
+            <Form.Item name="name" label="Judge Name" rules={[{ required: true }]}>
+              <Input prefix={<Users size={16} />} placeholder="Dr. John Doe" />
+            </Form.Item>
+            <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email' }]}>
+              <Input prefix={<Mail size={16} />} placeholder="judge@example.com" />
+            </Form.Item>
+            <Form.Item name="company" label="Company / University" rules={[{ required: true }]}>
+              <Input prefix={<Building2 size={16} />} placeholder="Tech Corp / FPT" />
+            </Form.Item>
+            <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem", marginBottom: 20 }}>
+              * Temporary credentials will be generated securely. You will need to copy and share them with the guest judge.
+            </div>
+            <Button type="primary" htmlType="submit" loading={submitting} block>Generate Account</Button>
+          </Form>
+        )}
       </Modal>
     </div>
   );

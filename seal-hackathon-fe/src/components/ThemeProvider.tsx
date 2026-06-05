@@ -1,6 +1,6 @@
 "use client";
 import { ConfigProvider, theme, App } from "antd";
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect } from "react";
 
 interface ThemeContextType {
   isDarkMode: boolean;
@@ -13,18 +13,21 @@ export const ThemeContext = createContext<ThemeContextType>({
 });
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("seal_theme");
+      return saved !== "light";
+    }
+    return true;
+  });
 
   useEffect(() => {
-    // Read from localStorage on mount
-    const saved = localStorage.getItem("seal_theme");
-    if (saved === "light") {
-      setIsDarkMode(false);
+    if (!isDarkMode) {
       document.documentElement.setAttribute("data-theme", "light");
     } else {
       document.documentElement.removeAttribute("data-theme");
     }
-  }, []);
+  }, [isDarkMode]);
 
   const toggleTheme = () => {
     setIsDarkMode((prev) => {

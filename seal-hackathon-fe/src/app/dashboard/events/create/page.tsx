@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
-import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Users, Target } from "lucide-react";
+import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Target } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { databaseService } from "@/services/databaseService";
 import { App } from "antd";
+import { apiRequest } from "@/lib/api";
 
 const TRACKS_OPTIONS = ["AI & Machine Learning", "Web Development", "Mobile App", "Cybersecurity", "Open Innovation"];
 const SEASONS = ["Spring", "Summer", "Fall"];
@@ -13,6 +13,7 @@ export default function CreateEventPage() {
   const router = useRouter();
   const { message } = App.useApp();
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     name: "", season: "Spring", year: new Date().getFullYear().toString(),
     description: "", maxTeamSize: "5", minTeamSize: "3",
@@ -41,25 +42,82 @@ export default function CreateEventPage() {
   const toggleTrack = (t: string) =>
     setSelectedTracks(sel => sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t]);
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (!form.name) {
       message.error("Please enter an event name.");
       return;
     }
-    const newEvent = {
-      id: `EV-${Date.now()}`,
-      name: form.name,
-      status: "Upcoming",
-      participants: 0,
-      daysLeft: 30,
-      season: form.season,
-      year: form.year,
-      tracks: selectedTracks,
-    };
-    databaseService.addEvent(newEvent);
-    databaseService.logAction("Admin", `Created new event: ${form.name}`);
-    message.success("Event created successfully!");
-    router.push("/dashboard/events");
+
+    if (!form.registrationDeadline || !form.resultDate) {
+      message.error("Start date and end date are required.");
+      return;
+    }
+
+    if (selectedTracks.length === 0) {
+      message.error("Select at least one track/category.");
+      return;
+    }
+
+    const roundsToCreate = rounds.filter((round) => round.name.trim() && round.deadline);
+    if (roundsToCreate.length !== rounds.length) {
+      message.error("Every round needs a name and submission deadline.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const createdEvent = await apiRequest<{ id: string }>("/Events", {
+        method: "POST",
+        body: JSON.stringify({
+          eventName: form.name.trim(),
+          description: form.description.trim() || null,
+          startDate: form.registrationDeadline,
+          endDate: form.resultDate,
+        }),
+      });
+
+      const createdRounds = await Promise.all(roundsToCreate.map((round, index) =>
+        apiRequest<{ roundId: string }>(`/events/${createdEvent.id}/rounds`, {
+          method: "POST",
+          body: JSON.stringify({
+            roundName: round.name.trim(),
+            submissionDeadline: round.deadline,
+            roundOrder: index + 1,
+            maxTeamsAdvancing: Number(round.topN) || 0,
+          }),
+        })
+      ));
+
+      await Promise.all(selectedTracks.map((track) =>
+        apiRequest(`/events/${createdEvent.id}/categories`, {
+          method: "POST",
+          body: JSON.stringify({
+            categoryName: track,
+            description: null,
+          }),
+        })
+      ));
+
+      await Promise.all(createdRounds.flatMap((round) =>
+        criteria.map((criterion) =>
+          apiRequest(`/rounds/${round.roundId}/criteria`, {
+            method: "POST",
+            body: JSON.stringify({
+              criteriaName: criterion.name.trim(),
+              maxScore: 100,
+              weight: criterion.weight,
+            }),
+          })
+        )
+      ));
+
+      message.success("Event created successfully.");
+      router.push("/dashboard/events");
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not create event.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -121,10 +179,10 @@ export default function CreateEventPage() {
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
-              {[
-                { label: "Registration Deadline", key: "registrationDeadline" },
+            {[
+                { label: "Start Date", key: "registrationDeadline" },
                 { label: "Submission Deadline",   key: "submissionDeadline" },
-                { label: "Result Date",           key: "resultDate" },
+                { label: "End Date",              key: "resultDate" },
               ].map(f => (
                 <div key={f.key} className="form-group">
                   <label className="form-label">{f.label}</label>
@@ -246,8 +304,8 @@ export default function CreateEventPage() {
         {step > 1 && <button className="btn btn-secondary" onClick={() => setStep(step-1)}>← Back</button>}
         {step < 4
           ? <button className="btn btn-primary" onClick={() => setStep(step+1)}>Continue →</button>
-          : <button className="btn btn-primary" disabled={totalWeight !== 100} onClick={handleCreateEvent}>
-              <Calendar size={16} /> Create Event
+          : <button className="btn btn-primary" disabled={totalWeight !== 100 || submitting} onClick={handleCreateEvent}>
+              {submitting ? <span className="spinner" /> : <><Calendar size={16} /> Create Event</>}
             </button>
         }
       </div>

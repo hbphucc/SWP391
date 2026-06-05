@@ -1,35 +1,31 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Input, Typography, Avatar, Tooltip } from 'antd';
+import { Button, Input, Avatar, Tooltip } from 'antd';
 import { MessageOutlined, CloseOutlined, MinusOutlined, SendOutlined, RobotOutlined, UserOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-
-const { Text } = Typography;
 
 export default function AIChatbot() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [role, setRole] = useState(''); // default role empty
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
-  useEffect(() => {
-    // Check role in local storage
+  const [role] = useState(() => {
     if (typeof window !== "undefined") {
-        const stored = localStorage.getItem('currentUser');
-        if (stored) {
-            setIsLoggedIn(true);
-            try {
-                const user = JSON.parse(stored);
-                if (user.role) {
-                    setRole(user.role);
-                }
-            } catch (e) {}
-        } else {
-            setIsLoggedIn(false);
-        }
+      const stored = localStorage.getItem('currentUser');
+      if (stored) {
+        try {
+          const user = JSON.parse(stored);
+          return user.role || '';
+        } catch {}
+      }
     }
-  }, []);
+    return '';
+  });
+  const [isLoggedIn] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem('currentUser') !== null;
+    }
+    return false;
+  });
 
   const suggestedQuestions = [
     "Cách đăng ký tham gia",
@@ -53,6 +49,7 @@ export default function AIChatbot() {
   ];
   
   const [messages, setMessages] = useState<MessageType[]>(defaultMessages);
+  const nextIdRef = useRef(2);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -77,8 +74,8 @@ export default function AIChatbot() {
     const textToSend = questionText || inputValue;
     if (!textToSend.trim()) return;
 
-    const userMessage = {
-      id: Date.now(),
+    const userMessage: MessageType = {
+      id: nextIdRef.current++,
       sender: 'user',
       text: textToSend
     };
@@ -88,13 +85,12 @@ export default function AIChatbot() {
 
     setTimeout(() => {
       const normalizedInput = removeAccents(userMessage.text);
-      let botResponse = '';
 
-      const botMessage = {
-        id: Date.now() + 1,
+      const botMessage: MessageType = {
+        id: nextIdRef.current++,
         sender: 'bot',
-        text: botResponse,
-        action: null as {label: string, path: string} | null
+        text: '',
+        action: null
       };
 
       if (normalizedInput.includes('dang ky') || normalizedInput.includes('tham gia')) {
@@ -190,7 +186,10 @@ export default function AIChatbot() {
                   icon={<CloseOutlined style={{ color: '#fff' }} />} 
                   onClick={() => {
                     setIsOpen(false);
-                    setTimeout(() => setMessages(defaultMessages), 300);
+                    setTimeout(() => {
+                      setMessages(defaultMessages);
+                      nextIdRef.current = 2;
+                    }, 300);
                   }} 
                 />
               </Tooltip>

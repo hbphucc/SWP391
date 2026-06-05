@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import styles from "./page.module.css";
-import { databaseService } from "../../services/databaseService";
 import { apiRequest } from "@/lib/api";
+import { App } from "antd";
 
 const RECENT_ACTIVITY = [
   { icon: Users,       text: "Team **CodeCraft** registered for Track A",        time: "2m ago",   type: "team" },
@@ -33,21 +33,56 @@ const STATUS_BADGE: Record<string, string> = {
   ended:    "badge-neutral",
 };
 
+interface EventRoundDto {
+  roundName?: string;
+}
+
+interface EventCategoryDto {
+  teamCount?: number;
+}
+
+interface EventDto {
+  eventId: string;
+  eventName: string;
+  status: string;
+  rounds?: EventRoundDto[];
+  categories?: EventCategoryDto[];
+  endDate: string;
+}
+
+interface DashboardMetrics {
+  activeEvents: number;
+  totalTeams: number;
+  pendingApprovals: number;
+  upcomingEvent: string;
+}
+
+interface MappedEvent {
+  id: string;
+  name: string;
+  status: string;
+  currentRound?: string;
+  teamsCount: number;
+  tracksCount: number;
+  endDate: string;
+}
+
 export default function DashboardPage() {
+  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState<"all" | "active" | "upcoming">("all");
-  const [events, setEvents] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState<any>(null);
+  const [events, setEvents] = useState<MappedEvent[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
 
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const data = await apiRequest<any[]>("/Events", { auth: false });
+        const data = await apiRequest<EventDto[]>("/Events", { auth: false });
         const mappedEvents = data.map((event) => ({
           id: event.eventId,
           name: event.eventName,
           status: event.status === "Ongoing" ? "Active" : event.status,
           currentRound: event.rounds?.[0]?.roundName,
-          teamsCount: event.categories?.reduce((sum: number, category: any) => sum + (category.teamCount ?? 0), 0) ?? 0,
+          teamsCount: event.categories?.reduce((sum: number, category: EventCategoryDto) => sum + (category.teamCount ?? 0), 0) ?? 0,
           tracksCount: event.categories?.length ?? 0,
           endDate: event.endDate,
         }));
@@ -59,15 +94,20 @@ export default function DashboardPage() {
           pendingApprovals: 0,
           upcomingEvent: mappedEvents[0]?.name ?? "SEAL Hackathon",
         });
-      } catch {
-        const fallbackEvents = databaseService.getEvents();
-        setEvents(fallbackEvents);
-        setMetrics(databaseService.getDashboardMetrics());
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Could not load dashboard data.");
+        setEvents([]);
+        setMetrics({
+          activeEvents: 0,
+          totalTeams: 0,
+          pendingApprovals: 0,
+          upcomingEvent: "SEAL Hackathon",
+        });
       }
     };
 
     loadDashboard();
-  }, []);
+  }, [message]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(e =>

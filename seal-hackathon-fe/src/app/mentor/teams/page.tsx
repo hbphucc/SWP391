@@ -1,92 +1,192 @@
 "use client";
-import { useState } from "react";
-import { Users, FileEdit, MessageSquare } from "lucide-react";
-import { App, Modal, Input } from "antd";
+import React, { useState, useEffect, useCallback } from "react";
+import { Users, FileEdit, MessageSquare, Clipboard } from "lucide-react";
+import { App, Modal, Input, Spin, Empty, Tag } from "antd";
+import { apiRequest } from "@/lib/api";
 
-const MOCK_ASSIGNED_TEAMS = [
-  { id: 1, name: "CodeCraft", track: "AI & Machine Learning", status: "active", members: 4 },
-  { id: 2, name: "InnovateSEAL", track: "Web Development", status: "active", members: 3 },
-];
+interface SubmissionData {
+  submissionId: string;
+  repositoryUrl?: string | null;
+  demoUrl?: string | null;
+  slideUrl?: string | null;
+  submittedAt: string;
+  roundName: string;
+}
+
+interface MentorTeam {
+  teamId: string;
+  teamName: string;
+  categoryName: string;
+  eventName: string;
+  status: string;
+  membersCount: number;
+  notes?: string | null;
+  latestSubmission?: SubmissionData | null;
+}
 
 export default function MentorTeamsPage() {
   const { message } = App.useApp();
-  const [teams, setTeams] = useState(MOCK_ASSIGNED_TEAMS);
+  const [teams, setTeams] = useState<MentorTeam[]>([]);
+  const [loading, setLoading] = useState(true);
   const [reviewModal, setReviewModal] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+  const [selectedTeam, setSelectedTeam] = useState<MentorTeam | null>(null);
   const [note, setNote] = useState("");
-  const [notesDB, setNotesDB] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const openReview = (team: any) => {
+  const loadTeams = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<MentorTeam[]>("/mentor/teams");
+      setTeams(data);
+    } catch {
+      message.error("Không thể tải danh sách nhóm được phân công.");
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    const trigger = async () => {
+      await Promise.resolve();
+      void loadTeams();
+    };
+    void trigger();
+  }, [loadTeams]);
+
+  const openReview = (team: MentorTeam) => {
     setSelectedTeam(team);
-    setNote(notesDB[team.id] || "");
+    setNote(team.notes || "");
     setReviewModal(true);
   };
 
-  const handleSaveNote = () => {
+  const handleSaveNote = async () => {
     if (!selectedTeam) return;
-    setNotesDB({ ...notesDB, [selectedTeam.id]: note });
-    setReviewModal(false);
-    message.success("Review notes saved successfully!");
+    setSubmitting(true);
+    try {
+      await apiRequest(`/mentor/teams/${selectedTeam.teamId}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ notes: note })
+      });
+      message.success("Lưu nhận xét thành công!");
+      setReviewModal(false);
+      void loadTeams();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Lưu nhận xét thất bại.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="empty-state">
+        <Spin size="large" />
+        <div className="empty-title">Đang tải danh sách nhóm...</div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Assigned Teams</h1>
-          <p className="page-subtitle">View and review teams you are mentoring</p>
+          <p className="page-subtitle">Xem và đánh giá các nhóm bạn đang hướng dẫn (Mentor)</p>
         </div>
       </div>
 
-      <div className="table-wrapper" style={{ marginTop: "2rem" }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Team Name</th>
-              <th>Track</th>
-              <th>Members</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {teams.map((t) => (
-              <tr key={t.id}>
-                <td className="table-cell-primary">
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                    <div className="avatar-placeholder" style={{ width: 30, height: 30, fontSize: "0.72rem" }}>
-                      {t.name.substring(0,2).toUpperCase()}
-                    </div>
-                    {t.name}
-                  </div>
-                </td>
-                <td><span style={{ fontSize: "0.8rem" }}>{t.track}</span></td>
-                <td><span className="badge badge-neutral"><Users size={10} /> {t.members}</span></td>
-                <td><span className="badge badge-success">{t.status.toUpperCase()}</span></td>
-                <td>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openReview(t)}>
-                    {notesDB[t.id] ? <MessageSquare size={13} /> : <FileEdit size={13} />}
-                    {notesDB[t.id] ? " Edit Note" : " Add Note"}
-                  </button>
-                </td>
+      {teams.length === 0 ? (
+        <div className="glass-card" style={{ marginTop: "2rem", textAlign: "center", padding: "3rem 1rem" }}>
+          <Empty description="Bạn chưa được phân công hướng dẫn nhóm nào." />
+        </div>
+      ) : (
+        <div className="table-wrapper" style={{ marginTop: "2rem" }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Team Name</th>
+                <th>Track / Event</th>
+                <th>Members</th>
+                <th>Status</th>
+                <th>Submission Status</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {teams.map((t) => (
+                <tr key={t.teamId}>
+                  <td className="table-cell-primary">
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                      <div className="avatar-placeholder" style={{ width: 30, height: 30, fontSize: "0.72rem" }}>
+                        {t.teamName.substring(0, 2).toUpperCase()}
+                      </div>
+                      {t.teamName}
+                    </div>
+                  </td>
+                  <td>
+                    <div>{t.categoryName}</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{t.eventName}</div>
+                  </td>
+                  <td>
+                    <span className="badge badge-neutral">
+                      <Users size={10} style={{ marginRight: 4 }} /> {t.membersCount}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${t.status === "Approved" ? "badge-success" : t.status === "Eliminated" ? "badge-danger" : "badge-warning"}`}>
+                      {t.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td>
+                    {t.latestSubmission ? (
+                      <div>
+                        <Tag color="cyan">Submitted ({t.latestSubmission.roundName})</Tag>
+                        <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: 2 }}>
+                          {new Date(t.latestSubmission.submittedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ) : (
+                      <Tag color="default">No submissions</Tag>
+                    )}
+                  </td>
+                  <td>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openReview(t)}>
+                      {t.notes ? (
+                        <>
+                          <MessageSquare size={13} style={{ marginRight: 4 }} />
+                          <span> Edit Note</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileEdit size={13} style={{ marginRight: 4 }} />
+                          <span> Add Note</span>
+                        </>
+                      )}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Modal
-        title={`Review Notes for ${selectedTeam?.name}`}
+        title={`Review Notes for ${selectedTeam?.teamName}`}
         open={reviewModal}
         onCancel={() => setReviewModal(false)}
         onOk={handleSaveNote}
+        confirmLoading={submitting}
         okText="Save Notes"
       >
         <div style={{ marginBottom: "1rem" }}>
-          <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>Write down your advice, feedback, and notes for this team.</p>
+          <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>
+            <Clipboard size={14} style={{ marginRight: 6, verticalAlign: 'middle', display: 'inline' }} />
+            Ghi lại lời khuyên, nhận xét và hướng dẫn của bạn dành cho nhóm này.
+          </p>
           <Input.TextArea 
             rows={6} 
-            placeholder="Type your notes here..." 
+            placeholder="Nhập nhận xét của bạn tại đây..." 
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />

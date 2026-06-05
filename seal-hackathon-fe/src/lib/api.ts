@@ -12,6 +12,10 @@ export type CurrentUser = {
   email: string;
   role: string;
   roles: string[];
+  phoneNumber?: string | null;
+  studentCode?: string | null;
+  schoolName?: string | null;
+  studentType?: string | null;
 };
 
 function getToken() {
@@ -62,6 +66,10 @@ export function toCurrentUser(user: {
   email: string;
   roles?: string[];
   role?: string;
+  phoneNumber?: string | null;
+  studentCode?: string | null;
+  schoolName?: string | null;
+  studentType?: string | null;
 }): CurrentUser {
   const roles = user.roles?.length ? user.roles : [user.role ?? "Member"];
   const fullName = user.fullName ?? user.name ?? user.email;
@@ -73,6 +81,10 @@ export function toCurrentUser(user: {
     email: user.email,
     role: roles[0] ?? "Member",
     roles,
+    phoneNumber: user.phoneNumber,
+    studentCode: user.studentCode,
+    schoolName: user.schoolName,
+    studentType: user.studentType,
   };
 }
 
@@ -94,6 +106,25 @@ export function saveAuthSession(
 
   tokenStorage.setItem("seal_token", payload.token);
   otherStorage.removeItem("seal_token");
+  localStorage.setItem("currentUser", JSON.stringify(currentUser));
+  window.dispatchEvent(new Event("storage"));
+
+  return currentUser;
+}
+
+export async function fetchCurrentUser() {
+  const user = await apiRequest<{
+    id: string;
+    fullName: string;
+    email: string;
+    roles: string[];
+    phoneNumber?: string | null;
+    studentCode?: string | null;
+    schoolName?: string | null;
+    studentType?: string | null;
+  }>("/Auth/me");
+
+  const currentUser = toCurrentUser(user);
   localStorage.setItem("currentUser", JSON.stringify(currentUser));
   window.dispatchEvent(new Event("storage"));
 

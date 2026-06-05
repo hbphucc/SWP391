@@ -1,26 +1,35 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import styles from "../dashboard/layout.module.css";
+import { clearAuthSession, fetchCurrentUser } from "@/lib/api";
 
 export default function MentorLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed]       = useState(false);
   const [mobileOpen, setMobileOpen]     = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
-    if (!stored) {
-      router.push("/auth/login");
-    } else {
-      const user = JSON.parse(stored);
-      if (user.role !== "Mentor" && user.role !== "Admin") {
-        router.push("/dashboard"); // Redirect non-mentors
-      }
-    }
+    let active = true;
+
+    fetchCurrentUser()
+      .then((user) => {
+        if (!active) return;
+        if (!user.roles.includes("Mentor") && !user.roles.includes("Admin")) {
+          router.push("/dashboard");
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        clearAuthSession();
+        router.push("/auth/login");
+      });
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   return (

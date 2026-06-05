@@ -1,62 +1,76 @@
 "use client";
-import { useState, useRef, useEffect, useContext } from "react";
-import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, RefreshCw, Key } from "lucide-react";
+import { useState, useRef, useEffect, useContext, useCallback } from "react";
+import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./TopBar.module.css";
 import Link from "next/link";
 import { ThemeContext } from "./ThemeProvider";
-import { App, Modal, Input } from "antd";
-import { clearAuthSession } from "@/lib/api";
-
-const DEFAULT_NOTIFS = [
-  { id: 1, title: "New team registered", desc: "Team Alpha joined SEAL Spring 2026", time: "2m ago", unread: true },
-  { id: 2, title: "Submission received", desc: "Team Beta submitted for Round 1", time: "15m ago", unread: true },
-  { id: 3, title: "Score finalized", desc: "Judge completed scoring for Track A", time: "1h ago", unread: false },
-  { id: 4, title: "New judge assigned", desc: "Dr. Nguyen assigned to Finals", time: "3h ago", unread: false },
-];
+import { apiRequest, clearAuthSession } from "@/lib/api";
 
 interface TopBarProps {
   onMenuToggle: () => void;
   sidebarCollapsed: boolean;
 }
 
+type NotificationDto = {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+};
+
 export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) {
   const router = useRouter();
-  const { message } = App.useApp();
   const { isDarkMode, toggleTheme } = useContext(ThemeContext);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState({ name: "Loading...", role: "Member", email: "" });
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("currentUser");
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {}
+      }
+    }
+    return { name: "Loading...", role: "Member", email: "" };
+  });
+  const [avatar, setAvatar] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("currentUser");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          return localStorage.getItem(`avatar_${parsed.email}`);
+        } catch {}
+      }
+    }
+    return null;
+  });
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef  = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ type: string; title: string; link: string }[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   
-  const [switchModalOpen, setSwitchModalOpen] = useState(false);
-  const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<any>(null);
-  const [password, setPassword] = useState("");
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const unreadCount = notifications.filter(n => n.unread).length;
-
-  const loadUser = () => {
+  const loadUser = useCallback(() => {
     const stored = localStorage.getItem("currentUser");
     if (stored) {
       try { 
         const parsed = JSON.parse(stored);
         setCurrentUser(parsed);
         setAvatar(localStorage.getItem(`avatar_${parsed.email}`));
-      } catch(e){}
+      } catch {}
     } else {
-      const defaultUser = { name: "Hải Trần", email: "hai@student.fpt.edu.vn", role: "Member", id: "USR-001" };
-      localStorage.setItem("currentUser", JSON.stringify(defaultUser));
-      setCurrentUser(defaultUser);
-      setAvatar(localStorage.getItem(`avatar_${defaultUser.email}`));
+      setCurrentUser({ name: "Loading...", role: "Member", email: "" });
+      setAvatar(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -65,52 +79,37 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchResults([]);
     };
     document.addEventListener("mousedown", handleClickOutside);
-    // Load notifications
-    const loadNotifications = () => {
-      const storedNotifs = localStorage.getItem("globalNotifications");
-      if (storedNotifs) {
-        setNotifications(JSON.parse(storedNotifs));
-      } else {
-        localStorage.setItem("globalNotifications", JSON.stringify(DEFAULT_NOTIFS));
-        setNotifications(DEFAULT_NOTIFS);
+    const loadNotifications = async () => {
+      try {
+        setNotifications(await apiRequest<NotificationDto[]>("/notifications"));
+      } catch {
+        setNotifications([]);
       }
     };
 
-    loadNotifications();
-    loadUser(); // Load user on mount
+    void loadNotifications();
 
     const handleStorageChange = () => {
       loadUser();
-      loadNotifications();
+      void loadNotifications();
     };
 
     window.addEventListener("storage", handleStorageChange);
-
-    // Load saved accounts
-    const updateSavedAccounts = () => {
-      const regUsersRaw = localStorage.getItem("registeredUsers");
-      if (regUsersRaw) {
-        try { 
-          const regUsers = JSON.parse(regUsersRaw);
-          // Allow switching to any registered user EXCEPT Admin
-          setSavedAccounts(regUsers.filter((u: any) => u.role !== "Admin"));
-        } catch(e){}
-      }
-    };
-    
-    updateSavedAccounts();
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [loadUser]);
 
-  const markAllRead = () => {
-    const updated = notifications.map(n => ({ ...n, unread: false }));
-    setNotifications(updated);
-    localStorage.setItem("globalNotifications", JSON.stringify(updated));
-    window.dispatchEvent(new Event("storage"));
+  const markAllRead = async () => {
+    try {
+      await apiRequest("/notifications/read-all", { method: "POST" });
+      setNotifications(await apiRequest<NotificationDto[]>("/notifications"));
+      window.dispatchEvent(new Event("storage"));
+    } catch {
+      setNotifications([]);
+    }
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,26 +139,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     }
     
     setSearchResults(results);
-  };
-
-  const handleSwitchAccountSubmit = () => {
-    if (password !== selectedAccount.password) {
-      message.error("Incorrect password for quick switch.");
-      return;
-    }
-    if (selectedAccount.role === "Admin") {
-      message.error("Security policy prevents quick-switching to Admin accounts.");
-      return;
-    }
-    localStorage.setItem("currentUser", JSON.stringify(selectedAccount));
-    window.location.reload();
-  };
-
-  const openSwitchModal = () => {
-    setUserOpen(false);
-    setSwitchModalOpen(true);
-    setSelectedAccount(null);
-    setPassword("");
   };
 
   const handleLogout = () => {
@@ -234,12 +213,12 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
                   </div>
                 ) : (
                   notifications.slice(0, 5).map(n => (
-                    <div key={n.id} className={`${styles.notifItem} ${n.unread ? styles.unread : ""}`}>
-                      <div className={styles.notifDot2} style={{ background: n.unread ? "var(--color-primary)" : "transparent" }} />
+                    <div key={n.id} className={`${styles.notifItem} ${!n.isRead ? styles.unread : ""}`}>
+                      <div className={styles.notifDot2} style={{ background: !n.isRead ? "var(--color-primary)" : "transparent" }} />
                       <div className={styles.notifBody}>
                         <span className={styles.notifItemTitle}>{n.title}</span>
-                        <span className={styles.notifDesc}>{n.desc}</span>
-                        <span className={styles.notifTime}>{n.time}</span>
+                        <span className={styles.notifDesc}>{n.message}</span>
+                        <span className={styles.notifTime}>{new Date(n.createdAt).toLocaleString()}</span>
                       </div>
                     </div>
                   ))
@@ -282,9 +261,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
               <Link href={currentUser.role === "Admin" ? "/admin/settings" : "/dashboard/settings"} className="dropdown-item" onClick={() => setUserOpen(false)}>
                 <Settings size={15} /> Settings
               </Link>
-              <button className="dropdown-item" onClick={openSwitchModal} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
-                <RefreshCw size={15} /> Switch Account
-              </button>
               <div className="dropdown-divider" />
               <button className="dropdown-item danger" onClick={handleLogout} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
                 <LogOut size={15} /> Logout
@@ -293,51 +269,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
           )}
         </div>
       </div>
-
-      <Modal
-        title="Switch Account"
-        open={switchModalOpen}
-        onCancel={() => setSwitchModalOpen(false)}
-        onOk={handleSwitchAccountSubmit}
-        okText="Login"
-        okButtonProps={{ disabled: !selectedAccount || !password }}
-      >
-        <div style={{ marginBottom: "1rem" }}>
-          <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>Select a saved account to switch to quickly.</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {savedAccounts.filter(a => a.role !== "Admin").map((acc, idx) => (
-              <div 
-                key={idx} 
-                onClick={() => setSelectedAccount(acc)}
-                style={{
-                  display: "flex", alignItems: "center", gap: "1rem", padding: "1rem",
-                  border: selectedAccount?.email === acc.email ? "2px solid var(--color-primary)" : "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)", cursor: "pointer",
-                  background: selectedAccount?.email === acc.email ? "rgba(99,102,241,0.1)" : "rgba(15,23,42,0.3)"
-                }}
-              >
-                <div className="avatar-placeholder" style={{ width: 32, height: 32 }}>{acc.name.charAt(0)}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{acc.name} {currentUser.email === acc.email && "(Current)"}</div>
-                  <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{acc.email}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {selectedAccount && currentUser.email !== selectedAccount.email && (
-          <div className="form-group" style={{ marginTop: "1rem" }}>
-            <label className="form-label">Password for {selectedAccount.email}</label>
-            <Input.Password 
-              prefix={<Key size={14} style={{ color: "var(--color-text-3)", marginRight: 8 }} />} 
-              placeholder="Enter password" 
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              size="large"
-            />
-          </div>
-        )}
-      </Modal>
     </header>
   );
 }

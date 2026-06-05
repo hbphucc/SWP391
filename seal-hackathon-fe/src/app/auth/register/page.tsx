@@ -48,7 +48,7 @@ export default function RegisterPage() {
         }),
       });
 
-      message.success("Account created. Please wait for admin approval.");
+      message.success("Account created. You can sign in now.");
       router.push("/auth/login");
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not create account.");
@@ -169,7 +169,7 @@ export default function RegisterPage() {
               <Code2 size={24} color="white" />
             </div>
             <h1 className={styles.sloganTitle}>Join SEAL</h1>
-            <p className={styles.sloganDesc}>Create an account, wait for admin approval, then start building with your team.</p>
+            <p className={styles.sloganDesc}>Create an account, sign in, then start building with your team.</p>
           </div>
         </div>
       </div>

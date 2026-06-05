@@ -3,10 +3,22 @@ import { useState } from "react";
 import { FileText, Plus, Trash2, Edit2, Copy, Save } from "lucide-react";
 import { App, Table, Button, Modal, Form, Input, InputNumber, Tag } from "antd";
 
+interface Criterion {
+  name: string;
+  weight: number;
+}
+
+interface Template {
+  id: string;
+  name: string;
+  description: string;
+  criteria: Criterion[];
+}
+
 export default function CriteriaTemplatesPage() {
   const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [templates, setTemplates] = useState([
+  const [templates] = useState<Template[]>([
     {
       id: "T1",
       name: "SEAL Standard Hackathon",
@@ -31,9 +43,9 @@ export default function CriteriaTemplatesPage() {
     }
   ]);
 
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
 
-  const handleCreateOrUpdate = (values: any) => {
+  const handleCreateOrUpdate = () => {
     // Basic mock save
     message.success(`Template ${editingTemplate ? "updated" : "created"} successfully!`);
     setIsModalOpen(false);
@@ -44,16 +56,16 @@ export default function CriteriaTemplatesPage() {
     { title: 'Description', dataIndex: 'description', key: 'description' },
     { 
       title: 'Criteria breakdown', key: 'criteria', 
-      render: (_: any, record: any) => (
+      render: (_: unknown, record: Template) => (
         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {record.criteria.map((c: any, i: number) => (
+          {record.criteria.map((c: Criterion, i: number) => (
             <Tag key={i} color="blue">{c.name} ({c.weight}%)</Tag>
           ))}
         </div>
       ) 
     },
     {
-      title: 'Action', key: 'action', render: (_: any, record: any) => (
+      title: 'Action', key: 'action', render: (_: unknown, record: Template) => (
         <div style={{ display: 'flex', gap: '8px' }}>
           <Button size="small" onClick={() => { setEditingTemplate(record); setIsModalOpen(true); }} icon={<Edit2 size={14} />} />
           <Button size="small" icon={<Copy size={14} />} onClick={() => message.success("Template cloned!")} />
@@ -99,7 +111,7 @@ export default function CriteriaTemplatesPage() {
             <p style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginBottom: 10 }}>
               (Mock view: In a real scenario, you would dynamically add/remove criteria rows here)
             </p>
-            {editingTemplate ? editingTemplate.criteria.map((c: any, i: number) => (
+            {editingTemplate ? editingTemplate.criteria.map((c: Criterion, i: number) => (
               <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center' }}>
                 <Input value={c.name} style={{ flex: 1 }} readOnly />
                 <InputNumber value={c.weight} readOnly style={{ width: 80 }} />

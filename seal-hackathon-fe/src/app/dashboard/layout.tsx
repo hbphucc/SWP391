@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import styles from "./layout.module.css";
+import { clearAuthSession, fetchCurrentUser } from "@/lib/api";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed]       = useState(false);
@@ -11,10 +12,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
-    if (!stored) {
+    let active = true;
+
+    fetchCurrentUser().catch(() => {
+      if (!active) return;
+      clearAuthSession();
       router.push("/auth/login");
-    }
+    });
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   return (
