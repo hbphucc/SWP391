@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SEAL.NET.Data;
 
@@ -11,9 +12,11 @@ using SEAL.NET.Data;
 namespace SEAL.NET.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260605123339_AddUniqueTeamNameAndCategory")]
+    partial class AddUniqueTeamNameAndCategory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -394,43 +397,6 @@ namespace SEAL.NET.Migrations
                     b.ToTable("JudgeAssignments");
                 });
 
-            modelBuilder.Entity("SEAL.NET.Models.Entities.MentorAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("AssignedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedByUserId");
-
-                    b.HasIndex("TeamId");
-
-                    b.HasIndex("MentorUserId", "TeamId")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
-
-                    b.ToTable("MentorAssignments");
-                });
-
             modelBuilder.Entity("SEAL.NET.Models.Entities.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -632,47 +598,6 @@ namespace SEAL.NET.Migrations
                     b.ToTable("Teams");
                 });
 
-            modelBuilder.Entity("SEAL.NET.Models.Entities.TeamInvitation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("InviteeUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("InviterUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Message")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("RespondedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InviteeUserId");
-
-                    b.HasIndex("InviterUserId");
-
-                    b.HasIndex("TeamId", "InviteeUserId")
-                        .IsUnique()
-                        .HasFilter("[Status] = 0");
-
-                    b.ToTable("TeamInvitations");
-                });
-
             modelBuilder.Entity("SEAL.NET.Models.Entities.TeamMember", b =>
                 {
                     b.Property<Guid>("TeamMemberId")
@@ -812,32 +737,6 @@ namespace SEAL.NET.Migrations
                     b.Navigation("Round");
                 });
 
-            modelBuilder.Entity("SEAL.NET.Models.Entities.MentorAssignment", b =>
-                {
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "AssignedBy")
-                        .WithMany()
-                        .HasForeignKey("AssignedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SEAL.NET.Models.Entities.Team", "Team")
-                        .WithMany()
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AssignedBy");
-
-                    b.Navigation("Mentor");
-
-                    b.Navigation("Team");
-                });
-
             modelBuilder.Entity("SEAL.NET.Models.Entities.Notification", b =>
                 {
                     b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "User")
@@ -930,33 +829,6 @@ namespace SEAL.NET.Migrations
                     b.Navigation("CurrentRound");
 
                     b.Navigation("Leader");
-                });
-
-            modelBuilder.Entity("SEAL.NET.Models.Entities.TeamInvitation", b =>
-                {
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "InviteeUser")
-                        .WithMany()
-                        .HasForeignKey("InviteeUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "InviterUser")
-                        .WithMany()
-                        .HasForeignKey("InviterUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SEAL.NET.Models.Entities.Team", "Team")
-                        .WithMany()
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InviteeUser");
-
-                    b.Navigation("InviterUser");
-
-                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("SEAL.NET.Models.Entities.TeamMember", b =>

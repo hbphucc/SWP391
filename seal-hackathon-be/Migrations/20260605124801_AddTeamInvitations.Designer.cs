@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SEAL.NET.Data;
 
@@ -11,9 +12,11 @@ using SEAL.NET.Data;
 namespace SEAL.NET.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260605124801_AddTeamInvitations")]
+    partial class AddTeamInvitations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -392,43 +395,6 @@ namespace SEAL.NET.Migrations
                     b.HasIndex("RoundId");
 
                     b.ToTable("JudgeAssignments");
-                });
-
-            modelBuilder.Entity("SEAL.NET.Models.Entities.MentorAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("AssignedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedByUserId");
-
-                    b.HasIndex("TeamId");
-
-                    b.HasIndex("MentorUserId", "TeamId")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
-
-                    b.ToTable("MentorAssignments");
                 });
 
             modelBuilder.Entity("SEAL.NET.Models.Entities.Notification", b =>
@@ -810,32 +776,6 @@ namespace SEAL.NET.Migrations
                     b.Navigation("Judge");
 
                     b.Navigation("Round");
-                });
-
-            modelBuilder.Entity("SEAL.NET.Models.Entities.MentorAssignment", b =>
-                {
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "AssignedBy")
-                        .WithMany()
-                        .HasForeignKey("AssignedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SEAL.NET.Models.Entities.Team", "Team")
-                        .WithMany()
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AssignedBy");
-
-                    b.Navigation("Mentor");
-
-                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("SEAL.NET.Models.Entities.Notification", b =>
