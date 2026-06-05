@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { Target, ChevronRight, RefreshCw, ExternalLink, ShieldOff } from "lucide-react";
 import Link from "next/link";

@@ -9,8 +9,8 @@ import { apiRequest, saveAuthSession } from "@/lib/api";
 export default function AdminLogin() {
   const router = useRouter();
   const { message } = App.useApp();
-  const [email, setEmail] = useState("admin@seal.com");
-  const [password, setPassword] = useState("Admin@123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -19,8 +19,6 @@ export default function AdminLogin() {
 
     try {
       const payload = await apiRequest<{
-        token: string;
-        expiration: string;
         user: { id: string; fullName: string; email: string; roles: string[] };
       }>("/Auth/login", {
         method: "POST",

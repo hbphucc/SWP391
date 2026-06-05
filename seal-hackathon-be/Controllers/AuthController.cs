@@ -16,6 +16,7 @@ namespace SEAL.NET.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        private const string AuthCookieName = "seal_token";
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole<Guid>> _roleManager;
         private readonly IConfiguration _configuration;
@@ -115,10 +116,18 @@ namespace SEAL.NET.Controllers
             }
 
             var token = GenerateNewJsonWebToken(authClaims);
+            var tokenValue = new JwtSecurityTokenHandler().WriteToken(token);
+
+            Response.Cookies.Append(AuthCookieName, tokenValue, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = GetCookieSameSite(),
+                Expires = token.ValidTo
+            });
 
             return Ok(new
             {
-                token = new JwtSecurityTokenHandler().WriteToken(token),
                 expiration = token.ValidTo,
                 user = new
                 {
@@ -128,6 +137,18 @@ namespace SEAL.NET.Controllers
                     roles = userRoles
                 }
             });
+        }
+
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete(AuthCookieName, new CookieOptions
+            {
+                Secure = true,
+                SameSite = GetCookieSameSite()
+            });
+
+            return Ok(new { message = "Logged out successfully." });
         }
 
         [HttpGet("me")]
@@ -239,6 +260,14 @@ namespace SEAL.NET.Controllers
             );
 
             return token;
+        }
+
+        private SameSiteMode GetCookieSameSite()
+        {
+            var configured = _configuration["Auth:CookieSameSite"];
+            return Enum.TryParse<SameSiteMode>(configured, ignoreCase: true, out var sameSite)
+                ? sameSite
+                : SameSiteMode.Lax;
         }
     }
 }

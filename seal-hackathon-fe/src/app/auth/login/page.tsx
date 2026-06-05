@@ -1,20 +1,38 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { App } from "antd";
 import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react";
 import { apiRequest, saveAuthSession } from "@/lib/api";
 import styles from "../auth.module.css";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect");
   const { message } = App.useApp();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "", remember: false });
+
+  useEffect(() => {
+    const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+    if (stored) {
+      if (redirectUrl) {
+        router.push(redirectUrl);
+        return;
+      }
+      try {
+        const user = JSON.parse(stored);
+        router.push(user.roles?.includes("Admin") ? "/admin" : "/dashboard");
+      } catch {
+        router.push("/dashboard");
+      }
+    }
+  }, [router, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,8 +41,6 @@ export default function LoginPage() {
 
     try {
       const payload = await apiRequest<{
-        token: string;
-        expiration: string;
         user: { id: string; fullName: string; email: string; roles: string[] };
       }>("/Auth/login", {
         method: "POST",
@@ -33,8 +49,13 @@ export default function LoginPage() {
       });
 
       const currentUser = saveAuthSession(payload, form.remember);
-      message.success("Dang nhap thanh cong!");
-      router.push(currentUser.roles.includes("Admin") ? "/admin" : "/dashboard");
+      message.success("Logged in successfully!");
+
+      if (redirectUrl) {
+        router.push(redirectUrl);
+      } else {
+        router.push(currentUser.roles.includes("Admin") ? "/admin" : "/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Khong the dang nhap. Vui long thu lai.");
     } finally {
@@ -140,5 +161,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
+
 import { useEffect, useState } from "react";
-import { User, Save, Mail, Phone, Lock } from "lucide-react";
+import { User, Save, Upload, Mail, GraduationCap, Phone, Lock } from "lucide-react";
 import { App } from "antd";
 import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
 
 export default function AdminProfilePage() {
   const { message } = App.useApp();
   const [user, setUser] = useState<CurrentUser | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
@@ -17,7 +19,10 @@ export default function AdminProfilePage() {
 
   useEffect(() => {
     fetchCurrentUser()
-      .then(setUser)
+      .then((currentUser) => {
+        setUser(currentUser);
+        setAvatarUrl(localStorage.getItem(`avatar_${currentUser.email}`));
+      })
       .catch((err) => message.error(err instanceof Error ? err.message : "Could not load profile."))
       .finally(() => setLoading(false));
   }, [message]);
@@ -39,6 +44,7 @@ export default function AdminProfilePage() {
 
       setUser(updated);
       localStorage.setItem("currentUser", JSON.stringify(updated));
+      sessionStorage.removeItem("currentUser");
       window.dispatchEvent(new Event("storage"));
       message.success("Profile updated successfully.");
     } catch (err) {
@@ -46,6 +52,21 @@ export default function AdminProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      localStorage.setItem(`avatar_${user.email}`, dataUrl);
+      setAvatarUrl(dataUrl);
+      window.dispatchEvent(new Event("storage"));
+      message.success("Avatar updated successfully.");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -87,48 +108,65 @@ export default function AdminProfilePage() {
   if (!user) return null;
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div style={{ maxWidth: 1100 }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Admin Profile</h1>
-          <p className="page-subtitle">Manage your administrator account through the backend API</p>
+          <p className="page-subtitle">Manage your administrator account through the backend profile API</p>
         </div>
       </div>
 
-      <div className="glass-card">
-        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
-            <div className="avatar-placeholder" style={{ width: 64, height: 64, fontSize: "1.5rem", borderRadius: "50%" }}>
-              {user.fullName.charAt(0)}
+      <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div className="glass-card" style={{ flex: "1 1 250px", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", textAlign: "center" }}>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="Avatar" style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--color-primary)", padding: 4, background: "rgba(255,255,255,0.05)" }} />
+          ) : (
+            <div className="avatar-placeholder" style={{ width: 120, height: 120, fontSize: "3rem", borderRadius: "50%" }}>
+              {user.fullName.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <h3 style={{ margin: 0 }}>{user.fullName}</h3>
-              <span className="badge badge-primary">{user.role}</span>
-            </div>
+          )}
+          <div>
+            <h3 style={{ fontSize: "1.2rem", margin: "0.25rem 0" }}>{user.fullName}</h3>
+            <span className="badge badge-primary">{user.role}</span>
           </div>
+          <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer", marginTop: "0.5rem" }}>
+            <Upload size={14} /> Change Avatar
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarUpload} />
+          </label>
+        </div>
 
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label"><User size={13} style={{ display: "inline", marginRight: 4 }} /> Full Name</label>
-              <input className="form-input" value={user.fullName || ""} onChange={(e) => setUser({ ...user, fullName: e.target.value, name: e.target.value })} required />
+        <div className="glass-card" style={{ flex: "2 1 420px" }}>
+          <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label"><User size={13} style={{ display: "inline", marginRight: 4 }} /> Full Name</label>
+                <input className="form-input" value={user.fullName || ""} onChange={(e) => setUser({ ...user, fullName: e.target.value, name: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label"><Mail size={13} style={{ display: "inline", marginRight: 4 }} /> Email Address</label>
+                <input className="form-input" type="email" value={user.email || ""} disabled />
+                <span className="form-hint">Email cannot be changed</span>
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label"><Mail size={13} style={{ display: "inline", marginRight: 4 }} /> Email Address</label>
-              <input className="form-input" type="email" value={user.email || ""} disabled />
+
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label"><Phone size={13} style={{ display: "inline", marginRight: 4 }} /> Phone Number</label>
+                <input className="form-input" value={user.phoneNumber || ""} onChange={(e) => setUser({ ...user, phoneNumber: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label"><GraduationCap size={13} style={{ display: "inline", marginRight: 4 }} /> Staff/Student Code</label>
+                <input className="form-input" value={user.studentCode || ""} onChange={(e) => setUser({ ...user, studentCode: e.target.value })} />
+              </div>
             </div>
-          </div>
 
-          <div className="form-group" style={{ maxWidth: 380 }}>
-            <label className="form-label"><Phone size={13} style={{ display: "inline", marginRight: 4 }} /> Phone Number</label>
-            <input className="form-input" value={user.phoneNumber || ""} onChange={(e) => setUser({ ...user, phoneNumber: e.target.value })} />
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? <span className="spinner" /> : <><Save size={16} /> Save Changes</>}
-            </button>
-          </div>
-        </form>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? <span className="spinner" /> : <><Save size={16} /> Save Changes</>}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
       <div className="glass-card" style={{ marginTop: "2rem" }}>

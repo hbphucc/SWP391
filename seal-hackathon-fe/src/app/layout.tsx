@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import ThemeProvider from "../components/ThemeProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import "./globals.css";
@@ -34,6 +35,16 @@ export default function RootLayout({
           {children}
           <AIChatbotWrapper />
         </ThemeProvider>
+        
+        {/* Google Translate scripts */}
+        <Script id="google-translate-init" strategy="afterInteractive">
+          {`
+            function googleTranslateElementInit() {
+              new window.google.translate.TranslateElement({pageLanguage: 'en'}, 'google_translate_element');
+            }
+          `}
+        </Script>
+        <Script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" strategy="afterInteractive" />
       </body>
     </html>
   );

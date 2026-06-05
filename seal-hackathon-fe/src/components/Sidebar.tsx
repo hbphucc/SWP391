@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
@@ -8,48 +9,60 @@ import {
   Cloud, Tag, Target, Send, Star, Shield, Menu, Search
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
-import { clearAuthSession } from "@/lib/api";
+import { clearAuthSession, type CurrentUser } from "@/lib/api";
 
-const ALL_NAV_SECTIONS = [
+type NavItem = {
+  icon: React.ElementType;
+  label: string;
+  href: string;
+  roles: string[] | null;
+};
+
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const ALL_NAV_SECTIONS: NavSection[] = [
   {
     title: "Main",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard",       href: "/dashboard", roles: null },
+      { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: null },
     ],
   },
   {
     title: "Events",
     items: [
-      { icon: Calendar, label: "Events",    href: "/dashboard/events",       roles: null },
-      { icon: Tag,      label: "Tracks",    href: "/dashboard/tracks",       roles: null },
-      { icon: Users,    label: "Teams",     href: "/dashboard/teams",        roles: null },
-      { icon: Search,   label: "Matchmaking", href: "/dashboard/matchmaking", roles: null },
-      { icon: Send,     label: "Submissions", href: "/dashboard/submissions", roles: null },
+      { icon: Calendar, label: "Events", href: "/dashboard/events", roles: null },
+      { icon: Tag, label: "Tracks", href: "/dashboard/tracks", roles: null },
+      { icon: Users, label: "Teams", href: "/dashboard/teams", roles: null },
+      { icon: Search, label: "Matchmaking", href: "/dashboard/matchmaking", roles: ["Member", "TeamLeader"] },
+      { icon: Send, label: "Submissions", href: "/dashboard/submissions", roles: ["Member", "TeamLeader"] },
     ],
   },
   {
     title: "Judging",
     items: [
-      { icon: FileText,label: "Criteria",  href: "/dashboard/criteria",     roles: null },
-      { icon: Target,  label: "Scoring",   href: "/dashboard/judging",      roles: ["Judge", "Admin"] },
-      { icon: Trophy,  label: "Rankings",  href: "/dashboard/rankings",     roles: null },
-      { icon: Star,    label: "Prizes",    href: "/dashboard/prizes",       roles: null },
+      { icon: FileText, label: "Criteria", href: "/dashboard/criteria", roles: ["Admin"] },
+      { icon: Target, label: "Scoring", href: "/dashboard/judging", roles: ["Judge", "Admin"] },
+      { icon: Trophy, label: "Rankings", href: "/dashboard/rankings", roles: null },
+      { icon: Star, label: "Prizes", href: "/dashboard/prizes", roles: null },
     ],
   },
   {
     title: "Content",
     items: [
-      { icon: FileText, label: "Documents", href: "/dashboard/documents",   roles: null },
-      { icon: Cloud,    label: "Storage",   href: "/dashboard/storage",     roles: null },
-      { icon: BookOpen, label: "Analytics", href: "/dashboard/analytics",   roles: null },
+      { icon: FileText, label: "Documents", href: "/dashboard/documents", roles: null },
+      { icon: Cloud, label: "Storage", href: "/dashboard/storage", roles: null },
+      { icon: BookOpen, label: "Analytics", href: "/dashboard/analytics", roles: null },
     ],
   },
   {
     title: "System",
     items: [
-      { icon: Users,    label: "User Approvals", href: "/dashboard/users",               roles: null },
-      { icon: Shield,   label: "System Alerts",  href: "/dashboard/system-notifications", roles: null },
-      { icon: Settings, label: "Settings",        href: "/dashboard/settings",            roles: null },
+      { icon: Users, label: "User Approvals", href: "/dashboard/users", roles: ["Admin"] },
+      { icon: Shield, label: "System Alerts", href: "/dashboard/system-notifications", roles: ["Admin"] },
+      { icon: Settings, label: "Settings", href: "/dashboard/settings", roles: null },
     ],
   },
 ];
@@ -65,89 +78,98 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
   const pathname = usePathname();
   const router = useRouter();
   const isAdminPortal = pathname.startsWith("/admin");
-  
-  const [currentUser, setCurrentUser] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("currentUser");
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {}
-      }
-    }
-    return { name: "Hải Trần", role: "Member", email: "hai@student.fpt.edu.vn" };
-  });
-
-  const [avatar, setAvatar] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("currentUser");
-      let email = "hai@student.fpt.edu.vn";
-      if (stored) {
-        try {
-          email = JSON.parse(stored).email || email;
-        } catch {}
-      }
-      return localStorage.getItem(`avatar_${email}`);
-    }
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
 
   const loadUser = useCallback(() => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
     if (stored) {
-      try { 
-        const parsed = JSON.parse(stored);
+      try {
+        const parsed = JSON.parse(stored) as CurrentUser;
         setCurrentUser(parsed);
         setAvatar(localStorage.getItem(`avatar_${parsed.email}`));
-      } catch {}
+      } catch {
+        setCurrentUser(null);
+        setAvatar(null);
+      }
     } else {
-      const defaultUser = { name: "Hải Trần", role: "Member", email: "hai@student.fpt.edu.vn" };
-      setCurrentUser(defaultUser);
-      setAvatar(localStorage.getItem(`avatar_${defaultUser.email}`));
+      setCurrentUser(null);
+      setAvatar(null);
     }
   }, []);
 
   useEffect(() => {
+    const id = window.setTimeout(loadUser, 0);
     window.addEventListener("storage", loadUser);
-    return () => window.removeEventListener("storage", loadUser);
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener("storage", loadUser);
+    };
   }, [loadUser]);
 
   const handleLogout = () => {
-    clearAuthSession();
+    void clearAuthSession();
     router.push("/auth/login");
   };
-  const userRoles: string[] = Array.isArray(currentUser?.roles)
-    ? (currentUser.roles as string[])
+
+  const userRoles = currentUser?.roles?.length
+    ? currentUser.roles
     : currentUser?.role
-      ? [currentUser.role as string]
+      ? [currentUser.role]
       : [];
 
-  const visibleSections = ALL_NAV_SECTIONS.map(section => {
+  const visibleSections = ALL_NAV_SECTIONS.map((section): NavSection | null => {
     if (isAdminPortal) {
-      if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Admin Dashboard", href: "/admin", roles: null }] };
-      if (section.title === "Events") return { ...section, items: [{ icon: Calendar, label: "Events", href: "/admin/events", roles: null }] };
-      if (section.title === "System") return { ...section, items: [
-        { icon: Users, label: "User Approvals", href: "/admin/users", roles: null },
-        { icon: Shield, label: "System Alerts", href: "/admin/system-notifications", roles: null },
-        { icon: Settings, label: "Settings", href: "/admin/settings", roles: null }
-      ]};
-      if (section.title === "Judging") return { ...section, items: [{ icon: FileText, label: "Criteria", href: "/admin/criteria", roles: null }] };
+      if (section.title === "Main") {
+        return { ...section, items: [{ icon: LayoutDashboard, label: "Admin Dashboard", href: "/admin", roles: ["Admin"] }] };
+      }
+      if (section.title === "Events") {
+        return {
+          ...section,
+          items: [
+            { icon: Calendar, label: "Events", href: "/admin/events", roles: ["Admin"] },
+            { icon: Users, label: "Teams", href: "/admin/teams", roles: ["Admin"] },
+            { icon: Tag, label: "Tracks", href: "/admin/tracks", roles: ["Admin"] },
+          ],
+        };
+      }
+      if (section.title === "System") {
+        return {
+          ...section,
+          items: [
+            { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
+            { icon: Shield, label: "System Alerts", href: "/admin/system-notifications", roles: ["Admin"] },
+            { icon: Settings, label: "Settings", href: "/admin/settings", roles: ["Admin"] },
+          ],
+        };
+      }
+      if (section.title === "Judging") {
+        return {
+          ...section,
+          items: [
+            { icon: FileText, label: "Criteria", href: "/admin/criteria", roles: ["Admin"] },
+            { icon: Target, label: "Assignments", href: "/admin/assignments", roles: ["Admin"] },
+            { icon: Trophy, label: "Scoring Queue", href: "/admin/judging", roles: ["Admin"] },
+          ],
+        };
+      }
       return null;
-    } else if (pathname.startsWith("/mentor")) {
-      if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Mentor Dashboard", href: "/mentor", roles: null }] };
-      if (section.title === "Events") return { ...section, items: [{ icon: Users, label: "My Teams", href: "/mentor/teams", roles: null }] };
-      return null;
-    } else {
-      const filteredItems = section.items.filter(item => {
-        if (item.label === "Settings" && section.title === "System") return true;
-        if (section.title === "System" && item.label !== "Settings") return false;
-        if (section.title === "Judging" && item.label === "Criteria") return false;
-        if (item.roles && !item.roles.some(r => userRoles.includes(r))) return false;
-        return true;
-      });
-      return { ...section, items: filteredItems };
     }
-  }).filter(section => section && section.items.length > 0);
+
+    if (pathname.startsWith("/mentor")) {
+      if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Mentor Dashboard", href: "/mentor", roles: ["Mentor", "Admin"] }] };
+      if (section.title === "Events") return { ...section, items: [{ icon: Users, label: "My Teams", href: "/mentor/teams", roles: ["Mentor", "Admin"] }] };
+      return null;
+    }
+
+    const filteredItems = section.items.filter((item) => {
+      if (section.title === "System" && item.label !== "Settings") return false;
+      if (section.title === "Judging" && item.label === "Criteria") return false;
+      if (item.roles && !item.roles.some((role) => userRoles.includes(role))) return false;
+      return true;
+    });
+    return { ...section, items: filteredItems };
+  }).filter((section): section is NavSection => Boolean(section && section.items.length > 0));
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -155,15 +177,17 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
     return pathname.startsWith(href);
   };
 
+  if (!currentUser) return null;
+
+  const profileHref = currentUser.roles.includes("Admin") ? "/admin/profile" : "/dashboard/profile";
+
   return (
     <>
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className={styles.overlay} onClick={onMobileClose} />
       )}
 
       <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""} ${mobileOpen ? styles.mobileOpen : ""}`}>
-        {/* Logo */}
         <div className={styles.logo} style={collapsed ? { justifyContent: "center", padding: "1.25rem 0" } : {}}>
           {!collapsed && (
             <>
@@ -176,19 +200,18 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
               </div>
             </>
           )}
-          <button className={styles.collapseBtn} onClick={onToggle} style={collapsed ? { margin: 0, padding: '0.5rem' } : {}}>
+          <button className={styles.collapseBtn} onClick={onToggle} style={collapsed ? { margin: 0, padding: "0.5rem" } : {}}>
             {collapsed ? <Menu size={18} /> : <ChevronLeft size={16} />}
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className={styles.nav}>
           {visibleSections.map((section) => (
-            <div key={section!.title} className={styles.section}>
+            <div key={section.title} className={styles.section}>
               {!collapsed && (
-                <span className={styles.sectionTitle}>{section!.title}</span>
+                <span className={styles.sectionTitle}>{section.title}</span>
               )}
-              {section!.items.map((item) => {
+              {section.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
                 return (
@@ -213,14 +236,13 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
           ))}
         </nav>
 
-        {/* User Footer */}
         <div className={styles.footer}>
-          <Link href="/dashboard/profile" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, textDecoration: "none", minWidth: 0, overflow: "hidden" }}>
+          <Link href={profileHref} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, textDecoration: "none", minWidth: 0, overflow: "hidden" }}>
             <div className={styles.userAvatar}>
               {avatar ? (
                 <img src={avatar} alt="Avatar" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
               ) : (
-                <div className="avatar-placeholder" style={{ width: 36, height: 36, fontSize: "0.85rem", textTransform: 'uppercase' }}>
+                <div className="avatar-placeholder" style={{ width: 36, height: 36, fontSize: "0.85rem", textTransform: "uppercase" }}>
                   {currentUser.name.charAt(0)}
                 </div>
               )}

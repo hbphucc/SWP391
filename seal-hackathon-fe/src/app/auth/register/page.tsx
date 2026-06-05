@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App } from "antd";
-import { ArrowRight, Building2, CheckCircle, Code2, GraduationCap, Lock, Mail, Trophy, User } from "lucide-react";
+import { Building2, CheckCircle, Code2, GraduationCap, Lock, Mail, Trophy, User } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import styles from "../auth.module.css";
 import vnUniversities from "../../../data/vietnam_universities.json";
@@ -23,6 +23,7 @@ export default function RegisterPage() {
     confirmPassword: "",
     studentId: "",
     university: "",
+    customUniversity: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +36,8 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
+      const isCustomUniversity = form.university === "Other / International";
+
       await apiRequest("/Auth/register", {
         method: "POST",
         auth: false,
@@ -44,11 +47,15 @@ export default function RegisterPage() {
           password: form.password,
           studentType: studentType === "fpt" ? 0 : 1,
           studentCode: form.studentId,
-          schoolName: studentType === "fpt" ? "FPT University" : form.university,
+          schoolName: studentType === "fpt"
+            ? "FPT University"
+            : isCustomUniversity
+              ? form.customUniversity
+              : form.university,
         }),
       });
 
-      message.success("Account created. You can sign in now.");
+      message.success("Account created successfully. Please login.");
       router.push("/auth/login");
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not create account.");
@@ -138,15 +145,25 @@ export default function RegisterPage() {
                   </div>
 
                   {studentType === "external" && (
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="uni">University Name</label>
-                      <input id="uni" type="text" className="form-input" list="vn-universities" placeholder="Type to search your university..." value={form.university} onChange={(e) => setForm({ ...form, university: e.target.value })} required />
-                      <datalist id="vn-universities">
-                        {vnUniversities.map((uni: string, idx: number) => (
-                          <option key={idx} value={uni} />
-                        ))}
-                      </datalist>
-                    </div>
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="uni">University Name</label>
+                        <input id="uni" type="text" className="form-input" list="vn-universities" placeholder="Type to search your university..." value={form.university} onChange={(e) => setForm({ ...form, university: e.target.value })} required />
+                        <datalist id="vn-universities">
+                          {vnUniversities.map((uni: string, idx: number) => (
+                            <option key={idx} value={uni} />
+                          ))}
+                          <option value="Other / International" />
+                        </datalist>
+                      </div>
+
+                      {form.university === "Other / International" && (
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="customUni">Specify your University</label>
+                          <input id="customUni" type="text" className="form-input" placeholder="Enter your international university name..." value={form.customUniversity} onChange={(e) => setForm({ ...form, customUniversity: e.target.value })} required />
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -169,7 +186,7 @@ export default function RegisterPage() {
               <Code2 size={24} color="white" />
             </div>
             <h1 className={styles.sloganTitle}>Join SEAL</h1>
-            <p className={styles.sloganDesc}>Create an account, sign in, then start building with your team.</p>
+            <p className={styles.sloganDesc}>Create an account, wait for admin approval, then start building with your team.</p>
           </div>
         </div>
       </div>

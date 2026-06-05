@@ -41,6 +41,19 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            if (string.IsNullOrWhiteSpace(context.Token) &&
+                context.Request.Cookies.TryGetValue("seal_token", out var token))
+            {
+                context.Token = token;
+            }
+
+            return Task.CompletedTask;
+        }
+    };
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -61,7 +74,7 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                ?? new[] { "http://localhost:3000", "http://localhost:5173" }
+                ?? new[] { "http://localhost:3000", "http://localhost:3001", "http://localhost:5173" }
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
