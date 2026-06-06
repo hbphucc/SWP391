@@ -1,5 +1,5 @@
 ﻿"use client";
-import React, { useState, useEffect } from "react";
+import React, { use, useState, useEffect } from "react";
 import { ChevronLeft, Users, Crown, Mail, Shield, BookOpen, Target, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
@@ -42,7 +42,8 @@ type TeamData = {
   submissions: Submission[];
 };
 
-export default function TeamDetailPage({ params }: { params: { id: string } }) {
+export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [tab, setTab] = useState("members");
   const [team, setTeam] = useState<TeamData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +52,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     let active = true;
     
-    apiRequest<TeamData>(`/teams/${params.id}`)
+    apiRequest<TeamData>(`/teams/${id}`)
       .then((data) => {
         if (active) {
           setTeam(data);
@@ -72,7 +73,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
     return () => {
       active = false;
     };
-  }, [params.id]);
+  }, [id]);
 
   if (loading) {
     return (
