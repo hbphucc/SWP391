@@ -130,6 +130,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
             { icon: Calendar, label: "Events", href: "/admin/events", roles: ["Admin"] },
             { icon: Users, label: "Teams", href: "/admin/teams", roles: ["Admin"] },
             { icon: Tag, label: "Tracks", href: "/admin/tracks", roles: ["Admin"] },
+            { icon: Star, label: "Prizes", href: "/admin/prizes", roles: ["Admin"] },
           ],
         };
       }

@@ -1,58 +1,108 @@
 "use client";
+import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend } from "recharts";
 import { Download, Info, TrendingUp } from "lucide-react";
+import { App } from "antd";
+import { apiRequest } from "@/lib/api";
 
-const ICC_DATA = [
-  { criterion: "Technical Implementation", icc: 0.81, alpha: 0.79, agreement: "High" },
-  { criterion: "Innovation & Creativity",  icc: 0.62, alpha: 0.59, agreement: "Moderate" },
-  { criterion: "Presentation & Demo",       icc: 0.74, alpha: 0.71, agreement: "High" },
-  { criterion: "Code Quality",             icc: 0.88, alpha: 0.85, agreement: "Very High" },
-];
+interface CriterionReliability {
+  criteriaId: string;
+  criterion: string;
+  icc: number | null;
+  agreement: string;
+  avgScore: number;
+}
 
-const VARIANCE_DATA = [
-  { name: "CodeCraft",    J1: 88, J2: 85, J3: 91 },
-  { name: "TechVision",  J1: 82, J2: 90, J3: 87 },
-  { name: "InnovateSEAL",J1: 79, J2: 84, J3: 83 },
-  { name: "AlphaCoders", J1: 75, J2: 80, J3: 78 },
-  { name: "ByteBuilders", J1: 86, J2: 82, J3: 88 },
-];
+interface JudgeAverage {
+  judge: string;
+  avgScore: number;
+}
 
-const RADAR_DATA = [
-  { criterion: "Technical", internalAvg: 82, guestAvg: 78 },
-  { criterion: "Innovation", internalAvg: 74, guestAvg: 79 },
-  { criterion: "Presentation", internalAvg: 80, guestAvg: 81 },
-  { criterion: "Code Quality", internalAvg: 85, guestAvg: 76 },
-];
+interface TeamVariance {
+  team: string;
+  judges: JudgeAverage[];
+}
 
-const AGREE_COLOR: Record<string, string> = {
-  "Very High": "badge-success",
-  "High":      "badge-primary",
-  "Moderate":  "badge-warning",
-  "Low":       "badge-danger",
-};
+interface CriterionAverage {
+  criterion: string;
+  avgScore: number;
+}
+
+interface InterRaterAnalytics {
+  overallIcc: number | null;
+  judgeCount: number;
+  submissionCount: number;
+  criteriaCount: number;
+  byCriterion: CriterionReliability[];
+  variance: TeamVariance[];
+  criterionAverages: CriterionAverage[];
+}
+
+const BAR_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e"];
 
 export default function AnalyticsPage() {
-  const avgICC = (ICC_DATA.reduce((s, d) => s + d.icc, 0) / ICC_DATA.length).toFixed(3);
+  const { message } = App.useApp();
+  const [data, setData] = useState<InterRaterAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await apiRequest<InterRaterAnalytics>("/Analytics/inter-rater");
+        setData(res);
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Could not load analytics.");
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [message]);
 
   const exportAnalyticsCSV = () => {
-    const header = "Criterion,ICC,Alpha,Agreement\n";
-    const rows = ICC_DATA.map(d => `${d.criterion},${d.icc},${d.alpha},${d.agreement}`).join("\n");
-    const csvContent = header + rows;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    if (!data) return;
+    const header = "Criterion,ICC,Agreement,AvgScore\n";
+    const rows = data.byCriterion.map(d => `${d.criterion},${d.icc ?? "N/A"},${d.agreement},${d.avgScore}`).join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.download = 'analytics_export.csv';
+    link.download = "analytics_export.csv";
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return <div className="empty-state"><TrendingUp size={48} className="empty-icon" /><div className="empty-title">Loading analytics…</div></div>;
+  }
+
+  if (!data || data.submissionCount === 0) {
+    return (
+      <div className="empty-state">
+        <TrendingUp size={48} className="empty-icon" />
+        <div className="empty-title">No scoring data yet</div>
+        <p style={{ color: "var(--color-text-3)", marginTop: "0.5rem" }}>Inter-rater analytics appear once judges have scored submissions.</p>
+      </div>
+    );
+  }
+
+  // Build dynamic judge bars for the variance chart
+  const judgeNames = Array.from(new Set(data.variance.flatMap(v => v.judges.map(j => j.judge))));
+  const varianceRows = data.variance.map(v => {
+    const row: Record<string, string | number> = { name: v.team };
+    for (const j of v.judges) row[j.judge] = j.avgScore;
+    return row;
+  });
+
+  const radarData = data.criterionAverages.map(c => ({ criterion: c.criterion, avgScore: c.avgScore }));
 
   return (
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Research & Analytics</h1>
-          <p className="page-subtitle">Inter-Rater Reliability (ICC) Analysis · SEAL Spring 2026</p>
+          <p className="page-subtitle">Inter-Rater Reliability (ICC) Analysis</p>
         </div>
         <button className="btn btn-secondary" onClick={exportAnalyticsCSV}><Download size={15} style={{ marginRight: "0.5rem" }} /> Export CSV</button>
       </div>
@@ -74,10 +124,10 @@ export default function AnalyticsPage() {
         {/* Summary Stats */}
         <div className="glass-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
           {[
-            { label: "Overall ICC",       val: avgICC,  color: "#10b981",  sub: "Intraclass Correlation" },
-            { label: "Avg Krippendorff α", val: "0.74",  color: "#6366f1",  sub: "Alpha coefficient" },
-            { label: "Judges Analyzed",   val: "8",      color: "#06b6d4",  sub: "Internal + Guest" },
-            { label: "Submissions",       val: "22",     color: "#f59e0b",  sub: "Qualifying Round" },
+            { label: "Overall ICC",     val: data.overallIcc != null ? data.overallIcc.toFixed(3) : "N/A", color: "#10b981", sub: "Intraclass Correlation" },
+            { label: "Judges Analyzed", val: String(data.judgeCount),      color: "#6366f1", sub: "Scored submissions" },
+            { label: "Submissions",     val: String(data.submissionCount), color: "#f59e0b", sub: "With scores" },
+            { label: "Criteria",        val: String(data.criteriaCount),   color: "#06b6d4", sub: "Scored criteria" },
           ].map(s => (
             <div key={s.label} className="glass-card" style={{ transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
               <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>
@@ -93,40 +143,43 @@ export default function AnalyticsPage() {
             <h4 style={{ marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-1)" }}>
               <TrendingUp size={16} style={{ color: "var(--color-primary)" }} /> ICC by Criterion
             </h4>
+            {data.byCriterion.length === 0 && <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem" }}>No criteria scored yet.</div>}
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {ICC_DATA.map(d => (
-                <div key={d.criterion}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: "0.5rem" }}>
-                    <span style={{ fontWeight: 500, color: "var(--color-text-2)" }}>{d.criterion}</span>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                      <span className={`glass-badge ${d.agreement === "Very High" ? "success" : d.agreement === "High" ? "primary" : d.agreement === "Moderate" ? "warning" : "danger"}`}>{d.agreement}</span>
-                      <strong style={{ color: "var(--color-text-1)" }}>{d.icc}</strong>
+              {data.byCriterion.map(d => {
+                const icc = d.icc ?? 0;
+                return (
+                  <div key={d.criteriaId}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: "0.5rem" }}>
+                      <span style={{ fontWeight: 500, color: "var(--color-text-2)" }}>{d.criterion}</span>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <span className={`glass-badge ${d.agreement === "Very High" ? "success" : d.agreement === "High" ? "primary" : d.agreement === "Moderate" ? "warning" : "danger"}`}>{d.agreement}</span>
+                        <strong style={{ color: "var(--color-text-1)" }}>{d.icc ?? "N/A"}</strong>
+                      </div>
+                    </div>
+                    <div className="progress" style={{ background: "rgba(255,255,255,0.05)" }}>
+                      <div className="progress-fill" style={{
+                        width: `${icc * 100}%`,
+                        background: icc >= 0.8 ? "linear-gradient(90deg,#10b981,#34d399)" : icc >= 0.65 ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "linear-gradient(90deg,#f59e0b,#fbbf24)",
+                      }} />
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: "0.4rem" }}>
+                      Avg score: {d.avgScore}
                     </div>
                   </div>
-                  <div className="progress" style={{ background: "rgba(255,255,255,0.05)" }}>
-                    <div className="progress-fill" style={{
-                      width: `${d.icc * 100}%`,
-                      background: d.icc >= 0.8 ? "linear-gradient(90deg,#10b981,#34d399)" : d.icc >= 0.65 ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "linear-gradient(90deg,#f59e0b,#fbbf24)",
-                    }} />
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: "0.4rem" }}>
-                    Krippendorff α: {d.alpha}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Radar: Internal vs Guest */}
+          {/* Radar: Average score by criterion */}
           <div className="glass-card">
-            <h4 style={{ marginBottom: "1.25rem", color: "var(--color-text-1)" }}>Judge Type Comparison</h4>
+            <h4 style={{ marginBottom: "1.25rem", color: "var(--color-text-1)" }}>Average Score by Criterion</h4>
             <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={RADAR_DATA}>
+              <RadarChart data={radarData}>
                 <PolarGrid stroke="rgba(148,163,184,0.1)" />
                 <PolarAngleAxis dataKey="criterion" tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-                <PolarRadiusAxis domain={[60, 100]} tick={{ fill: "var(--color-text-3)", fontSize: 10 }} />
-                <Radar name="Internal Judge" dataKey="internalAvg" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
-                <Radar name="Guest Judge"    dataKey="guestAvg"    stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
+                <PolarRadiusAxis tick={{ fill: "var(--color-text-3)", fontSize: 10 }} />
+                <Radar name="Average Score" dataKey="avgScore" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
                 <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
                 <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} />
               </RadarChart>
@@ -137,18 +190,22 @@ export default function AnalyticsPage() {
         {/* Score Variance Chart */}
         <div className="glass-card" style={{ marginBottom: "1rem" }}>
           <h4 style={{ marginBottom: "1.25rem", color: "var(--color-text-1)" }}>Score Variance Across Judges (per Team)</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={VARIANCE_DATA} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
-              <XAxis dataKey="name" tick={{ fill: "var(--color-text-2)", fontSize: 12 }} />
-              <YAxis domain={[60, 100]} tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
-              <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
-              <Bar dataKey="J1" name="Judge 1" fill="#6366f1" radius={[4,4,0,0]} />
-              <Bar dataKey="J2" name="Judge 2" fill="#8b5cf6" radius={[4,4,0,0]} />
-              <Bar dataKey="J3" name="Judge 3" fill="#06b6d4" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {varianceRows.length === 0 ? (
+            <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem" }}>No team scores yet.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={varianceRows} barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
+                <XAxis dataKey="name" tick={{ fill: "var(--color-text-2)", fontSize: 12 }} />
+                <YAxis tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
+                <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
+                <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
+                {judgeNames.map((j, i) => (
+                  <Bar key={j} dataKey={j} name={j} fill={BAR_COLORS[i % BAR_COLORS.length]} radius={[4, 4, 0, 0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

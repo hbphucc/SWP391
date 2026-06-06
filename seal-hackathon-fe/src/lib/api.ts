@@ -77,6 +77,28 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   return parseResponse<T>(response);
 }
 
+export async function apiUpload<T>(path: string, formData: FormData) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  return parseResponse<T>(response);
+}
+
+export async function apiDownload(path: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Download failed with status ${response.status}`);
+  }
+
+  return response.blob();
+}
+
 export function toCurrentUser(user: {
   id: string;
   fullName?: string;

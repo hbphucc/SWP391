@@ -24,6 +24,8 @@ namespace SEAL.NET.Data
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<TeamInvitation> TeamInvitations { get; set; }
         public DbSet<MentorAssignment> MentorAssignments { get; set; }
+        public DbSet<Prize> Prizes { get; set; }
+        public DbSet<Document> Documents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -183,6 +185,18 @@ namespace SEAL.NET.Data
                 .WithMany()
                 .HasForeignKey(ma => ma.TeamId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Prize>()
+                .HasOne(p => p.Event)
+                .WithMany()
+                .HasForeignKey(p => p.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Document>()
+                .HasOne(d => d.Uploader)
+                .WithMany()
+                .HasForeignKey(d => d.UploaderId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

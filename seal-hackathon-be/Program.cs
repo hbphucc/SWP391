@@ -117,7 +117,7 @@ using (var scope = app.Services.CreateScope())
     if (app.Environment.IsDevelopment())
     {
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.MigrateAsync();
+        // await db.Database.MigrateAsync(); // Commented out to prevent conflict with existing database
     }
 
     await DbSeeder.SeedRolesAndAdminAsync(scope.ServiceProvider);
