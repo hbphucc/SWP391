@@ -244,13 +244,13 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
                 <img src={avatar} alt="Avatar" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
               ) : (
                 <div className="avatar-placeholder" style={{ width: 36, height: 36, fontSize: "0.85rem", textTransform: "uppercase" }}>
-                  {currentUser.name.charAt(0)}
+                  {currentUser.name?.charAt(0) || "U"}
                 </div>
               )}
             </div>
             {!collapsed && (
               <div className={styles.userInfo} style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                <span className={styles.userName} style={{ color: "var(--color-text)", display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{currentUser.name}</span>
+                <span className={styles.userName} style={{ color: "var(--color-text)", display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{currentUser.name || "User"}</span>
                 <span className={styles.userRole} style={{ display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{currentUser.role}</span>
               </div>
             )}
