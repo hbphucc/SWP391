@@ -95,7 +95,7 @@ export default function MatchmakingPage() {
         setMyTeam(null);
       }
     } catch {
-      message.error("Không thể tải thông tin đăng nhập.");
+      message.error("Could not load your account information.");
     } finally {
       setLoading(false);
     }
@@ -122,7 +122,7 @@ export default function MatchmakingPage() {
         setSuggestions(data);
       }
     } catch {
-      message.error("Không thể tải danh sách ứng viên.");
+      message.error("Could not load candidate list.");
     } finally {
       setLoadingSuggestions(false);
     }
@@ -135,7 +135,7 @@ export default function MatchmakingPage() {
       const data = await apiRequest<InvitationResponse[]>("/teams/invitations/sent");
       setSentInvites(data);
     } catch {
-      message.error("Không thể tải lời mời đã gửi.");
+      message.error("Could not load sent invitations.");
     } finally {
       setLoadingSent(false);
     }
@@ -147,7 +147,7 @@ export default function MatchmakingPage() {
       const data = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
       setReceivedInvites(data);
     } catch {
-      message.error("Không thể tải lời mời đã nhận.");
+      message.error("Could not load received invitations.");
     } finally {
       setLoadingReceived(false);
     }
@@ -169,19 +169,19 @@ export default function MatchmakingPage() {
 
   const handleInvite = async (targetUser: FreeAgentOrSuggestion) => {
     if (!myTeam) {
-      message.error("Bạn chưa có nhóm. Vui lòng tạo nhóm trước khi mời thành viên.");
+      message.error("You don't have a team yet. Please create a team before inviting members.");
       return;
     }
     if (myTeam.leaderId !== currentUser?.id) {
-      message.error("Chỉ Trưởng nhóm mới có quyền gửi lời mời tham gia.");
+      message.error("Only the Team Leader can send invitations.");
       return;
     }
     if (myTeam.status !== "Pending") {
-      message.error("Nhóm đã được phê duyệt, không thể mời thêm thành viên.");
+      message.error("Your team has been approved and cannot add more members.");
       return;
     }
     if (myTeam.members.length >= 5) {
-      message.warning("Nhóm đã đạt giới hạn tối đa 5 thành viên.");
+      message.warning("Your team has reached the maximum of 5 members.");
       return;
     }
 
@@ -190,30 +190,30 @@ export default function MatchmakingPage() {
         method: "POST",
         body: JSON.stringify({
           inviteeUserId: targetUser.id,
-          message: `Chào ${targetUser.name}, nhóm mình rất muốn mời bạn tham gia cùng thực hiện dự án!`
+          message: `Hi ${targetUser.name}, we'd love to have you join our team and work on this project together!`
         })
       });
-      message.success(`Đã gửi lời mời thành công đến ${targetUser.name}!`);
+      message.success(`Invitation sent successfully to ${targetUser.name}!`);
       void loadSuggestionsOrAgents();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Gửi lời mời thất bại.");
+      message.error(err instanceof Error ? err.message : "Failed to send invitation.");
     }
   };
 
   const handleCancelInvite = async (id: string) => {
     try {
       await apiRequest(`/teams/invitations/${id}/cancel`, { method: "POST" });
-      message.success("Đã hủy lời mời.");
+      message.success("Invitation cancelled.");
       void loadSentInvites();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Hủy lời mời thất bại.");
+      message.error(err instanceof Error ? err.message : "Failed to cancel invitation.");
     }
   };
 
   const handleAcceptInvite = async (id: string) => {
     try {
       await apiRequest(`/teams/invitations/${id}/accept`, { method: "POST" });
-      message.success("Đã đồng ý gia nhập nhóm thành công!");
+      message.success("You have successfully joined the team!");
       try {
         const teamData = await apiRequest<TeamData>("/teams/my-team");
         setMyTeam(teamData);
@@ -222,17 +222,17 @@ export default function MatchmakingPage() {
       }
       void loadReceivedInvites();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Gia nhập nhóm thất bại.");
+      message.error(err instanceof Error ? err.message : "Failed to join team.");
     }
   };
 
   const handleRejectInvite = async (id: string) => {
     try {
       await apiRequest(`/teams/invitations/${id}/reject`, { method: "POST" });
-      message.success("Đã từ chối lời mời.");
+      message.success("Invitation declined.");
       void loadReceivedInvites();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Từ chối lời mời thất bại.");
+      message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
     }
   };
 
@@ -240,7 +240,7 @@ export default function MatchmakingPage() {
     return (
       <div className="empty-state">
         <Spin size="large" />
-        <div className="empty-title">Đang tải thông tin...</div>
+        <div className="empty-title">Loading...</div>
       </div>
     );
   }
@@ -248,13 +248,13 @@ export default function MatchmakingPage() {
   const getStatusTag = (status: string) => {
     switch (status) {
       case "Pending":
-        return <Tag color="warning">Đang chờ</Tag>;
+        return <Tag color="warning">Pending</Tag>;
       case "Accepted":
-        return <Tag color="success">Đã đồng ý</Tag>;
+        return <Tag color="success">Accepted</Tag>;
       case "Rejected":
-        return <Tag color="error">Từ chối</Tag>;
+        return <Tag color="error">Rejected</Tag>;
       case "Cancelled":
-        return <Tag color="default">Đã hủy</Tag>;
+        return <Tag color="default">Cancelled</Tag>;
       default:
         return <Tag color="default">{status}</Tag>;
     }
@@ -266,7 +266,7 @@ export default function MatchmakingPage() {
         <div>
           <h1 className="page-title">Teammate Matchmaking</h1>
           <p className="page-subtitle">
-            Tìm kiếm đồng đội và quản lý lời mời tham gia dự án thực tế.
+            Find teammates and manage invitations for your project.
           </p>
         </div>
       </div>
@@ -274,19 +274,19 @@ export default function MatchmakingPage() {
       {myTeam ? (
         <div className="glass-card" style={{ marginBottom: "2rem", padding: "1rem 1.5rem", borderLeft: "4px solid var(--color-primary)" }}>
           <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>
-            Nhóm của bạn: <span style={{ color: "var(--color-primary-2)" }}>{myTeam.teamName}</span>
+            Your Team: <span style={{ color: "var(--color-primary-2)" }}>{myTeam.teamName}</span>
           </div>
           <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-            Thành viên ({myTeam.members.length}/5) · Vai trò của bạn: {myTeam.leaderId === currentUser?.id ? <b>Trưởng nhóm (Leader)</b> : "Thành viên"}
+            Members ({myTeam.members.length}/5) · Your role: {myTeam.leaderId === currentUser?.id ? <b>Team Leader</b> : "Member"}
           </div>
         </div>
       ) : (
         <div className="glass-card" style={{ marginBottom: "2rem", padding: "1rem 1.5rem", borderLeft: "4px solid var(--color-warning)" }}>
           <div style={{ fontWeight: 600, fontSize: "1.05rem", color: "var(--color-warning)" }}>
-            Bạn chưa tham gia nhóm nào
+            You haven&apos;t joined a team yet
           </div>
           <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-            Hãy ứng tuyển thông qua lời mời nhận được từ các nhóm khác hoặc tự tạo nhóm tại trang Quản lý Nhóm.
+            Accept an invitation from another team or create your own team on the Teams page.
           </div>
         </div>
       )}
@@ -294,17 +294,17 @@ export default function MatchmakingPage() {
       {/* Navigation Tabs */}
       <div className="tabs" style={{ marginBottom: "1.5rem" }}>
         <button className={`tab-btn ${activeTab === "suggestions" ? "active" : ""}`} onClick={() => setActiveTab("suggestions")}>
-          <Zap size={14} style={{ marginRight: 6 }} /> Gợi ý / Tìm kiếm
+          <Zap size={14} style={{ marginRight: 6 }} /> Suggestions / Search
         </button>
         <button 
           className={`tab-btn ${activeTab === "sent" ? "active" : ""}`} 
           onClick={() => setActiveTab("sent")}
           disabled={!myTeam}
         >
-          <Send size={14} style={{ marginRight: 6 }} /> Lời mời đã gửi {!myTeam && " (Yêu cầu nhóm)"}
+          <Send size={14} style={{ marginRight: 6 }} /> Sent Invitations {!myTeam && " (Requires a team)"}
         </button>
         <button className={`tab-btn ${activeTab === "received" ? "active" : ""}`} onClick={() => setActiveTab("received")}>
-          <Inbox size={14} style={{ marginRight: 6 }} /> Lời mời đã nhận
+          <Inbox size={14} style={{ marginRight: 6 }} /> Received Invitations
         </button>
       </div>
 
@@ -317,7 +317,7 @@ export default function MatchmakingPage() {
                 <Search size={16} style={{ color: "var(--color-text-3)" }} />
                 <input 
                   className="search-input" 
-                  placeholder="Tìm kiếm kỹ năng hoặc tên (VD: React, Designer)..." 
+                  placeholder="Search by skill or name (e.g. React, Designer)..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                 />
@@ -331,7 +331,7 @@ export default function MatchmakingPage() {
                   value={skillFilter}
                   onChange={e => setSkillFilter(e.target.value)}
                 >
-                  <option value="">Tất cả vai trò</option>
+                  <option value="">All roles</option>
                   <option value="Frontend Developer">Frontend Developer</option>
                   <option value="Backend Developer">Backend Developer</option>
                   <option value="UI/UX Designer">UI/UX Designer</option>
@@ -346,11 +346,11 @@ export default function MatchmakingPage() {
           {loadingSuggestions ? (
             <div className="empty-state">
               <Spin />
-              <div className="empty-title" style={{ marginTop: 10 }}>Đang tải danh sách ứng viên...</div>
+              <div className="empty-title" style={{ marginTop: 10 }}>Loading candidates...</div>
             </div>
           ) : suggestions.length === 0 ? (
             <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-              <Empty description="Không tìm thấy ứng viên tự do nào phù hợp." />
+              <Empty description="No matching free agents found." />
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1.5rem" }}>
@@ -377,12 +377,12 @@ export default function MatchmakingPage() {
                   
                   <div style={{ flex: 1, marginTop: '0.5rem' }}>
                     <div style={{ fontSize: "0.9rem", color: "var(--color-text-1)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                      Vai trò: <span style={{ fontWeight: 400, color: 'var(--color-text-2)' }}>{user.role}</span>
+                      Role: <span style={{ fontWeight: 400, color: 'var(--color-text-2)' }}>{user.role}</span>
                     </div>
                     
                     {user.matchReasons && user.matchReasons.length > 0 && (
                       <div style={{ fontSize: "0.8rem", color: "#f59e0b", marginBottom: "1rem" }}>
-                        Lý do đề xuất: {user.matchReasons.join(", ")}
+                        Match reasons: {user.matchReasons.join(", ")}
                       </div>
                     )}
                     
@@ -402,9 +402,9 @@ export default function MatchmakingPage() {
                       onClick={() => handleInvite(user)}
                       disabled={!myTeam || myTeam.leaderId !== currentUser?.id}
                     >
-                      <UserPlus size={16} /> Mời vào nhóm
+                      <UserPlus size={16} /> Invite to Team
                     </button>
-                    <button className="btn btn-secondary" style={{ padding: "0.6rem" }} onClick={() => message.info(`Đã bắt đầu chat với ${user.name}`)}>
+                    <button className="btn btn-secondary" style={{ padding: "0.6rem" }} onClick={() => message.info(`Started chat with ${user.name}`)}>
                       <MessageSquare size={16} />
                     </button>
                   </div>
@@ -421,11 +421,11 @@ export default function MatchmakingPage() {
           {loadingSent ? (
             <div className="empty-state">
               <Spin />
-              <div className="empty-title" style={{ marginTop: 10 }}>Đang tải lời mời đã gửi...</div>
+              <div className="empty-title" style={{ marginTop: 10 }}>Loading sent invitations...</div>
             </div>
           ) : sentInvites.length === 0 ? (
             <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-              <Empty description="Nhóm của bạn chưa gửi lời mời nào." />
+              <Empty description="Your team hasn't sent any invitations yet." />
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -443,12 +443,12 @@ export default function MatchmakingPage() {
                       </div>
                     )}
                     <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)", marginTop: "0.5rem", display: "flex", alignItems: "center", gap: 4 }}>
-                      <Clock size={12} /> Gửi lúc: {new Date(invite.createdAt).toLocaleString()}
+                      <Clock size={12} /> Sent: {new Date(invite.createdAt).toLocaleString()}
                     </div>
                   </div>
                   <div>
                     {invite.status === "Pending" && myTeam.leaderId === currentUser?.id && (
-                      <Button danger onClick={() => handleCancelInvite(invite.id)}>Hủy lời mời</Button>
+                      <Button danger onClick={() => handleCancelInvite(invite.id)}>Cancel Invitation</Button>
                     )}
                   </div>
                 </div>
@@ -464,11 +464,11 @@ export default function MatchmakingPage() {
           {loadingReceived ? (
             <div className="empty-state">
               <Spin />
-              <div className="empty-title" style={{ marginTop: 10 }}>Đang tải lời mời nhận được...</div>
+              <div className="empty-title" style={{ marginTop: 10 }}>Loading received invitations...</div>
             </div>
           ) : receivedInvites.length === 0 ? (
             <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-              <Empty description="Bạn chưa nhận được lời mời nào." />
+              <Empty description="You haven't received any invitations yet." />
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -476,8 +476,8 @@ export default function MatchmakingPage() {
                 <div key={invite.id} className="glass-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem" }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      <span style={{ fontWeight: 700, fontSize: "1rem" }}>Nhóm: {invite.teamName}</span>
-                      <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>Người mời: {invite.inviterUserName}</span>
+                      <span style={{ fontWeight: 700, fontSize: "1rem" }}>Team: {invite.teamName}</span>
+                      <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>Invited by: {invite.inviterUserName}</span>
                       {getStatusTag(invite.status)}
                     </div>
                     {invite.message && (
@@ -486,14 +486,14 @@ export default function MatchmakingPage() {
                       </div>
                     )}
                     <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)", marginTop: "0.5rem", display: "flex", alignItems: "center", gap: 4 }}>
-                      <Clock size={12} /> Nhận lúc: {new Date(invite.createdAt).toLocaleString()}
+                      <Clock size={12} /> Received: {new Date(invite.createdAt).toLocaleString()}
                     </div>
                   </div>
                   <div>
                     {invite.status === "Pending" && (
                       <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <Button type="primary" onClick={() => handleAcceptInvite(invite.id)}>Đồng ý</Button>
-                        <Button danger onClick={() => handleRejectInvite(invite.id)}>Từ chối</Button>
+                        <Button type="primary" onClick={() => handleAcceptInvite(invite.id)}>Accept</Button>
+                        <Button danger onClick={() => handleRejectInvite(invite.id)}>Decline</Button>
                       </div>
                     )}
                   </div>

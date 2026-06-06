@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import { ChevronLeft, Users, Target, Clock, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
 import { Modal, Select, Input, App } from "antd";
@@ -47,7 +47,8 @@ function formatDate(value?: string | null) {
   return Number.isNaN(d.getTime()) ? "TBD" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-export default function EventDetailPage({ params }: { params: { id: string } }) {
+export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const { message } = App.useApp();
   const [tab, setTab] = useState("overview");
   const [event, setEvent] = useState<EventDetailDto | null>(null);
@@ -57,10 +58,14 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
   const [teamName, setTeamName] = useState("");
   const [track, setTrack] = useState<string | undefined>(undefined);
 
+  const fetchEvent = useCallback(() => (
+    apiRequest<EventDetailDto>(`/Events/${id}`, { auth: false })
+  ), [id]);
+
   const loadEvent = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiRequest<EventDetailDto>(`/Events/${params.id}`, { auth: false });
+      const data = await fetchEvent();
       setEvent(data);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load event.");
@@ -68,11 +73,33 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     } finally {
       setLoading(false);
     }
-  }, [params.id, message]);
+  }, [fetchEvent, message]);
 
   useEffect(() => {
-    loadEvent();
-  }, [loadEvent]);
+    let active = true;
+
+    fetchEvent()
+      .then((data) => {
+        if (active) {
+          setEvent(data);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          message.error(err instanceof Error ? err.message : "Could not load event.");
+          setEvent(null);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [fetchEvent, message]);
 
   const handleRegister = async () => {
     if (!teamName || !track) return;

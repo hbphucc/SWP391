@@ -39,7 +39,7 @@ export default function MentorTeamsPage() {
       const data = await apiRequest<MentorTeam[]>("/mentor/teams");
       setTeams(data);
     } catch {
-      message.error("Không thể tải danh sách nhóm được phân công.");
+      message.error("Could not load assigned teams.");
     } finally {
       setLoading(false);
     }
@@ -67,11 +67,11 @@ export default function MentorTeamsPage() {
         method: "POST",
         body: JSON.stringify({ notes: note })
       });
-      message.success("Lưu nhận xét thành công!");
+      message.success("Notes saved successfully!");
       setReviewModal(false);
       void loadTeams();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Lưu nhận xét thất bại.");
+      message.error(err instanceof Error ? err.message : "Failed to save notes.");
     } finally {
       setSubmitting(false);
     }
@@ -81,7 +81,7 @@ export default function MentorTeamsPage() {
     return (
       <div className="empty-state">
         <Spin size="large" />
-        <div className="empty-title">Đang tải danh sách nhóm...</div>
+        <div className="empty-title">Loading teams...</div>
       </div>
     );
   }
@@ -91,13 +91,13 @@ export default function MentorTeamsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Assigned Teams</h1>
-          <p className="page-subtitle">Xem và đánh giá các nhóm bạn đang hướng dẫn (Mentor)</p>
+          <p className="page-subtitle">View and evaluate the teams you are mentoring</p>
         </div>
       </div>
 
       {teams.length === 0 ? (
         <div className="glass-card" style={{ marginTop: "2rem", textAlign: "center", padding: "3rem 1rem" }}>
-          <Empty description="Bạn chưa được phân công hướng dẫn nhóm nào." />
+          <Empty description="You have not been assigned to mentor any teams yet." />
         </div>
       ) : (
         <div className="table-wrapper" style={{ marginTop: "2rem" }}>
@@ -182,11 +182,11 @@ export default function MentorTeamsPage() {
         <div style={{ marginBottom: "1rem" }}>
           <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>
             <Clipboard size={14} style={{ marginRight: 6, verticalAlign: 'middle', display: 'inline' }} />
-            Ghi lại lời khuyên, nhận xét và hướng dẫn của bạn dành cho nhóm này.
+            Record your advice, comments, and guidance for this team.
           </p>
           <Input.TextArea 
             rows={6} 
-            placeholder="Nhập nhận xét của bạn tại đây..." 
+            placeholder="Enter your notes here..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
