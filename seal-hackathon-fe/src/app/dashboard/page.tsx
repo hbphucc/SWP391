@@ -2,39 +2,42 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Trophy, Users, Calendar, Target, TrendingUp, TrendingDown,
-  Clock, CheckCircle, AlertCircle, ArrowRight, Star, Zap,
-  BarChart2, Award,
+  Clock, ArrowRight, Zap, Award,
 } from "lucide-react";
 import Link from "next/link";
 import styles from "./page.module.css";
 import { apiRequest } from "@/lib/api";
 import { App } from "antd";
 
-const RECENT_ACTIVITY = [
-  { icon: Users,       text: "Team **CodeCraft** registered for Track A",        time: "2m ago",   type: "team" },
-  { icon: Target,      text: "Team **InnovateSEAL** submitted Round 1 project",  time: "15m ago",  type: "submit" },
-  { icon: CheckCircle, text: "Judge **Dr. Nguyen** finalized scores for Track B", time: "1h ago",   type: "score" },
-  { icon: AlertCircle, text: "Team **AlphaCoders** submission deadline warning",  time: "3h ago",   type: "warn" },
-  { icon: Award,       text: "Results published for SEAL Fall 2025",              time: "1d ago",   type: "award" },
-];
-
-const UPCOMING = [
-  { event: "SEAL Spring 2026", task: "Submission Deadline – Round 1", date: "May 30", urgent: true },
-  { event: "SEAL Spring 2026", task: "Judge Assignment – Finals",     date: "Jun 02", urgent: false },
-  { event: "SEAL Summer 2026", task: "Registration Opens",            date: "Jun 15", urgent: false },
-];
-
 const STATUS_BADGE: Record<string, string> = {
-  Active:   "badge-success",
-  Upcoming: "badge-primary",
-  Ended:    "badge-neutral",
-  active:   "badge-success",
-  upcoming: "badge-primary",
-  ended:    "badge-neutral",
+  Active:    "badge-success",
+  Ongoing:   "badge-success",
+  Upcoming:  "badge-primary",
+  Ended:     "badge-neutral",
+  Completed: "badge-neutral",
+  Cancelled: "badge-neutral",
 };
+
+const ACTIVITY_COLOR: Record<string, string> = {
+  info: "#6366f1", success: "#10b981", warning: "#f59e0b", error: "#f43f5e",
+};
+
+function relativeTime(value: string) {
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return "";
+  const diff = Date.now() - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 interface EventRoundDto {
   roundName?: string;
+  submissionDeadline?: string | null;
 }
 
 interface EventCategoryDto {
@@ -50,10 +53,33 @@ interface EventDto {
   endDate: string;
 }
 
+interface NotificationDto {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  createdAt: string;
+}
+
+interface ActivityItem {
+  title: string;
+  message: string;
+  time: string;
+  type: string;
+}
+
+interface DeadlineItem {
+  event: string;
+  task: string;
+  date: string;
+  urgent: boolean;
+}
+
 interface DashboardMetrics {
   activeEvents: number;
+  totalEvents: number;
   totalTeams: number;
-  pendingApprovals: number;
+  totalTracks: number;
   upcomingEvent: string;
 }
 
@@ -72,6 +98,29 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<"all" | "active" | "upcoming">("all");
   const [events, setEvents] = useState<MappedEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const readRole = () => {
+      const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+      if (!stored) {
+        setIsAdmin(false);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stored) as { roles?: string[]; role?: string };
+        const roles = parsed.roles?.length ? parsed.roles : parsed.role ? [parsed.role] : [];
+        setIsAdmin(roles.includes("Admin"));
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    readRole();
+    window.addEventListener("storage", readRole);
+    return () => window.removeEventListener("storage", readRole);
+  }, []);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -90,23 +139,65 @@ export default function DashboardPage() {
         setEvents(mappedEvents);
         setMetrics({
           activeEvents: mappedEvents.filter((event) => event.status === "Active").length,
+          totalEvents: mappedEvents.length,
           totalTeams: mappedEvents.reduce((sum, event) => sum + event.teamsCount, 0),
-          pendingApprovals: 0,
+          totalTracks: mappedEvents.reduce((sum, event) => sum + event.tracksCount, 0),
           upcomingEvent: mappedEvents[0]?.name ?? "SEAL Hackathon",
         });
+
+        // Derive upcoming deadlines from event round submission deadlines
+        const now = Date.now();
+        const upcoming: DeadlineItem[] = data
+          .flatMap((event) =>
+            (event.rounds ?? [])
+              .filter((r) => r.submissionDeadline)
+              .map((r) => ({
+                event: event.eventName,
+                task: `${r.roundName ?? "Round"} – Submission Deadline`,
+                rawDate: new Date(r.submissionDeadline as string),
+              })),
+          )
+          .filter((d) => !Number.isNaN(d.rawDate.getTime()) && d.rawDate.getTime() >= now)
+          .sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime())
+          .slice(0, 5)
+          .map((d) => ({
+            event: d.event,
+            task: d.task,
+            date: d.rawDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            urgent: d.rawDate.getTime() - now < 1000 * 60 * 60 * 24 * 7,
+          }));
+        setDeadlines(upcoming);
       } catch (err) {
         message.error(err instanceof Error ? err.message : "Could not load dashboard data.");
         setEvents([]);
         setMetrics({
           activeEvents: 0,
+          totalEvents: 0,
           totalTeams: 0,
-          pendingApprovals: 0,
+          totalTracks: 0,
           upcomingEvent: "SEAL Hackathon",
         });
       }
     };
 
+    const loadActivity = async () => {
+      try {
+        const notifications = await apiRequest<NotificationDto[]>("/notifications");
+        setActivities(
+          notifications.slice(0, 6).map((n) => ({
+            title: n.title,
+            message: n.message,
+            time: relativeTime(n.createdAt),
+            type: n.type,
+          })),
+        );
+      } catch {
+        setActivities([]);
+      }
+    };
+
     loadDashboard();
+    loadActivity();
   }, [message]);
 
   const filteredEvents = useMemo(() => {
@@ -125,12 +216,12 @@ export default function DashboardPage() {
       trend: "Total in system",     up: true,
     },
     {
-      label: "Pending Approvals", value: metrics?.pendingApprovals || "0", icon: AlertCircle,  color: "#f59e0b",
-      trend: "Needs your review",         up: false,
+      label: "Total Events",     value: metrics?.totalEvents ?? "0",  icon: Award,   color: "#f59e0b",
+      trend: "All time",         up: true,
     },
     {
-      label: "Judges Active",    value: "16",   icon: Star,    color: "#06b6d4",
-      trend: "Ready to score", up: true,
+      label: "Total Tracks",     value: metrics?.totalTracks ?? "0",  icon: Target,  color: "#06b6d4",
+      trend: "Across events",    up: true,
     },
   ];
 
@@ -142,11 +233,13 @@ export default function DashboardPage() {
           <h1 className="page-title">Dashboard Overview</h1>
           <p className="page-subtitle">Welcome back · {metrics?.upcomingEvent || "SEAL Hackathon"} is live 🚀</p>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <Link href="/dashboard/events/create">
-            <button className="btn btn-primary"><Calendar size={16} /> New Event</button>
-          </Link>
-        </div>
+        {isAdmin && (
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <Link href="/dashboard/events/create">
+              <button className="btn btn-primary"><Calendar size={16} /> New Event</button>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -236,7 +329,9 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className={styles.deadlineList}>
-              {UPCOMING.map((u, i) => (
+              {deadlines.length === 0 ? (
+                <div style={{ padding: "1rem", color: "var(--color-text-3)", fontSize: "0.85rem" }}>No upcoming deadlines.</div>
+              ) : deadlines.map((u, i) => (
                 <div key={i} className={styles.deadlineItem}>
                   <div className={`${styles.deadlineDot} ${u.urgent ? styles.urgent : ""}`} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -259,7 +354,7 @@ export default function DashboardPage() {
             </div>
             <div className={styles.quickActions}>
               {[
-                { label: "Create Event",    href: "/dashboard/events",  icon: Calendar, color: "#6366f1" },
+                ...(isAdmin ? [{ label: "Create Event", href: "/dashboard/events/create", icon: Calendar, color: "#6366f1" }] : []),
                 { label: "Register Team",   href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
                 { label: "Score Submissions",href: "/dashboard/judging",       icon: Target,  color: "#06b6d4" },
                 { label: "View Rankings",   href: "/dashboard/rankings",       icon: Trophy,  color: "#f59e0b" },
@@ -282,22 +377,19 @@ export default function DashboardPage() {
               <span className="section-title"><TrendingUp size={16} style={{ color: "var(--color-emerald)" }} /> Recent Activity</span>
             </div>
             <div className={styles.activityFeed}>
-              {RECENT_ACTIVITY.map((a, i) => {
-                const Icon = a.icon;
-                const colorMap: Record<string, string> = {
-                  team: "#8b5cf6", submit: "#06b6d4", score: "#10b981", warn: "#f59e0b", award: "#f43f5e",
-                };
+              {activities.length === 0 ? (
+                <div style={{ padding: "1rem", color: "var(--color-text-3)", fontSize: "0.85rem" }}>No recent activity.</div>
+              ) : activities.map((a, i) => {
+                const color = ACTIVITY_COLOR[a.type] || "#6366f1";
                 return (
                   <div key={i} className={styles.activityItem}>
-                    <div className={styles.activityIcon} style={{ background: `${colorMap[a.type]}22` }}>
-                      <Icon size={14} style={{ color: colorMap[a.type] }} />
+                    <div className={styles.activityIcon} style={{ background: `${color}22` }}>
+                      <Zap size={14} style={{ color }} />
                     </div>
                     <div className={styles.activityBody}>
-                      <p className={styles.activityText}
-                        dangerouslySetInnerHTML={{
-                          __html: a.text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--color-text)">$1</strong>'),
-                        }}
-                      />
+                      <p className={styles.activityText}>
+                        <strong style={{ color: "var(--color-text)" }}>{a.title}</strong> — {a.message}
+                      </p>
                       <span className={styles.activityTime}>{a.time}</span>
                     </div>
                   </div>

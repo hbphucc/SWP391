@@ -1,45 +1,142 @@
 "use client";
-import { useState } from "react";
-import { ChevronLeft, Users, Target, UserCheck, Clock, Trophy, Edit2, Shield, Zap } from "lucide-react";
+import { use, useState, useEffect, useCallback } from "react";
+import { ChevronLeft, Users, Target, Clock, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
 import { Modal, Select, Input, App } from "antd";
+import { apiRequest } from "@/lib/api";
 
-const EVENT = {
-  id: 1, name: "SEAL Spring 2026", season: "Spring", year: 2026, status: "active",
-  description: "Annual academic hackathon focusing on innovative software engineering solutions.",
-  registrationDeadline: "Apr 20, 2026",
-  rounds: [
-    { id: 1, name: "Qualifying Round", status: "active",   topN: 10, deadline: "May 15, 2026", teams: 22, submissions: 18 },
-    { id: 2, name: "Grand Finals",     status: "upcoming", topN: 5,  deadline: "May 30, 2026", teams: 0,  submissions: 0  },
-  ],
-  tracks: [
-    { id: 1, name: "AI & Machine Learning", teams: 8, mentor: "Dr. Nguyen Van A", color: "#6366f1" },
-    { id: 2, name: "Web Development",       teams: 6, mentor: "Dr. Le Thi B",     color: "#8b5cf6" },
-    { id: 3, name: "Mobile App",            teams: 5, mentor: "Dr. Tran Van C",   color: "#06b6d4" },
-    { id: 4, name: "Open Innovation",       teams: 3, mentor: "Unassigned",       color: "#f59e0b" },
-  ],
-  judges: [
-    { name: "Prof. Nguyen Van X", type: "Internal", tracks: ["AI & ML"], status: "active" },
-    { name: "Dr. Le Thi Y",       type: "Internal", tracks: ["Web Dev"], status: "active" },
-    { name: "Mr. Tran Z",         type: "Guest",    tracks: ["Mobile"],  status: "pending" },
-  ],
+interface RoundDto {
+  roundId: string;
+  roundName: string;
+  roundOrder: number;
+  maxTeamsAdvancing: number;
+  submissionDeadline?: string | null;
+}
+
+interface CategoryDto {
+  categoryId: string;
+  categoryName: string;
+  description?: string | null;
+  teamCount: number;
+}
+
+interface EventDetailDto {
+  eventId: string;
+  eventName: string;
+  description?: string | null;
+  startDate: string;
+  endDate: string;
+  status: string;
+  categories: CategoryDto[];
+  rounds: RoundDto[];
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  Ongoing: "badge-success",
+  Active: "badge-success",
+  Upcoming: "badge-primary",
+  Ended: "badge-neutral",
+  Completed: "badge-neutral",
 };
 
-const STATUS_ROUND: Record<string, string> = { active: "badge-success", upcoming: "badge-primary", ended: "badge-neutral" };
+const TRACK_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#f43f5e", "#10b981"];
 
-export default function EventDetailPage({ params }: { params: { id: string } }) {
+function formatDate(value?: string | null) {
+  if (!value) return "TBD";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "TBD" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const { message } = App.useApp();
   const [tab, setTab] = useState("overview");
+  const [event, setEvent] = useState<EventDetailDto | null>(null);
+  const [loading, setLoading] = useState(true);
   const [regVisible, setRegVisible] = useState(false);
-  const [isRegistered, setIsRegistered] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [teamName, setTeamName] = useState("");
-  const [track, setTrack] = useState(undefined);
+  const [track, setTrack] = useState<string | undefined>(undefined);
 
-  const handleRegister = () => {
-    setIsRegistered(true);
-    setRegVisible(false);
-    message.success("Successfully registered for the hackathon!");
+  const fetchEvent = useCallback(() => (
+    apiRequest<EventDetailDto>(`/Events/${id}`, { auth: false })
+  ), [id]);
+
+  const loadEvent = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchEvent();
+      setEvent(data);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not load event.");
+      setEvent(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchEvent, message]);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchEvent()
+      .then((data) => {
+        if (active) {
+          setEvent(data);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          message.error(err instanceof Error ? err.message : "Could not load event.");
+          setEvent(null);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [fetchEvent, message]);
+
+  const handleRegister = async () => {
+    if (!teamName || !track) return;
+    setSubmitting(true);
+    try {
+      await apiRequest("/teams", {
+        method: "POST",
+        body: JSON.stringify({ teamName, categoryId: track }),
+      });
+      message.success("Successfully registered your team for this hackathon!");
+      setRegVisible(false);
+      setTeamName("");
+      setTrack(undefined);
+      loadEvent();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not register team.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return <div className="empty-state"><Clock size={48} className="empty-icon" /><div className="empty-title">Loading event…</div></div>;
+  }
+
+  if (!event) {
+    return (
+      <div className="empty-state">
+        <Target size={48} className="empty-icon" />
+        <div className="empty-title">Event not found</div>
+        <Link href="/dashboard/events"><button className="btn btn-secondary" style={{ marginTop: "1rem" }}>Back to Events</button></Link>
+      </div>
+    );
+  }
+
+  const totalTeams = event.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0);
+  const sortedRounds = [...event.rounds].sort((a, b) => a.roundOrder - b.roundOrder);
 
   return (
     <div>
@@ -47,29 +144,23 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
             <Link href="/dashboard/events"><button className="btn btn-ghost btn-sm btn-icon"><ChevronLeft size={16} /></button></Link>
-            <h1 className="page-title">{EVENT.name}</h1>
-            <span className="badge badge-success">Live</span>
+            <h1 className="page-title">{event.eventName}</h1>
+            <span className={`badge ${STATUS_BADGE[event.status] || "badge-neutral"}`}>{event.status}</span>
           </div>
-          <p className="page-subtitle">{EVENT.description}</p>
+          <p className="page-subtitle">{event.description || "No description provided."}</p>
         </div>
-        {isRegistered ? (
-          <button className="btn btn-secondary" disabled style={{ opacity: 0.7, cursor: "not-allowed" }}>
-            <UserCheck size={15} /> Registered
-          </button>
-        ) : (
-          <button className="btn btn-primary" onClick={() => setRegVisible(true)}>
-            <UserCheck size={15} /> Register Now
-          </button>
-        )}
+        <button className="btn btn-primary" onClick={() => setRegVisible(true)} disabled={event.categories.length === 0}>
+          <Users size={15} /> Register Now
+        </button>
       </div>
 
       {/* Quick Stats */}
       <div className="grid-4" style={{ marginBottom: "2rem" }}>
         {[
-          { icon: Target, label: "Tracks",  val: EVENT.tracks.length,   color: "#6366f1" },
-          { icon: Users,  label: "Teams",   val: EVENT.rounds[0].teams, color: "#8b5cf6" },
-          { icon: UserCheck,label:"Judges", val: EVENT.judges.length,   color: "#06b6d4" },
-          { icon: Clock,  label: "Rounds",  val: EVENT.rounds.length,   color: "#f59e0b" },
+          { icon: Target, label: "Tracks", val: event.categories.length, color: "#6366f1" },
+          { icon: Users,  label: "Teams",  val: totalTeams,              color: "#8b5cf6" },
+          { icon: Clock,  label: "Rounds", val: event.rounds.length,     color: "#06b6d4" },
+          { icon: Trophy, label: "Status", val: event.status,            color: "#f59e0b" },
         ].map(s => {
           const Icon = s.icon;
           return (
@@ -88,9 +179,9 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
 
       {/* Tabs */}
       <div className="tabs" style={{ marginBottom: "1.5rem" }}>
-        {["overview","rounds","tracks","judges"].map(t => (
-          <button key={t} className={`tab-btn ${tab===t?"active":""}`} onClick={() => setTab(t)}>
-            {t.charAt(0).toUpperCase()+t.slice(1)}
+        {["overview", "rounds", "tracks"].map(t => (
+          <button key={t} className={`tab-btn ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -101,29 +192,31 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
           <div className="glass-card">
             <h4 style={{ marginBottom: "1rem", fontSize: "0.9rem", color: "var(--color-text-2)" }}>KEY DATES</h4>
             {[
-              { label: "Registration Deadline", val: EVENT.registrationDeadline },
-              { label: "Qualifying Deadline",   val: EVENT.rounds[0].deadline },
-              { label: "Finals Deadline",       val: EVENT.rounds[1].deadline },
-            ].map(d => (
-              <div key={d.label} style={{ display: "flex", justifyContent: "space-between", padding: "0.6rem 0", borderBottom: "1px solid var(--color-border)", fontSize: "0.875rem" }}>
+              { label: "Start Date", val: formatDate(event.startDate) },
+              { label: "End Date", val: formatDate(event.endDate) },
+              ...sortedRounds.map((r) => ({ label: `${r.roundName} Deadline`, val: formatDate(r.submissionDeadline) })),
+            ].map((d, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.6rem 0", borderBottom: "1px solid var(--color-border)", fontSize: "0.875rem" }}>
                 <span style={{ color: "var(--color-text-2)" }}>{d.label}</span>
                 <strong>{d.val}</strong>
               </div>
             ))}
           </div>
           <div className="glass-card">
-            <h4 style={{ marginBottom: "1rem", fontSize: "0.9rem", color: "var(--color-text-2)" }}>SUBMISSION PROGRESS</h4>
-            {EVENT.rounds.map(r => (
-              <div key={r.id} style={{ marginBottom: "1.25rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: "0.4rem" }}>
-                  <span style={{ fontWeight: 600 }}>{r.name}</span>
-                  <span style={{ color: "var(--color-text-3)" }}>{r.submissions}/{r.teams} submitted</span>
+            <h4 style={{ marginBottom: "1rem", fontSize: "0.9rem", color: "var(--color-text-2)" }}>TEAMS PER TRACK</h4>
+            {event.categories.length === 0 && <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem" }}>No tracks configured yet.</div>}
+            {event.categories.map((c) => {
+              const pct = totalTeams > 0 ? (c.teamCount / totalTeams) * 100 : 0;
+              return (
+                <div key={c.categoryId} style={{ marginBottom: "1.25rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: "0.4rem" }}>
+                    <span style={{ fontWeight: 600 }}>{c.categoryName}</span>
+                    <span style={{ color: "var(--color-text-3)" }}>{c.teamCount} teams</span>
+                  </div>
+                  <div className="progress"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
                 </div>
-                <div className="progress">
-                  <div className="progress-fill" style={{ width: r.teams > 0 ? `${(r.submissions/r.teams)*100}%` : "0%" }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -131,26 +224,22 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
       {/* Rounds */}
       {tab === "rounds" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {EVENT.rounds.map((r, i) => (
-            <div key={r.id} className="glass-card">
+          {sortedRounds.length === 0 && <div className="empty-state"><Clock size={48} className="empty-icon" /><div className="empty-title">No rounds configured</div></div>}
+          {sortedRounds.map((r, i) => (
+            <div key={r.roundId} className="glass-card">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--gradient-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "0.85rem" }}>{i+1}</div>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--gradient-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "0.85rem" }}>{i + 1}</div>
                   <div>
-                    <div style={{ fontWeight: 700 }}>{r.name}</div>
-                    <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>Deadline: {r.deadline}</div>
+                    <div style={{ fontWeight: 700 }}>{r.roundName}</div>
+                    <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>Deadline: {formatDate(r.submissionDeadline)}</div>
                   </div>
                 </div>
-                <span className={`badge ${STATUS_ROUND[r.status]}`}>{r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", fontSize: "0.82rem" }}>
-                <div><span style={{ color: "var(--color-text-3)" }}>Teams:</span> <strong>{r.teams}</strong></div>
-                <div><span style={{ color: "var(--color-text-3)" }}>Submissions:</span> <strong>{r.submissions}</strong></div>
-                <div><span style={{ color: "var(--color-text-3)" }}>Advance Top:</span> <strong>{r.topN}</strong></div>
+                <span className="badge badge-primary">Top {r.maxTeamsAdvancing}</span>
               </div>
               <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
                 <Link href={`/dashboard/judging`}><button className="btn btn-secondary btn-sm">View Scores</button></Link>
-                <Link href={`/dashboard/rankings`}><button className="btn btn-ghost btn-sm"><Trophy size={13}/> Rankings</button></Link>
+                <Link href={`/dashboard/rankings`}><button className="btn btn-ghost btn-sm"><Trophy size={13} /> Rankings</button></Link>
               </div>
             </div>
           ))}
@@ -160,44 +249,19 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
       {/* Tracks */}
       {tab === "tracks" && (
         <div className="grid-2">
-          {EVENT.tracks.map(tr => (
-            <Link key={tr.id} href={`/dashboard/tracks/${tr.id}`} style={{ textDecoration: "none" }}>
-              <div className="glass-card" style={{ borderTop: `3px solid ${tr.color}` }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-                  <h4 style={{ fontSize: "0.95rem", fontWeight: 700 }}>{tr.name}</h4>
-                  <span className="badge badge-primary"><Users size={10} /> {tr.teams}</span>
-                </div>
-                <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)" }}>
-                  <Zap size={12} style={{ color: tr.color, marginRight: 4 }} />Mentor: <strong style={{ color: tr.mentor === "Unassigned" ? "var(--color-rose)" : "var(--color-text)" }}>{tr.mentor}</strong>
-                </div>
+          {event.categories.length === 0 && <div className="empty-state"><Target size={48} className="empty-icon" /><div className="empty-title">No tracks configured</div></div>}
+          {event.categories.map((tr, i) => (
+            <div key={tr.categoryId} className="glass-card" style={{ borderTop: `3px solid ${TRACK_COLORS[i % TRACK_COLORS.length]}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+                <h4 style={{ fontSize: "0.95rem", fontWeight: 700 }}>{tr.categoryName}</h4>
+                <span className="badge badge-primary"><Users size={10} /> {tr.teamCount}</span>
               </div>
-            </Link>
+              <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)" }}>
+                <Zap size={12} style={{ color: TRACK_COLORS[i % TRACK_COLORS.length], marginRight: 4 }} />
+                {tr.description || "No description."}
+              </div>
+            </div>
           ))}
-        </div>
-      )}
-
-      {/* Judges */}
-      {tab === "judges" && (
-        <div>
-          <div className="table-wrapper">
-            <table className="table">
-              <thead><tr>
-                <th>Judge</th><th>Type</th><th>Tracks</th><th>Status</th>
-              </tr></thead>
-              <tbody>
-                {EVENT.judges.map((j, i) => (
-                  <tr key={i}>
-                    <td className="table-cell-primary"><div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                      <div className="avatar-placeholder" style={{ width: 30, height: 30, fontSize: "0.75rem" }}>{j.name[0]}</div>{j.name}
-                    </div></td>
-                    <td><span className={`badge ${j.type==="Internal"?"badge-cyan":"badge-warning"}`}><Shield size={10} /> {j.type}</span></td>
-                    <td><div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>{j.tracks.map(t => <span key={t} className="badge badge-neutral">{t}</span>)}</div></td>
-                    <td><span className={`badge ${j.status==="active"?"badge-success":"badge-warning"}`}>{j.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       )}
 
@@ -207,6 +271,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
         onCancel={() => setRegVisible(false)}
         onOk={handleRegister}
         okText="Confirm Registration"
+        confirmLoading={submitting}
         okButtonProps={{ disabled: !teamName || !track }}
       >
         <div style={{ marginBottom: "1rem", color: "var(--color-text-2)", fontSize: "0.9rem" }}>
@@ -219,8 +284,8 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
         <div className="form-group">
           <label className="form-label" style={{ marginBottom: "0.5rem", display: "block" }}>Select Track</label>
           <Select style={{ width: "100%" }} size="large" placeholder="Choose a competition track" value={track} onChange={setTrack}>
-            {EVENT.tracks.map(t => (
-              <Select.Option key={t.id} value={t.name}>{t.name}</Select.Option>
+            {event.categories.map(c => (
+              <Select.Option key={c.categoryId} value={c.categoryId}>{c.categoryName}</Select.Option>
             ))}
           </Select>
         </div>

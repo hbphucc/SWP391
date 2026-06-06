@@ -157,9 +157,9 @@ export default function ForgotPasswordPage() {
                     onInvalid={(e) => {
                       const target = e.target as HTMLInputElement;
                       if (target.validity.valueMissing) {
-                        target.setCustomValidity("hãy nhập mã otp");
+                        target.setCustomValidity("Please enter the OTP code.");
                       } else if (target.validity.patternMismatch) {
-                        target.setCustomValidity("sai mã otp hãy nhập lại");
+                        target.setCustomValidity("Invalid OTP. Please enter the 6-digit code.");
                       }
                     }}
                     required
@@ -185,9 +185,9 @@ export default function ForgotPasswordPage() {
                     onInvalid={(e) => {
                       const target = e.target as HTMLInputElement;
                       if (target.validity.valueMissing) {
-                        target.setCustomValidity("hãy nhập mật khẩu mới");
+                        target.setCustomValidity("Please enter a new password.");
                       } else if (target.validity.patternMismatch) {
-                        target.setCustomValidity("password không đúng với format");
+                        target.setCustomValidity("Password must be at least 6 characters and include uppercase, lowercase, number, and special character.");
                       }
                     }}
                     required
@@ -212,7 +212,7 @@ export default function ForgotPasswordPage() {
                     onInvalid={(e) => {
                       const target = e.target as HTMLInputElement;
                       if (target.validity.valueMissing) {
-                        target.setCustomValidity("hãy nhập lại mật khẩu xác nhận");
+                        target.setCustomValidity("Please confirm your password.");
                       }
                     }}
                     required
