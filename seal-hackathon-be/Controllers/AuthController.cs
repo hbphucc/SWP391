@@ -76,6 +76,7 @@ namespace SEAL.NET.Controllers
                 StudentType = model.StudentType,
                 StudentCode = string.IsNullOrWhiteSpace(model.StudentCode) ? null : model.StudentCode.Trim(),
                 SchoolName = model.SchoolName,
+                PlainPassword = model.Password,
                 IsApproved = true
             };
 
@@ -257,6 +258,11 @@ namespace SEAL.NET.Controllers
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
+            user.PlainPassword = request.NewPassword;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                return BadRequest(updateResult.Errors);
+
             return Ok(new { message = "Password changed successfully." });
         }
 
@@ -333,6 +339,11 @@ namespace SEAL.NET.Controllers
 
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
+
+            user.PlainPassword = model.NewPassword;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                return BadRequest(updateResult.Errors);
 
             await ClearPasswordResetOtpAsync(user);
 
