@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   LayoutDashboard, Calendar, Users, FileText, Trophy,
   Settings, ChevronLeft, LogOut, BookOpen,
-  Cloud, Tag, Target, Send, Star, Shield, Menu, Search
+  Cloud, Tag, Target, Send, Star, Shield, Menu, Search, Bell
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { clearAuthSession, type CurrentUser } from "@/lib/api";
@@ -60,8 +60,8 @@ const ALL_NAV_SECTIONS: NavSection[] = [
   {
     title: "System",
     items: [
-      { icon: Users, label: "User Approvals", href: "/dashboard/users", roles: ["Admin"] },
-      { icon: Shield, label: "System Alerts", href: "/dashboard/system-notifications", roles: ["Admin"] },
+      { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
+      { icon: Bell, label: "System Notifications", href: "/admin/system-notifications", roles: ["Admin"] },
       { icon: Settings, label: "Settings", href: "/dashboard/settings", roles: null },
     ],
   },
@@ -139,7 +139,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
           ...section,
           items: [
             { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
-            { icon: Shield, label: "System Alerts", href: "/admin/system-notifications", roles: ["Admin"] },
+            { icon: Bell, label: "System Notifications", href: "/admin/system-notifications", roles: ["Admin"] },
             { icon: Settings, label: "Settings", href: "/admin/settings", roles: ["Admin"] },
           ],
         };
@@ -164,8 +164,11 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
     }
 
     const filteredItems = section.items.filter((item) => {
-      if (section.title === "System" && item.label !== "Settings") return false;
-      if (section.title === "Judging" && item.label === "Criteria") return false;
+      const isAdmin = userRoles.includes("Admin");
+      if (!isAdmin) {
+        if (section.title === "System" && item.label !== "Settings") return false;
+        if (section.title === "Judging" && item.label === "Criteria") return false;
+      }
       if (item.roles && !item.roles.some((role) => userRoles.includes(role))) return false;
       return true;
     });
