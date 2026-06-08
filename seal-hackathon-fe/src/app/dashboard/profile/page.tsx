@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Save, Upload, Mail, GraduationCap, Phone, Lock } from "lucide-react";
+import { User, Save, Upload, Mail, GraduationCap, Phone, Lock, Code2 } from "lucide-react";
 import { App } from "antd";
 import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
+import { DEVELOPER_ROLES, PROGRAMMING_LANGUAGES } from "@/lib/developerProfile";
 
 export default function ProfilePage() {
   const { message } = App.useApp();
@@ -39,10 +40,13 @@ export default function ProfilePage() {
           fullName: user.fullName,
           phoneNumber: user.phoneNumber || null,
           studentCode: user.studentCode || null,
+          developerRole: user.developerRole || null,
+          programmingLanguages: user.programmingLanguages ?? [],
         }),
       });
 
       setUser(updated);
+      // Re-sync the locally cached user so the sidebar/top bar reflect the new name.
       localStorage.setItem("currentUser", JSON.stringify(updated));
       sessionStorage.removeItem("currentUser");
       window.dispatchEvent(new Event("storage"));
@@ -52,6 +56,15 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleLanguage = (language: string) => {
+    if (!user) return;
+    const current = user.programmingLanguages ?? [];
+    const next = current.includes(language)
+      ? current.filter((l) => l !== language)
+      : [...current, language];
+    setUser({ ...user, programmingLanguages: next });
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,6 +170,51 @@ export default function ProfilePage() {
               <div className="form-group">
                 <label className="form-label"><GraduationCap size={13} style={{ display: "inline", marginRight: 4 }} /> Student Code</label>
                 <input className="form-input" value={user.studentCode || ""} onChange={(e) => setUser({ ...user, studentCode: e.target.value })} />
+              </div>
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
+              <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0 0 0.25rem", fontSize: "1.05rem" }}>
+                <Code2 size={18} /> Developer Profile
+              </h3>
+              <p style={{ color: "var(--color-text-3)", fontSize: "0.82rem", margin: "0 0 1rem" }}>
+                Tell others how you like to build. This is profile information only.
+              </p>
+
+              <div className="form-group">
+                <label className="form-label">Developer Role</label>
+                <select
+                  className="form-input"
+                  value={user.developerRole || ""}
+                  onChange={(e) => setUser({ ...user, developerRole: e.target.value || null })}
+                >
+                  <option value="">Not specified</option>
+                  {DEVELOPER_ROLES.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Programming Languages &amp; Technologies</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.35rem" }}>
+                  {PROGRAMMING_LANGUAGES.map((language) => {
+                    const selected = (user.programmingLanguages ?? []).includes(language);
+                    return (
+                      <button
+                        type="button"
+                        key={language}
+                        aria-pressed={selected}
+                        onClick={() => toggleLanguage(language)}
+                        className={`badge ${selected ? "badge-primary" : "badge-neutral"}`}
+                        style={{ cursor: "pointer", border: "none", padding: "0.35rem 0.7rem", fontSize: "0.8rem" }}
+                      >
+                        {language}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="form-hint">Click to select one or more. Click again to remove.</span>
               </div>
             </div>
 

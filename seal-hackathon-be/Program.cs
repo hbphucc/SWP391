@@ -57,10 +57,6 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 
 
 builder.Services.AddScoped<IEventService, EventService>();
-builder.Services.AddScoped<IRankingService, RankingService>();
-builder.Services.AddScoped<IScoreService, ScoreService>();
-builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
-builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IEmailService, EmailService>();

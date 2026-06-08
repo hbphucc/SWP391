@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SEAL.NET.DTOs.Auth;
+using SEAL.NET.Helpers;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Interfaces;
@@ -169,6 +170,8 @@ namespace SEAL.NET.Controllers
                 studentCode = user.StudentCode,
                 schoolName = user.SchoolName,
                 studentType = user.StudentType == null ? null : user.StudentType.ToString(),
+                developerRole = user.DeveloperRole == null ? null : user.DeveloperRole.ToString(),
+                programmingLanguages = DeveloperProfileOptions.ParseLanguages(user.ProgrammingLanguages),
                 roles
             });
         }
@@ -199,9 +202,28 @@ namespace SEAL.NET.Controllers
                     return BadRequest(new { message = "Student code is already used." });
             }
 
+            // Developer profile (descriptive metadata only — not an auth role).
+            DeveloperRole? developerRole = null;
+            if (!string.IsNullOrWhiteSpace(request.DeveloperRole))
+            {
+                if (!Enum.TryParse<DeveloperRole>(request.DeveloperRole.Trim(), ignoreCase: true, out var parsedRole)
+                    || !Enum.IsDefined(typeof(DeveloperRole), parsedRole))
+                {
+                    return BadRequest(new { message = "DeveloperRole must be one of: Backend, Frontend, Fullstack." });
+                }
+                developerRole = parsedRole;
+            }
+
+            if (!DeveloperProfileOptions.TryNormalizeLanguages(request.ProgrammingLanguages, out var languagesCsv, out var languagesError))
+            {
+                return BadRequest(new { message = languagesError });
+            }
+
             user.FullName = request.FullName.Trim();
             user.PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
             user.StudentCode = string.IsNullOrWhiteSpace(request.StudentCode) ? user.StudentCode : request.StudentCode.Trim();
+            user.DeveloperRole = developerRole;
+            user.ProgrammingLanguages = string.IsNullOrEmpty(languagesCsv) ? null : languagesCsv;
 
             var result = await _userManager.UpdateAsync(user);
             if (!result.Succeeded)
@@ -218,6 +240,8 @@ namespace SEAL.NET.Controllers
                 studentCode = user.StudentCode,
                 schoolName = user.SchoolName,
                 studentType = user.StudentType == null ? null : user.StudentType.ToString(),
+                developerRole = user.DeveloperRole == null ? null : user.DeveloperRole.ToString(),
+                programmingLanguages = DeveloperProfileOptions.ParseLanguages(user.ProgrammingLanguages),
                 roles
             });
         }
@@ -367,7 +391,7 @@ namespace SEAL.NET.Controllers
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
-                expires: DateTime.Now.AddDays(Convert.ToDouble(_configuration["Jwt:ExpireDays"])),
+                expires: DateTime.UtcNow.AddDays(Convert.ToDouble(_configuration["Jwt:ExpireDays"])),
                 claims: authClaims,
                 signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
             );

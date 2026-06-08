@@ -13,5 +13,12 @@ namespace SEAL.NET.DTOs.Auth
 
         [MaxLength(50)]
         public string? StudentCode { get; set; }
+
+        // Developer profile fields (optional, descriptive only — not auth roles).
+        // DeveloperRole must be one of: Backend, Frontend, Fullstack (validated in
+        // the controller). ProgrammingLanguages must be a list of allowed values.
+        public string? DeveloperRole { get; set; }
+
+        public List<string>? ProgrammingLanguages { get; set; }
     }
 }
