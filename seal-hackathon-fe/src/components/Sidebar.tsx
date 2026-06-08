@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   LayoutDashboard, Calendar, Users, FileText, Trophy,
   Settings, ChevronLeft, LogOut, BookOpen,
-  Cloud, Tag, Target, Send, Star, Shield, Menu, Search, Bell
+  Cloud, Tag, Target, Send, Star, Menu, Search, Bell
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { clearAuthSession, type CurrentUser } from "@/lib/api";
@@ -43,7 +43,7 @@ const ALL_NAV_SECTIONS: NavSection[] = [
   {
     title: "Judging",
     items: [
-      { icon: FileText, label: "Criteria", href: "/dashboard/criteria", roles: ["Admin"] },
+      { icon: FileText, label: "Criteria", href: "/admin/criteria", roles: ["Admin"] },
       { icon: Target, label: "Scoring", href: "/dashboard/judging", roles: ["Judge", "Admin"] },
       { icon: Trophy, label: "Rankings", href: "/dashboard/rankings", roles: null },
       { icon: Star, label: "Prizes", href: "/dashboard/prizes", roles: null },
@@ -54,7 +54,7 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     items: [
       { icon: FileText, label: "Documents", href: "/dashboard/documents", roles: null },
       { icon: Cloud, label: "Storage", href: "/dashboard/storage", roles: null },
-      { icon: BookOpen, label: "Analytics", href: "/dashboard/analytics", roles: null },
+      { icon: BookOpen, label: "Analytics", href: "/dashboard/analytics", roles: ["Admin", "Judge"] },
     ],
   },
   {
@@ -183,7 +183,8 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
 
   if (!currentUser) return null;
 
-  const profileHref = currentUser.roles.includes("Admin") ? "/admin/profile" : "/dashboard/profile";
+  const profileHref = currentUser.roles?.includes("Admin") ? "/admin/profile" : "/dashboard/profile";
+  const displayName = currentUser.name || currentUser.fullName || currentUser.email || "User";
 
   return (
     <>
@@ -247,14 +248,14 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
                 <img src={avatar} alt="Avatar" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
               ) : (
                 <div className="avatar-placeholder" style={{ width: 36, height: 36, fontSize: "0.85rem", textTransform: "uppercase" }}>
-                  {currentUser.name?.charAt(0) || "U"}
+                  {displayName.charAt(0)}
                 </div>
               )}
             </div>
             {!collapsed && (
               <div className={styles.userInfo} style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                <span className={styles.userName} style={{ color: "var(--color-text)", display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{currentUser.name || "User"}</span>
-                <span className={styles.userRole} style={{ display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{currentUser.role}</span>
+                <span className={styles.userName} style={{ color: "var(--color-text)", display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{displayName}</span>
+                <span className={styles.userRole} style={{ display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{currentUser.role || currentUser.roles?.[0]}</span>
               </div>
             )}
           </Link>

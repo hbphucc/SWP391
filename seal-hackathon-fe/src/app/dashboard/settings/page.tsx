@@ -1,5 +1,5 @@
 "use client";
-import { Settings, Save, Shield, Bell } from "lucide-react";
+import { Save, Shield, Bell } from "lucide-react";
 import { App } from "antd";
 
 export default function SettingsPage() {

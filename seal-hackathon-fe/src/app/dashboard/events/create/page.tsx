@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Target, Shield } from "lucide-react";
+import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Target } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App } from "antd";

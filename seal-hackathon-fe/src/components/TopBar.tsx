@@ -24,6 +24,14 @@ type NotificationDto = {
   createdAt: string;
 };
 
+type GoogleTranslateWindow = Window & {
+  google?: {
+    translate?: {
+      TranslateElement?: new (options: { pageLanguage: string }, elementId: string) => unknown;
+    };
+  };
+};
+
 export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) {
   const router = useRouter();
   const { isDarkMode, toggleTheme } = useContext(ThemeContext);
@@ -42,7 +50,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const changeLanguage = (langCode: string) => {
     let select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
     if (!select) {
-      const google = (window as any).google;
+      const google = (window as GoogleTranslateWindow).google;
       if (google?.translate?.TranslateElement) {
         try {
           new google.translate.TranslateElement({ pageLanguage: "en" }, "google_translate_element");

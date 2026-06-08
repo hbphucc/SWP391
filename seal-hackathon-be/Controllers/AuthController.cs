@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -121,7 +122,8 @@ namespace SEAL.NET.Controllers
                     new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                     new Claim(ClaimTypes.Email, user.Email!),
                     new Claim("FullName", user.FullName),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                    new Claim(_userManager.Options.ClaimsIdentity.SecurityStampClaimType, await _userManager.GetSecurityStampAsync(user) ?? string.Empty)
                 };
 
             foreach (var role in userRoles)
