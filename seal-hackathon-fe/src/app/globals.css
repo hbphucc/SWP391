@@ -588,3 +588,15 @@ a:hover { color: var(--color-primary); }
 .custom-antd-table .ant-pagination-prev .ant-pagination-item-link,
 .custom-antd-table .ant-pagination-next .ant-pagination-item-link { color: var(--color-text-2) !important; }
 
+/* ─── Hide Google Translate Bar ───────────────────────────── */
+.goog-te-banner-frame.skiptranslate, 
+.goog-te-gadget-icon,
+.goog-te-gadget-simple img,
+.VIpgJd-ZVi9od-ORHb-OEVmcd,
+.skiptranslate > iframe.skiptranslate {
+  display: none !important;
+}
+
+body {
+  top: 0px !important;
+}

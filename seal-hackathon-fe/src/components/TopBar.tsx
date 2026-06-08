@@ -257,11 +257,11 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
               <img src={avatar} alt="Avatar" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
             ) : (
               <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", textTransform: "uppercase" }}>
-                {currentUser.name.charAt(0)}
+                {currentUser.name?.charAt(0) || "U"}
               </div>
             )}
             <div className={styles.userInfo}>
-              <span className={styles.userName}>{currentUser.name}</span>
+              <span className={styles.userName}>{currentUser.name || "User"}</span>
               <span className={styles.userRole}>{currentUser.role}</span>
             </div>
             <ChevronDown size={14} style={{ color: "var(--color-text-3)" }} />
