@@ -7,14 +7,7 @@ import { ALL_LANGUAGES } from "@/lib/languages";
 import Link from "next/link";
 import { ThemeContext } from "./ThemeProvider";
 import { App, Modal, Input, Dropdown } from "antd";
-import { clearAuthSession } from "@/lib/api";
-
-const DEFAULT_NOTIFS = [
-  { id: 1, title: "New team registered", desc: "Team Alpha joined SEAL Spring 2026", time: "2m ago", unread: true },
-  { id: 2, title: "Submission received", desc: "Team Beta submitted for Round 1", time: "15m ago", unread: true },
-  { id: 3, title: "Score finalized", desc: "Judge completed scoring for Track A", time: "1h ago", unread: false },
-  { id: 4, title: "New judge assigned", desc: "Dr. Nguyen assigned to Finals", time: "3h ago", unread: false },
-];
+import { apiRequest, clearAuthSession } from "@/lib/api";
 
 interface TopBarProps {
   onMenuToggle: () => void;
@@ -52,7 +45,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
         setAvatar(localStorage.getItem(`avatar_${parsed.email}`));
       } catch(e){}
     } else {
-      setCurrentUser(null);
+      setCurrentUser(null as any);
       setAvatar(null);
     }
   };
@@ -64,35 +57,44 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchResults([]);
     };
     document.addEventListener("mousedown", handleClickOutside);
-    // Load notifications
-    const loadNotifications = () => {
-      const storedNotifs = localStorage.getItem("globalNotifications");
-      if (storedNotifs) {
-        setNotifications(JSON.parse(storedNotifs));
-      } else {
-        localStorage.setItem("globalNotifications", JSON.stringify(DEFAULT_NOTIFS));
-        setNotifications(DEFAULT_NOTIFS);
+    // Load notifications from Backend API
+    const loadNotifications = async () => {
+      try {
+        const data = await apiRequest<any[]>("/SystemNotifications");
+        const readNotifs = JSON.parse(localStorage.getItem("readNotifications") || "[]");
+        
+        const mapped = data.map(n => ({
+          id: n.id,
+          title: n.title,
+          desc: n.message,
+          time: new Date(n.createdAt).toLocaleTimeString(),
+          unread: !readNotifs.includes(n.id)
+        }));
+        
+        setNotifications(mapped);
+      } catch (err) {
+        console.error("Failed to load notifications", err);
       }
     };
 
     loadNotifications();
+    const intervalId = setInterval(loadNotifications, 10000); // Poll every 10 seconds
     loadUser(); // Load user on mount
 
     const handleStorageChange = () => {
       loadUser();
-      loadNotifications();
     };
 
     window.addEventListener("storage", handleStorageChange);
 
     // Load saved accounts
     const updateSavedAccounts = () => {
-      const regUsersRaw = localStorage.getItem("registeredUsers");
-      if (regUsersRaw) {
+      const savedRaw = localStorage.getItem("seal_saved_accounts");
+      if (savedRaw) {
         try { 
-          const regUsers = JSON.parse(regUsersRaw);
-          // Allow switching to any registered user EXCEPT Admin
-          setSavedAccounts(regUsers.filter((u: any) => u.role !== "Admin"));
+          const saved = JSON.parse(savedRaw);
+          // Filter out Admin accounts just in case they are still in the storage
+          setSavedAccounts(saved.filter((a: any) => a.role !== "Admin" && (!a.roles || !a.roles.includes("Admin"))));
         } catch(e){}
       }
     };
@@ -102,14 +104,17 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("storage", handleStorageChange);
+      clearInterval(intervalId);
     };
   }, []);
 
   const markAllRead = () => {
     const updated = notifications.map(n => ({ ...n, unread: false }));
     setNotifications(updated);
-    localStorage.setItem("globalNotifications", JSON.stringify(updated));
-    window.dispatchEvent(new Event("storage"));
+    
+    // Save read IDs to localStorage
+    const readIds = updated.map(n => n.id);
+    localStorage.setItem("readNotifications", JSON.stringify(readIds));
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,30 +140,34 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       results.push({ type: "Track", title: "AI/ML Track", link: "/dashboard/tracks" });
     }
     if (results.length === 0) {
-      results.push({ type: "Empty", title: `Không tìm thấy dữ liệu cho "${q}"`, link: "#" });
+      results.push({ type: "Trống", title: `Không tìm thấy dữ liệu cho "${q}"`, link: "#" });
     }
     
     setSearchResults(results);
   };
 
   const handleSwitchAccountSubmit = () => {
-    if (password !== selectedAccount.password) {
-      message.error("Incorrect password for quick switch.");
-      return;
+    if (!selectedAccount) return;
+
+    if (selectedAccount.remembered && selectedAccount.token) {
+      // Instant switch using stored token
+      const { token, remembered, ...userProps } = selectedAccount;
+      localStorage.setItem("seal_token", token);
+      sessionStorage.removeItem("seal_token");
+      localStorage.setItem("currentUser", JSON.stringify(userProps));
+      sessionStorage.removeItem("currentUser");
+      message.success(`Switched to ${selectedAccount.fullName || selectedAccount.email}`);
+      window.location.reload();
+    } else {
+      // Needs password, redirect to login
+      router.push(`/auth/login?switch_email=${encodeURIComponent(selectedAccount.email)}`);
     }
-    if (selectedAccount.role === "Admin") {
-      message.error("Security policy prevents quick-switching to Admin accounts.");
-      return;
-    }
-    localStorage.setItem("currentUser", JSON.stringify(selectedAccount));
-    window.location.reload();
   };
 
   const openSwitchModal = () => {
     setUserOpen(false);
     setSwitchModalOpen(true);
     setSelectedAccount(null);
-    setPassword("");
   };
 
   const handleLogout = () => {
@@ -166,19 +175,19 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     router.push("/auth/login");
   };
 
-  const [languages, setLanguages] = useState<any[]>(
-    ALL_LANGUAGES.map(l => ({ key: l.key, label: l.label, onClick: () => changeLanguage(l.key) }))
-  );
-
-  // Removed dynamic extraction in favor of ALL_LANGUAGES
-
-  const changeLanguage = (langCode: string) => {
-    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement;
-    if (select) {
-      select.value = langCode;
-      select.dispatchEvent(new Event("change"));
+  const handleLanguageChange = (langKey: string) => {
+    const combo = document.querySelector(".goog-te-combo") as HTMLSelectElement;
+    if (combo) {
+      combo.value = langKey;
+      combo.dispatchEvent(new Event("change"));
     }
   };
+
+  const languageOptions = ALL_LANGUAGES.map(l => ({ 
+    key: l.key, 
+    label: <span className="notranslate">{l.label}</span>, 
+    onClick: () => handleLanguageChange(l.key) 
+  }));
 
   if (!currentUser) return null;
 
@@ -195,7 +204,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
           <Search size={16} style={{ color: "var(--color-text-3)", flexShrink: 0 }} />
           <input 
             className="search-input" 
-            placeholder="Search events, teams, documents…" 
+            placeholder="Tìm kiếm đội thi, sự kiện, hạng mục..." 
             value={searchQuery}
             onChange={handleSearch}
           />
@@ -219,18 +228,15 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       </div>
 
       <div className={styles.right}>
-        {/* Google Translate Hidden Widget Container */}
-        <div id="google_translate_element" style={{ opacity: 0, position: "absolute", zIndex: -1, pointerEvents: "none" }}></div>
-        
-        {/* Custom Language Dropdown */}
-        <Dropdown menu={{ items: languages, style: { maxHeight: "400px", overflowY: "auto" } }} placement="bottomRight" trigger={['click']}>
-          <button className={styles.iconBtn} title="Change language">
+        {/* Headless Translation Language Dropdown */}
+        <Dropdown menu={{ items: languageOptions, style: { maxHeight: "400px", overflowY: "auto" } }} placement="bottomRight" trigger={['click']}>
+          <button className={styles.iconBtn} title="Đổi ngôn ngữ">
             <Languages size={18} />
           </button>
         </Dropdown>
         
         {/* Theme toggle */}
-        <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle theme">
+        <button className={styles.iconBtn} onClick={toggleTheme} title="Đổi giao diện">
           {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
@@ -249,19 +255,19 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
             <div className={`dropdown-menu ${styles.notifPanel}`}>
               <div className={styles.notifHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <span className={styles.notifTitle}>Notifications</span>
-                  {unreadCount > 0 && <span className="badge badge-primary" style={{ marginLeft: "0.5rem" }}>{unreadCount} new</span>}
+                  <span className={styles.notifTitle}>Thông báo</span>
+                  {unreadCount > 0 && <span className="badge badge-primary" style={{ marginLeft: "0.5rem" }}>{unreadCount} mới</span>}
                 </div>
                 {unreadCount > 0 && (
                   <button onClick={markAllRead} style={{ background: "none", border: "none", color: "var(--color-primary)", fontSize: "0.75rem", cursor: "pointer" }}>
-                    Mark all as read
+                    Đánh dấu đã đọc tất cả
                   </button>
                 )}
               </div>
               <div className={styles.notifList}>
                 {notifications.length === 0 ? (
                   <div style={{ padding: "1rem", textAlign: "center", color: "var(--color-text-3)", fontSize: "0.85rem" }}>
-                    No notifications
+                    Không có thông báo
                   </div>
                 ) : (
                   notifications.slice(0, 5).map(n => (
@@ -278,7 +284,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
               </div>
               <div className={styles.notifFooter}>
                 <Link href="/dashboard/notifications" onClick={() => setNotifOpen(false)}>
-                  View all notifications →
+                  Xem tất cả thông báo →
                 </Link>
               </div>
             </div>
@@ -308,17 +314,17 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
           {userOpen && (
             <div className="dropdown-menu">
               <Link href={currentUser.role === "Admin" ? "/admin/profile" : "/dashboard/profile"} className="dropdown-item" onClick={() => setUserOpen(false)}>
-                <User size={15} /> View Profile
+                <User size={15} /> Xem hồ sơ
               </Link>
               <Link href={currentUser.role === "Admin" ? "/admin/settings" : "/dashboard/settings"} className="dropdown-item" onClick={() => setUserOpen(false)}>
-                <Settings size={15} /> Settings
+                <Settings size={15} /> Cài đặt
               </Link>
               <button className="dropdown-item" onClick={openSwitchModal} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
-                <RefreshCw size={15} /> Switch Account
+                <RefreshCw size={15} /> Chuyển tài khoản
               </button>
               <div className="dropdown-divider" />
               <button className="dropdown-item danger" onClick={handleLogout} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
-                <LogOut size={15} /> Logout
+                <LogOut size={15} /> Đăng xuất
               </button>
             </div>
           )}
@@ -326,17 +332,22 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       </div>
 
       <Modal
-        title="Switch Account"
+        title="Chuyển tài khoản"
         open={switchModalOpen}
         onCancel={() => setSwitchModalOpen(false)}
         onOk={handleSwitchAccountSubmit}
-        okText="Login"
-        okButtonProps={{ disabled: !selectedAccount || !password }}
+        okText={selectedAccount?.remembered ? "Chuyển ngay" : "Tiếp tục"}
+        okButtonProps={{ disabled: !selectedAccount }}
       >
         <div style={{ marginBottom: "1rem" }}>
-          <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>Select a saved account to switch to quickly.</p>
+          <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>Chọn một tài khoản để chuyển đổi.</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {savedAccounts.filter(a => a.role !== "Admin").map((acc, idx) => (
+            {savedAccounts.length === 0 && (
+              <div style={{ padding: "1rem", textAlign: "center", color: "var(--color-text-3)", background: "rgba(15,23,42,0.3)", borderRadius: "var(--radius-md)" }}>
+                Không có tài khoản nào khác được lưu.
+              </div>
+            )}
+            {savedAccounts.map((acc, idx) => (
               <div 
                 key={idx} 
                 onClick={() => setSelectedAccount(acc)}
@@ -347,27 +358,35 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
                   background: selectedAccount?.email === acc.email ? "rgba(99,102,241,0.1)" : "rgba(15,23,42,0.3)"
                 }}
               >
-                <div className="avatar-placeholder" style={{ width: 32, height: 32 }}>{acc.name.charAt(0)}</div>
+                {acc.avatar ? (
+                  <img src={acc.avatar} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
+                ) : (
+                  <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", textTransform: 'uppercase' }}>
+                    {(acc.fullName || acc.email).charAt(0)}
+                  </div>
+                )}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{acc.name} {currentUser.email === acc.email && "(Current)"}</div>
+                  <div style={{ fontWeight: 600 }}>{acc.fullName || acc.email} {currentUser.email === acc.email && <span style={{ color: "var(--color-text-3)", fontWeight: 400 }}>(Hiện tại)</span>}</div>
                   <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{acc.email}</div>
+                </div>
+                <div style={{ fontSize: "0.75rem", color: acc.remembered ? "var(--color-emerald)" : "var(--color-text-3)" }}>
+                  {acc.remembered ? "Đã đăng nhập" : "Cần mật khẩu"}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-        {selectedAccount && currentUser.email !== selectedAccount.email && (
-          <div className="form-group" style={{ marginTop: "1rem" }}>
-            <label className="form-label">Password for {selectedAccount.email}</label>
-            <Input.Password 
-              prefix={<Key size={14} style={{ color: "var(--color-text-3)", marginRight: 8 }} />} 
-              placeholder="Enter password" 
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              size="large"
-            />
+          
+          <div style={{ marginTop: "1rem", textAlign: "center" }}>
+            <Link 
+              href="/auth/login?add_account=true" 
+              className="btn btn-secondary" 
+              style={{ width: "100%", padding: "0.75rem", borderStyle: "dashed" }}
+              onClick={() => { clearAuthSession(); setSwitchModalOpen(false); }}
+            >
+              + Đăng nhập vào tài khoản khác
+            </Link>
           </div>
-        )}
+        </div>
       </Modal>
     </header>
   );

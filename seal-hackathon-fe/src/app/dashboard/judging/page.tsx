@@ -20,35 +20,88 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 export default function JudgingQueuePage() {
   const [activeTab, setActiveTab] = useState("queue"); // "queue" or "calibration"
   const [filter, setFilter] = useState("all");
-  const [queueData, setQueueData] = useState<any[]>(QUEUE);
+  const [queueData, setQueueData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("mock_submissions") || "[]");
-      if (stored.length > 0) {
-        setQueueData([...QUEUE, ...stored]);
+    const userStr = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+    const user = JSON.parse(userStr || "{}");
+    setCurrentUser(user);
+
+    const fetchSubmissions = async () => {
+      try {
+        if (user.role?.toLowerCase() === "judge") {
+          const { apiRequest } = await import("@/lib/api");
+          const data = await apiRequest<any[]>("/judge/scores/my-assigned-submissions");
+          
+          const mapped = data.map((d: any) => ({
+            id: d.submissionId,
+            team: d.team?.teamName,
+            track: d.team?.category,
+            round: d.round?.roundName,
+            status: "pending", // Currently hardcoded to pending since API doesn't return score status yet
+            deadline: "N/A", // Not returned by API
+            repoUrl: d.repositoryUrl,
+            demoUrl: d.demoUrl
+          }));
+          setQueueData(mapped);
+        } else if (user.role?.toLowerCase() === "admin") {
+          const { apiRequest } = await import("@/lib/api");
+          const events = await apiRequest<any[]>("/Events");
+          if (events.length > 0) {
+            const eventDetails = await apiRequest<any>(`/Events/${events[0].eventId}`);
+            if (eventDetails.rounds && eventDetails.rounds.length > 0) {
+              const firstRound = eventDetails.rounds[0].roundId;
+              const data = await apiRequest<any[]>(`/submissions/round/${firstRound}`);
+              
+              const mapped = data.map((d: any) => ({
+                id: d.submissionId,
+                team: d.team?.teamName,
+                track: d.team?.category,
+                round: eventDetails.rounds[0].roundName,
+                status: "pending",
+                deadline: "N/A",
+                repoUrl: d.repositoryUrl,
+                demoUrl: d.demoUrl
+              }));
+              setQueueData(mapped);
+            }
+          }
+        }
+      } catch(e) {
+        console.error("Failed to fetch submissions:", e);
+      } finally {
+        setLoading(false);
       }
-    } catch(e) {}
+    };
+    
+    fetchSubmissions();
   }, []);
 
   const filtered = queueData.filter(q => filter === "all" ? true : q.status === filter);
   const [calibrationDone, setCalibrationDone] = useState(false);
 
+  if (loading) return <div style={{ padding: "2rem" }}>Đang tải bài nộp...</div>;
+  if (currentUser?.role?.toLowerCase() !== "judge" && currentUser?.role?.toLowerCase() !== "admin") {
+    return <div style={{ padding: "2rem" }}>Bạn không có quyền xem danh sách chấm điểm.</div>;
+  }
+
   return (
     <div style={{ height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <div>
-          <h1 className="page-title">Judging Results</h1>
-          <p className="page-subtitle">View the evaluation progress and scores of teams</p>
+          <h1 className="page-title">Kết quả chấm điểm</h1>
+          <p className="page-subtitle">Xem tiến độ đánh giá và điểm số của các đội thi</p>
         </div>
       </div>
 
 
           <div className="grid-3" style={{ marginBottom: "2rem" }}>
             {[
-              { label: "Pending",  val: queueData.filter(q=>q.status==="pending").length, color: "#f59e0b" },
-              { label: "In Draft", val: queueData.filter(q=>q.status==="scored").length,  color: "#06b6d4" },
-              { label: "Locked",   val: queueData.filter(q=>q.status==="locked").length,  color: "#10b981" },
+              { label: "Chờ duyệt",  val: queueData.filter(q=>q.status==="pending").length, color: "#f59e0b" },
+              { label: "Bản nháp", val: queueData.filter(q=>q.status==="scored").length,  color: "#06b6d4" },
+              { label: "Đã chốt",   val: queueData.filter(q=>q.status==="locked").length,  color: "#10b981" },
             ].map(s => (
               <div key={s.label} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                 <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>
@@ -58,11 +111,13 @@ export default function JudgingQueuePage() {
           </div>
 
           <div className="tabs" style={{ marginBottom: "1.5rem" }}>
-            {["all","pending","scored","locked"].map(f => (
+            {["all","pending","scored","locked"].map(f => {
+              const labels: Record<string, string> = { all: "Tất cả", pending: "Chờ duyệt", scored: "Bản nháp", locked: "Đã chốt" };
+              return (
               <button key={f} className={`tab-btn ${filter===f?"active":""}`} onClick={() => setFilter(f)}>
-                {f.charAt(0).toUpperCase()+f.slice(1)}
+                {labels[f]}
               </button>
-            ))}
+            )})}
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", flex: 1, paddingRight: "0.5rem" }}>
@@ -72,15 +127,15 @@ export default function JudgingQueuePage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{q.team}</div>
                   <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
-                    {q.track} · {q.round} · Deadline: {q.deadline}
+                    {q.track} · {q.round} · Hạn chót: {q.deadline}
                   </div>
                 </div>
                 <span className={`badge ${q.status==="pending"?"badge-warning":q.status==="locked"?"badge-success":"badge-cyan"}`}>
-                  {q.status.charAt(0).toUpperCase()+q.status.slice(1)}
+                  {({ pending: "Chờ duyệt", scored: "Bản nháp", locked: "Đã chốt" } as Record<string, string>)[q.status] || q.status}
                 </span>
                 <Link href={`/dashboard/judging/${q.id}`}>
                   <button className="btn btn-sm btn-secondary">
-                    View Results <ChevronRight size={13} />
+                    Xem kết quả <ChevronRight size={13} />
                   </button>
                 </Link>
               </div>
@@ -90,8 +145,8 @@ export default function JudgingQueuePage() {
           {filtered.length === 0 && (
             <div className="empty-state">
               <Target size={48} className="empty-icon" />
-              <div className="empty-title">No submissions in queue</div>
-              <div className="empty-desc">You're all caught up!</div>
+              <div className="empty-title">Không có bài nộp nào trong hàng đợi</div>
+              <div className="empty-desc">Bạn đã hoàn thành tất cả!</div>
             </div>
           )}
     </div>

@@ -3,8 +3,8 @@ import { useState } from "react";
 import { Calendar, ChevronLeft, Plus, Trash2, GripVertical, Clock, Users, Target } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { databaseService } from "@/services/databaseService";
 import { App } from "antd";
+import { apiRequest } from "@/lib/api";
 
 const TRACKS_OPTIONS = ["AI & Machine Learning", "Web Development", "Mobile App", "Cybersecurity", "Open Innovation"];
 const SEASONS = ["Spring", "Summer", "Fall"];
@@ -41,25 +41,32 @@ export default function CreateEventPage() {
   const toggleTrack = (t: string) =>
     setSelectedTracks(sel => sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t]);
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (!form.name) {
-      message.error("Please enter an event name.");
+      message.error("Vui lòng nhập tên sự kiện.");
       return;
     }
-    const newEvent = {
-      id: `EV-${Date.now()}`,
-      name: form.name,
-      status: "Upcoming",
-      participants: 0,
-      daysLeft: 30,
-      season: form.season,
-      year: form.year,
-      tracks: selectedTracks,
-    };
-    databaseService.addEvent(newEvent);
-    databaseService.logAction("Admin", `Created new event: ${form.name}`);
-    message.success("Event created successfully!");
-    router.push("/dashboard/events");
+
+    try {
+      // Map to CreateEventRequest backend DTO
+      const payload = {
+        eventName: form.name,
+        description: form.description,
+        startDate: form.registrationDeadline || new Date().toISOString(),
+        endDate: form.resultDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 0 // EventStatus.Upcoming
+      };
+
+      const res = await apiRequest<any>("/events", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      message.success("Tạo sự kiện thành công!");
+      router.push(`/dashboard/events`);
+    } catch (err: any) {
+      message.error(err.message || "Tạo sự kiện thất bại.");
+    }
   };
 
   return (
@@ -68,15 +75,15 @@ export default function CreateEventPage() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
             <Link href="/dashboard/events"><button className="btn btn-ghost btn-sm btn-icon"><ChevronLeft size={16} /></button></Link>
-            <h1 className="page-title">Create New Event</h1>
+            <h1 className="page-title">Tạo sự kiện mới</h1>
           </div>
-          <p className="page-subtitle">Configure your SEAL hackathon event</p>
+          <p className="page-subtitle">Cấu hình sự kiện SEAL hackathon của bạn</p>
         </div>
       </div>
 
       {/* Step Tabs */}
       <div className="tabs" style={{ marginBottom: "2rem" }}>
-        {["Basic Info", "Rounds & Rules", "Tracks", "Criteria"].map((s, i) => (
+        {["Thông tin cơ bản", "Vòng thi & Thể lệ", "Hạng mục", "Tiêu chí"].map((s, i) => (
           <button key={s} className={`tab-btn ${step === i+1 ? "active" : ""}`} onClick={() => setStep(i+1)}>{s}</button>
         ))}
       </div>
@@ -84,47 +91,47 @@ export default function CreateEventPage() {
       {/* Step 1 – Basic Info */}
       {step === 1 && (
         <div className="glass-card">
-          <h3 style={{ marginBottom: "1.5rem", fontSize: "1rem" }}>Event Details</h3>
+          <h3 style={{ marginBottom: "1.5rem", fontSize: "1rem" }}>Chi tiết sự kiện</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
             <div className="form-group">
-              <label className="form-label">Event Name</label>
+              <label className="form-label">Tên sự kiện</label>
               <input className="form-input" placeholder="SEAL Spring 2026"
                 value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="form-group">
-                <label className="form-label">Season</label>
+                <label className="form-label">Mùa giải</label>
                 <select className="form-select" value={form.season} onChange={e => setForm({...form, season: e.target.value})}>
                   {SEASONS.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Year</label>
+                <label className="form-label">Năm</label>
                 <input className="form-input" type="number" value={form.year} onChange={e => setForm({...form, year: e.target.value})} />
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Description</label>
-              <textarea className="form-textarea" rows={3} placeholder="Describe the hackathon theme and goals…"
+              <label className="form-label">Mô tả</label>
+              <textarea className="form-textarea" rows={3} placeholder="Mô tả chủ đề và mục tiêu của hackathon…"
                 value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="form-group">
-                <label className="form-label">Min Team Size</label>
+                <label className="form-label">Quy mô đội thi tối thiểu</label>
                 <input className="form-input" type="number" min="1" max="10"
                   value={form.minTeamSize} onChange={e => setForm({...form, minTeamSize: e.target.value})} />
               </div>
               <div className="form-group">
-                <label className="form-label">Max Team Size</label>
+                <label className="form-label">Quy mô đội thi tối đa</label>
                 <input className="form-input" type="number" min="1" max="10"
                   value={form.maxTeamSize} onChange={e => setForm({...form, maxTeamSize: e.target.value})} />
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
               {[
-                { label: "Registration Deadline", key: "registrationDeadline" },
-                { label: "Submission Deadline",   key: "submissionDeadline" },
-                { label: "Result Date",           key: "resultDate" },
+                { label: "Hạn chót đăng ký", key: "registrationDeadline" },
+                { label: "Hạn chót nộp bài",   key: "submissionDeadline" },
+                { label: "Ngày công bố kết quả",           key: "resultDate" },
               ].map(f => (
                 <div key={f.key} className="form-group">
                   <label className="form-label">{f.label}</label>
@@ -142,8 +149,8 @@ export default function CreateEventPage() {
       {step === 2 && (
         <div className="glass-card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-            <h3 style={{ fontSize: "1rem" }}>Competition Rounds</h3>
-            <button className="btn btn-primary btn-sm" onClick={addRound}><Plus size={14} /> Add Round</button>
+            <h3 style={{ fontSize: "1rem" }}>Các vòng thi</h3>
+            <button className="btn btn-primary btn-sm" onClick={addRound}><Plus size={14} /> Thêm vòng thi</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {rounds.map((r, i) => (
@@ -151,10 +158,10 @@ export default function CreateEventPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <GripVertical size={16} style={{ color: "var(--color-text-3)", cursor: "grab" }} />
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--color-primary)", background: "rgba(99,102,241,0.1)", padding: "0.15rem 0.5rem", borderRadius: "var(--radius-sm)" }}>
-                    Round {i+1}
+                    Vòng thi {i+1}
                   </span>
                   <div className="form-group" style={{ flex: 1, gap: 0 }}>
-                    <input className="form-input" style={{ padding: "0.4rem 0.75rem" }} placeholder="Round name"
+                    <input className="form-input" style={{ padding: "0.4rem 0.75rem" }} placeholder="Tên vòng thi"
                       value={r.name} onChange={e => setRounds(rounds.map(x => x.id===r.id ? {...x, name: e.target.value} : x))} />
                   </div>
                   {rounds.length > 1 && (
@@ -165,13 +172,13 @@ export default function CreateEventPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div className="form-group">
-                    <label className="form-label"><Target size={11} /> Top N Teams to Advance</label>
+                    <label className="form-label"><Target size={11} /> Số đội thi lọt vào vòng trong</label>
                     <input className="form-input" type="number" placeholder="10"
                       value={r.topN} onChange={e => setRounds(rounds.map(x => x.id===r.id ? {...x, topN: e.target.value} : x))} />
-                    <span className="form-hint">Top {r.topN || "?"} teams advance to next round</span>
+                    <span className="form-hint">{r.topN || "?"} đội thi xuất sắc nhất lọt vào vòng trong</span>
                   </div>
                   <div className="form-group">
-                    <label className="form-label"><Clock size={11} /> Submission Deadline</label>
+                    <label className="form-label"><Clock size={11} /> Hạn chót nộp bài</label>
                     <input className="form-input" type="date"
                       value={r.deadline} onChange={e => setRounds(rounds.map(x => x.id===r.id ? {...x, deadline: e.target.value} : x))} />
                   </div>
@@ -185,8 +192,8 @@ export default function CreateEventPage() {
       {/* Step 3 – Tracks */}
       {step === 3 && (
         <div className="glass-card">
-          <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>Competition Tracks</h3>
-          <p style={{ fontSize: "0.875rem", color: "var(--color-text-2)", marginBottom: "1.5rem" }}>Select the tracks for this hackathon event</p>
+          <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>Các hạng mục thi đấu</h3>
+          <p style={{ fontSize: "0.875rem", color: "var(--color-text-2)", marginBottom: "1.5rem" }}>Chọn các hạng mục cho sự kiện hackathon này</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
             {TRACKS_OPTIONS.map(t => (
               <label key={t} style={{
@@ -199,13 +206,13 @@ export default function CreateEventPage() {
                 <input type="checkbox" checked={selectedTracks.includes(t)} onChange={() => toggleTrack(t)}
                   style={{ accentColor: "var(--color-primary)", width: 16, height: 16 }} />
                 <span style={{ fontWeight: 500 }}>{t}</span>
-                {selectedTracks.includes(t) && <span className="badge badge-primary" style={{ marginLeft: "auto" }}>Selected</span>}
+                {selectedTracks.includes(t) && <span className="badge badge-primary" style={{ marginLeft: "auto" }}>Đã chọn</span>}
               </label>
             ))}
           </div>
           {selectedTracks.length > 0 && (
             <p style={{ marginTop: "1rem", fontSize: "0.82rem", color: "var(--color-text-3)" }}>
-              {selectedTracks.length} track{selectedTracks.length > 1 ? "s" : ""} selected
+              Đã chọn {selectedTracks.length} hạng mục
             </p>
           )}
         </div>
@@ -216,12 +223,12 @@ export default function CreateEventPage() {
         <div className="glass-card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
             <div>
-              <h3 style={{ fontSize: "1rem" }}>Scoring Criteria</h3>
+              <h3 style={{ fontSize: "1rem" }}>Tiêu chí chấm điểm</h3>
               <p style={{ fontSize: "0.8rem", color: totalWeight === 100 ? "var(--color-emerald)" : "var(--color-rose)", marginTop: "0.2rem" }}>
-                Total weight: {totalWeight}% {totalWeight !== 100 ? "(must equal 100%)" : "✓"}
+                Tổng trọng số: {totalWeight}% {totalWeight !== 100 ? "(phải bằng 100%)" : "✓"}
               </p>
             </div>
-            <button className="btn btn-primary btn-sm" onClick={addCriterion}><Plus size={14} /> Add Criterion</button>
+            <button className="btn btn-primary btn-sm" onClick={addCriterion}><Plus size={14} /> Thêm tiêu chí</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {criteria.map(c => (
@@ -243,11 +250,11 @@ export default function CreateEventPage() {
 
       {/* Actions */}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>
-        {step > 1 && <button className="btn btn-secondary" onClick={() => setStep(step-1)}>← Back</button>}
+        {step > 1 && <button className="btn btn-secondary" onClick={() => setStep(step-1)}>← Quay lại</button>}
         {step < 4
-          ? <button className="btn btn-primary" onClick={() => setStep(step+1)}>Continue →</button>
+          ? <button className="btn btn-primary" onClick={() => setStep(step+1)}>Tiếp tục →</button>
           : <button className="btn btn-primary" disabled={totalWeight !== 100} onClick={handleCreateEvent}>
-              <Calendar size={16} /> Create Event
+              <Calendar size={16} /> Tạo sự kiện
             </button>
         }
       </div>

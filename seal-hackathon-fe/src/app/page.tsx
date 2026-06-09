@@ -1,88 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, Award, X, Gift, CheckCircle2 } from "lucide-react";
 import styles from "./page.module.css";
+import { apiRequest } from "@/lib/api";
 
-const MOCK_COMPETITIONS = [
-  {
-    id: 1,
-    title: "SEAL Global Hackathon 2026",
-    status: "Đang diễn ra",
-    teamsCount: 124,
-    membersPerTeam: "3-5",
-    date: "15/05 - 30/06, 2026",
-    rounds: 3,
-    description: "Tham gia thử thách kỹ thuật phần mềm đỉnh cao và xây dựng tương lai của các ứng dụng AI.",
-    featuredTeams: [
-      { name: "Alpha Devs", members: "John, Alice, Bob" },
-      { name: "Code Ninjas", members: "Sarah, Mike, Tom, Emma" }
-    ],
-    details: {
-      roundsInfo: [
-        { name: "Vòng 1: Lên ý tưởng & Lập kế hoạch", time: "15/05 - 25/05" },
-        { name: "Vòng 2: Phát triển nguyên mẫu (Prototype)", time: "26/05 - 15/06" },
-        { name: "Vòng 3: Chung kết & Thuyết trình", time: "16/06 - 30/06" }
-      ],
-      prizes: "Giải nhất: 100.000.000 VNĐ | Giải nhì: 50.000.000 VNĐ",
-      rules: "Các đội thi phát triển phần mềm dựa trên AI giải quyết các vấn đề thực tiễn. Yêu cầu mã nguồn mở và có thể deploy nghiệm thu."
-    },
-    result: null
-  },
-  {
-    id: 2,
-    title: "FinTech Innovators Challenge",
-    status: "Sắp diễn ra",
-    teamsCount: 86,
-    membersPerTeam: "2-4",
-    date: "10/07 - 20/08, 2026",
-    rounds: 2,
-    description: "Cách mạng hóa tài chính kỹ thuật số với các giải pháp công nghệ blockchain và hợp đồng thông minh tiên tiến.",
-    featuredTeams: [
-      { name: "Crypto Kings", members: "David, Anna" },
-      { name: "PayPioneers", members: "Kevin, Lily, James" }
-    ],
-    details: {
-      roundsInfo: [
-        { name: "Vòng 1: Vòng sơ loại & Trình bày ý tưởng", time: "10/07 - 25/07" },
-        { name: "Vòng 2: Hackathon 48h & Pitching", time: "18/08 - 20/08" }
-      ],
-      prizes: "Giải nhất: 80.000.000 VNĐ + Cơ hội thực tập tại đối tác",
-      rules: "Sản phẩm phải ứng dụng công nghệ tài chính, bảo mật cao và thân thiện với người dùng."
-    },
-    result: null
-  },
-  {
-    id: 3,
-    title: "GreenTech Sustainability 2025",
-    status: "Đã kết thúc",
-    teamsCount: 52,
-    membersPerTeam: "4",
-    date: "01/01 - 15/02, 2025",
-    rounds: 4,
-    description: "Phát triển các giải pháp phần mềm để ứng phó với biến đổi khí hậu và thúc đẩy lối sống bền vững.",
-    featuredTeams: [
-      { name: "Eco Warriors", members: "Sophia, Lucas, Mia, Noah" },
-      { name: "Planet Savers", members: "Liam, Olivia, Ethan, Ava" }
-    ],
-    details: {
-      roundsInfo: [
-        { name: "Vòng 1: Đăng ký & Ghép đội", time: "01/01 - 10/01" },
-        { name: "Vòng 2: Phân tích & Thiết kế", time: "11/01 - 20/01" },
-        { name: "Vòng 3: Coding Marathon", time: "21/01 - 10/02" },
-        { name: "Vòng 4: Chung kết", time: "15/02" }
-      ],
-      prizes: "Giải nhất: 50.000.000 VNĐ | Giải nhì: 30.000.000 VNĐ",
-      rules: "Đánh giá dựa trên mức độ ảnh hưởng đến môi trường và tính khả thi của giải pháp."
-    },
-    result: "Đội Chiến Thắng: Eco Warriors (Ứng dụng AI phân loại rác thải xuất sắc)"
-  }
-];
+const statusMap: Record<string, string> = {
+  Upcoming: "Sắp diễn ra",
+  Ongoing: "Đang diễn ra",
+  Completed: "Đã kết thúc",
+  Finished: "Đã kết thúc"
+};
 
 export default function LandingPage() {
-  const [selectedComp, setSelectedComp] = useState<typeof MOCK_COMPETITIONS[0] | null>(null);
+  const [selectedComp, setSelectedComp] = useState<any | null>(null);
+  const [competitions, setCompetitions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const events: any[] = await apiRequest("/events", { auth: false });
+        
+        const formattedEvents = events.map(e => {
+          const totalTeams = e.categories?.reduce((sum: number, c: any) => sum + (c.teamCount || 0), 0) || 0;
+          const roundsCount = e.rounds?.length || 0;
+          const sDate = new Date(e.startDate);
+          const eDate = new Date(e.endDate);
+          const dateStr = `${sDate.toLocaleDateString("vi-VN")} - ${eDate.toLocaleDateString("vi-VN")}`;
+          
+          let statusText = statusMap[e.status] || e.status;
+          // Fallback dynamic calculation if status string is not standard
+          if (!statusMap[e.status]) {
+             const now = new Date();
+             if (now < sDate) statusText = "Sắp diễn ra";
+             else if (now > eDate) statusText = "Đã kết thúc";
+             else statusText = "Đang diễn ra";
+          }
+
+          return {
+            id: e.eventId,
+            title: e.eventName,
+            status: statusText,
+            teamsCount: totalTeams,
+            membersPerTeam: "3-5", // Default
+            date: dateStr,
+            rounds: roundsCount,
+            description: e.description,
+            featuredTeams: [], // Not returned by API yet
+            details: {
+              roundsInfo: e.rounds?.map((r: any) => ({
+                name: r.roundName,
+                time: new Date(r.submissionDeadline).toLocaleDateString("vi-VN")
+              })) || [],
+              prizes: "Đang cập nhật...",
+              rules: "Đang cập nhật..."
+            },
+            result: null
+          };
+        });
+        setCompetitions(formattedEvents);
+      } catch (err) {
+        console.error("Failed to load events", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -152,101 +140,103 @@ export default function LandingPage() {
             </h2>
           </motion.div>
 
-          <div className="grid-3">
-            {MOCK_COMPETITIONS.map((comp, index) => (
-              <motion.div
-                key={comp.id}
-                initial={{ y: 40, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
-                className="glass-card"
-                style={{ display: "flex", flexDirection: "column", height: "100%" }}
-              >
-                {/* Top Badge */}
-                <div className={styles.cardHeader}>
-                  <span className={`badge ${comp.status === 'Đang diễn ra' ? 'badge-success' : comp.status === 'Đã kết thúc' ? 'badge-neutral' : 'badge-primary'}`}>
-                    <span className={styles.pingBadge}>
-                      {comp.status === 'Đang diễn ra' && (
-                        <span className={styles.pingAnim} style={{ backgroundColor: "var(--color-emerald)" }}></span>
-                      )}
-                      <span className={styles.pingDot} style={{ backgroundColor: comp.status === 'Đang diễn ra' ? "var(--color-emerald)" : comp.status === 'Đã kết thúc' ? "var(--color-text-3)" : "var(--color-primary-2)" }}></span>
+          {loading ? (
+             <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>
+               <span className="spinner" style={{ width: 30, height: 30, borderColor: "var(--color-primary-2)", borderTopColor: "transparent" }}></span>
+               <p style={{ marginTop: "1rem" }}>Đang tải danh sách cuộc thi...</p>
+             </div>
+          ) : competitions.length === 0 ? (
+             <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)", background: "rgba(30, 41, 59, 0.4)", borderRadius: "12px", border: "1px dashed var(--color-border)" }}>
+               <Trophy size={48} style={{ margin: "0 auto 1rem", opacity: 0.5 }} />
+               <p>Hiện chưa có cuộc thi nào trên hệ thống.</p>
+             </div>
+          ) : (
+            <div className="grid-3">
+              {competitions.map((comp, index) => (
+                <motion.div
+                  key={comp.id}
+                  initial={{ y: 40, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.5, delay: 0.4 + (index % 3) * 0.1 }}
+                  className="glass-card"
+                  style={{ display: "flex", flexDirection: "column", height: "100%" }}
+                >
+                  {/* Top Badge */}
+                  <div className={styles.cardHeader}>
+                    <span className={`badge ${comp.status === 'Đang diễn ra' ? 'badge-success' : comp.status === 'Đã kết thúc' ? 'badge-neutral' : 'badge-primary'}`}>
+                      <span className={styles.pingBadge}>
+                        {comp.status === 'Đang diễn ra' && (
+                          <span className={styles.pingAnim} style={{ backgroundColor: "var(--color-emerald)" }}></span>
+                        )}
+                        <span className={styles.pingDot} style={{ backgroundColor: comp.status === 'Đang diễn ra' ? "var(--color-emerald)" : comp.status === 'Đã kết thúc' ? "var(--color-text-3)" : "var(--color-primary-2)" }}></span>
+                      </span>
+                      {comp.status}
                     </span>
-                    {comp.status}
-                  </span>
-                  
-                  <div className={styles.cardIconWrapper}>
-                    <Trophy size={16} style={{ color: "var(--color-amber)" }} />
-                  </div>
-                </div>
-
-                <h3 className={styles.cardTitle}>
-                  {comp.title}
-                </h3>
-                <p className={styles.cardDesc}>
-                  {comp.description}
-                </p>
-
-                {/* Stats Grid */}
-                <div className={styles.statsGrid}>
-                  <div className={styles.statItem}>
-                    <div className={styles.statLabel}>
-                      <Users size={12} /> Số đội
-                    </div>
-                    <div className={styles.statValue}>{comp.teamsCount}</div>
-                  </div>
-                  
-                  <div className={styles.statItem}>
-                    <div className={styles.statLabel}>
-                      <Users size={12} /> Thành viên
-                    </div>
-                    <div className={styles.statValue}>{comp.membersPerTeam} người</div>
-                  </div>
-
-                  <div className={styles.statItem}>
-                    <div className={styles.statLabel}>
-                      <Layers size={12} /> Số vòng
-                    </div>
-                    <div className={styles.statValue}>{comp.rounds} Vòng</div>
-                  </div>
-
-                  <div className={styles.statItem}>
-                    <div className={styles.statLabel}>
-                      <Calendar size={12} /> Thời gian
-                    </div>
-                    <div className={styles.statValue} style={{ fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={comp.date}>
-                      {comp.date}
+                    
+                    <div className={styles.cardIconWrapper}>
+                      <Trophy size={16} style={{ color: "var(--color-amber)" }} />
                     </div>
                   </div>
-                </div>
 
-                {/* Featured Teams */}
-                <div style={{ marginBottom: "1.5rem", padding: "0.75rem", background: "rgba(30, 41, 59, 0.4)", borderRadius: "8px", fontSize: "0.85rem" }}>
-                  <div style={{ color: "var(--color-text-2)", fontWeight: 600, marginBottom: "0.5rem", fontSize: "0.75rem", textTransform: "uppercase" }}>Các đội nổi bật</div>
-                  {comp.featuredTeams.map((team, i) => (
-                    <div key={i} style={{ marginBottom: "0.25rem" }}>
-                      <span style={{ color: "var(--color-primary-2)", fontWeight: 500 }}>{team.name}:</span> <span style={{ color: "var(--color-text-3)" }}>{team.members}</span>
+                  <h3 className={styles.cardTitle}>
+                    {comp.title}
+                  </h3>
+                  <p className={styles.cardDesc}>
+                    {comp.description}
+                  </p>
+
+                  {/* Stats Grid */}
+                  <div className={styles.statsGrid}>
+                    <div className={styles.statItem}>
+                      <div className={styles.statLabel}>
+                        <Users size={12} /> Số đội
+                      </div>
+                      <div className={styles.statValue}>{comp.teamsCount}</div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Result for Completed */}
-                <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {comp.status === "Đã kết thúc" && comp.result && (
-                    <div style={{ padding: "0.75rem", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", fontSize: "0.85rem", color: "var(--color-emerald)" }}>
-                      <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem" }}><Award size={14} /> Kết quả</div>
-                      <div style={{ marginTop: "0.25rem" }}>{comp.result}</div>
+                    
+                    <div className={styles.statItem}>
+                      <div className={styles.statLabel}>
+                        <Users size={12} /> Thành viên
+                      </div>
+                      <div className={styles.statValue}>{comp.membersPerTeam} người</div>
                     </div>
-                  )}
 
-                  <div className={styles.cardAction}>
-                    <button className="btn btn-secondary w-full" style={{ width: "100%", justifyContent: "center" }} onClick={() => setSelectedComp(comp)}>
-                      Xem chi tiết <ArrowRight size={16} style={{ marginLeft: "0.5rem" }} />
-                    </button>
+                    <div className={styles.statItem}>
+                      <div className={styles.statLabel}>
+                        <Layers size={12} /> Số vòng
+                      </div>
+                      <div className={styles.statValue}>{comp.rounds} Vòng</div>
+                    </div>
+
+                    <div className={styles.statItem}>
+                      <div className={styles.statLabel}>
+                        <Calendar size={12} /> Thời gian
+                      </div>
+                      <div className={styles.statValue} style={{ fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={comp.date}>
+                        {comp.date}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+
+                  {/* Result for Completed */}
+                  <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {comp.status === "Đã kết thúc" && comp.result && (
+                      <div style={{ padding: "0.75rem", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", fontSize: "0.85rem", color: "var(--color-emerald)" }}>
+                        <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem" }}><Award size={14} /> Kết quả</div>
+                        <div style={{ marginTop: "0.25rem" }}>{comp.result}</div>
+                      </div>
+                    )}
+
+                    <div className={styles.cardAction}>
+                      <button className="btn btn-secondary w-full" style={{ width: "100%", justifyContent: "center" }} onClick={() => setSelectedComp(comp)}>
+                        Xem chi tiết <ArrowRight size={16} style={{ marginLeft: "0.5rem" }} />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
@@ -295,17 +285,21 @@ export default function LandingPage() {
                       <h4 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600, color: "var(--color-text)", marginBottom: "0.75rem" }}>
                         <Layers size={18} style={{ color: "var(--color-primary-2)" }} /> Thông tin các vòng thi
                       </h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {selectedComp.details.roundsInfo.map((r, idx) => (
-                          <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                            <div style={{ marginTop: "2px", color: "var(--color-cyan)" }}><CheckCircle2 size={16} /></div>
-                            <div>
-                              <div style={{ fontWeight: 500, color: "var(--color-text)" }}>{r.name}</div>
-                              <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>Thời gian: {r.time}</div>
+                      {selectedComp.details.roundsInfo.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                          {selectedComp.details.roundsInfo.map((r: any, idx: number) => (
+                            <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+                              <div style={{ marginTop: "2px", color: "var(--color-cyan)" }}><CheckCircle2 size={16} /></div>
+                              <div>
+                                <div style={{ fontWeight: 500, color: "var(--color-text)" }}>{r.name}</div>
+                                <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>Hạn nộp: {r.time}</div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>Chưa có thông tin vòng thi.</p>
+                      )}
                     </div>
 
                     <div style={{ background: "rgba(16, 185, 129, 0.05)", padding: "1rem", borderRadius: "12px", border: "1px solid rgba(16, 185, 129, 0.2)" }}>

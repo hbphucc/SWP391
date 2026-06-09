@@ -1,17 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect,  useState } from "react";
 import { Trophy, Medal, Award, Download, Filter, TrendingUp, Crown } from "lucide-react";
 
-const RANKINGS = [
-  { rank: 1,  team: "CodeCraft",    track: "AI & ML",    score: 92.4, judges: 3, status: "finalist" },
-  { rank: 2,  team: "TechVision",   track: "AI & ML",    score: 89.1, judges: 3, status: "finalist" },
-  { rank: 3,  team: "InnovateSEAL", track: "Web Dev",    score: 87.8, judges: 3, status: "finalist" },
-  { rank: 4,  team: "ByteBuilders", track: "Open Innov", score: 85.2, judges: 2, status: "advancing" },
-  { rank: 5,  team: "DevForge",     track: "Web Dev",    score: 83.9, judges: 3, status: "advancing" },
-  { rank: 6,  team: "AlphaCoders",  track: "Mobile App", score: 81.3, judges: 2, status: "advancing" },
-  { rank: 7,  team: "ByteWave",     track: "Mobile App", score: 78.5, judges: 3, status: "eliminated" },
-  { rank: 8,  team: "NexaCode",     track: "Open Innov", score: 75.2, judges: 2, status: "eliminated" },
-];
+import { apiRequest } from "@/lib/api";
 
 const RANK_ICON: Record<number, React.ReactNode> = {
   1: <Trophy size={16} style={{ color: "#f59e0b" }} />,
@@ -27,9 +18,46 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function RankingsPage() {
   const [trackFilter, setTrackFilter] = useState("All");
-  const tracks = ["All", "AI & ML", "Web Dev", "Mobile App", "Open Innov"];
+  const [rankings, setRankings] = useState<any[]>([]);
+  const [tracks, setTracks] = useState<string[]>(["All"]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = RANKINGS.filter(r => trackFilter === "All" ? true : r.track === trackFilter);
+  useEffect(() => {
+    const fetchRankings = async () => {
+      try {
+        const events = await apiRequest<any[]>("/Events");
+        if (events.length > 0) {
+          const eventDetails = await apiRequest<any>(`/Events/${events[0].eventId}`);
+          if (eventDetails.rounds && eventDetails.rounds.length > 0) {
+            const firstRound = eventDetails.rounds[0].roundId;
+            const data = await apiRequest<any[]>(`/ranking/round/${firstRound}`);
+            
+            // Map the API data
+            const mapped = data.map((d: any) => ({
+              rank: d.rank,
+              team: d.teamName,
+              track: d.categoryName,
+              score: Math.round(d.totalScore * 10) / 10,
+              judges: d.judgesCount || 0,
+              status: d.rank <= 3 ? "advancing" : "eliminated"
+            }));
+            
+            setRankings(mapped);
+
+            const uniqueTracks = Array.from(new Set(mapped.map(m => m.track)));
+            setTracks(["All", ...(uniqueTracks as string[])]);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRankings();
+  }, []);
+
+  const filtered = rankings.filter(r => trackFilter === "All" ? true : r.track === trackFilter);
 
   const exportRankingsCSV = () => {
     const header = "Rank,Team,Track,Score,Judges,Status\n";
@@ -48,49 +76,51 @@ export default function RankingsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Rankings & Leaderboard</h1>
-          <p className="page-subtitle">SEAL Spring 2026 · Qualifying Round</p>
+          <h1 className="page-title">Bảng xếp hạng</h1>
+          <p className="page-subtitle">SEAL Spring 2026 · Vòng loại</p>
         </div>
-        <button className="btn btn-secondary" onClick={exportRankingsCSV}><Download size={15} /> Export CSV</button>
+        <button className="btn btn-secondary" onClick={exportRankingsCSV}><Download size={15} /> Xuất CSV</button>
       </div>
 
       {/* Top 3 Podium */}
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", alignItems: "flex-end", justifyContent: "center" }}>
-        {/* 2nd */}
-        <div className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: "3px solid #94a3b8", paddingTop: "1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "center" }}><Crown size={32} style={{ color: "#94a3b8" }} /></div>
-          <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>{RANKINGS[1].team}</div>
-          <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{RANKINGS[1].track}</div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#94a3b8", marginTop: "0.5rem" }}>
-            {RANKINGS[1].score}
+      {rankings.length >= 3 && (
+        <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", alignItems: "flex-end", justifyContent: "center" }}>
+          {/* 2nd */}
+          <div className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: "3px solid #94a3b8", paddingTop: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}><Crown size={32} style={{ color: "#94a3b8" }} /></div>
+            <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>{rankings[1].team}</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{rankings[1].track}</div>
+            <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#94a3b8", marginTop: "0.5rem" }}>
+              {rankings[1].score}
+            </div>
+          </div>
+          {/* 1st */}
+          <div className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: "3px solid #f59e0b", paddingTop: "2rem", transform: "translateY(-12px)", boxShadow: "0 0 30px rgba(245,158,11,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}><Crown size={42} style={{ color: "#f59e0b", filter: "drop-shadow(0 0 8px rgba(245,158,11,0.5))" }} /></div>
+            <div style={{ fontWeight: 800, fontSize: "1.1rem", marginTop: "0.5rem", background: "linear-gradient(135deg,#f59e0b,#fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {rankings[0].team}
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{rankings[0].track}</div>
+            <div style={{ fontSize: "2.2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#f59e0b", marginTop: "0.5rem" }}>
+              {rankings[0].score}
+            </div>
+          </div>
+          {/* 3rd */}
+          <div className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: "3px solid #b45309", paddingTop: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}><Crown size={32} style={{ color: "#b45309" }} /></div>
+            <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>{rankings[2].team}</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{rankings[2].track}</div>
+            <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#b45309", marginTop: "0.5rem" }}>
+              {rankings[2].score}
+            </div>
           </div>
         </div>
-        {/* 1st */}
-        <div className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: "3px solid #f59e0b", paddingTop: "2rem", transform: "translateY(-12px)", boxShadow: "0 0 30px rgba(245,158,11,0.2)" }}>
-          <div style={{ display: "flex", justifyContent: "center" }}><Crown size={42} style={{ color: "#f59e0b", filter: "drop-shadow(0 0 8px rgba(245,158,11,0.5))" }} /></div>
-          <div style={{ fontWeight: 800, fontSize: "1.1rem", marginTop: "0.5rem", background: "linear-gradient(135deg,#f59e0b,#fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            {RANKINGS[0].team}
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{RANKINGS[0].track}</div>
-          <div style={{ fontSize: "2.2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#f59e0b", marginTop: "0.5rem" }}>
-            {RANKINGS[0].score}
-          </div>
-        </div>
-        {/* 3rd */}
-        <div className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: "3px solid #b45309", paddingTop: "1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "center" }}><Crown size={32} style={{ color: "#b45309" }} /></div>
-          <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>{RANKINGS[2].team}</div>
-          <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{RANKINGS[2].track}</div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#b45309", marginTop: "0.5rem" }}>
-            {RANKINGS[2].score}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Track filter */}
       <div className="tabs" style={{ marginBottom: "1.5rem" }}>
         {tracks.map(t => (
-          <button key={t} className={`tab-btn ${trackFilter===t?"active":""}`} onClick={() => setTrackFilter(t)}>{t}</button>
+          <button key={t} className={`tab-btn ${trackFilter===t?"active":""}`} onClick={() => setTrackFilter(t)}>{t === "All" ? "Tất cả" : t}</button>
         ))}
       </div>
 
@@ -98,7 +128,7 @@ export default function RankingsPage() {
       <div className="table-wrapper">
         <table className="table">
           <thead><tr>
-            <th>Rank</th><th>Team</th><th>Track</th><th>Score</th><th>Judges</th><th>Score Bar</th><th>Status</th>
+            <th>Hạng</th><th>Đội thi</th><th>Hạng mục</th><th>Điểm</th><th>Giám khảo</th><th>Mức điểm</th><th>Trạng thái</th>
           </tr></thead>
           <tbody>
             {filtered.map(r => (
@@ -122,7 +152,7 @@ export default function RankingsPage() {
                     <div className="progress-fill" style={{ width: `${r.score}%`, background: `linear-gradient(90deg, #6366f1, #8b5cf6)` }} />
                   </div>
                 </td>
-                <td><span className={`badge ${STATUS_BADGE[r.status]}`}>{r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td>
+                <td><span className={`badge ${STATUS_BADGE[r.status]}`}>{r.status === 'advancing' ? 'Đi tiếp' : r.status === 'eliminated' ? 'Đã loại' : r.status === 'finalist' ? 'Chung kết' : r.status}</span></td>
               </tr>
             ))}
           </tbody>

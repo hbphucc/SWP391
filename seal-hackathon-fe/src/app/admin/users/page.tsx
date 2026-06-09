@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, UserPlus, CheckCircle, XCircle, Mail, Shield, Building2 } from "lucide-react";
+import { Users, UserPlus, CheckCircle, XCircle, Mail, Shield, Building2, Star } from "lucide-react";
 import { App, Table, Tag, Button, Modal, Form, Input, Select, DatePicker } from "antd";
 import { apiRequest } from "@/lib/api";
 
@@ -9,15 +9,10 @@ export default function UsersPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState("pending");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMentorModalOpen, setIsMentorModalOpen] = useState(false);
   
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const mockAdminUsers = [
-    { id: "1", fullName: "Nguyễn Văn A", email: "a@fpt.edu.vn", studentType: "FPT", studentCode: "SE160000", schoolName: "FPT University", isApproved: true, createdAt: "2026-05-10T10:00:00Z", roles: ["Member"] },
-    { id: "2", fullName: "Trần Thị B", email: "b@gmail.com", studentType: "NonFPT", studentCode: null, schoolName: "Đại học Bách Khoa", isApproved: false, createdAt: "2026-05-11T14:30:00Z", roles: ["Member"] },
-    { id: "3", fullName: "Dr. Lê Vũ", email: "levu@fpt.edu.vn", studentType: null, studentCode: null, schoolName: "FPT", isApproved: true, createdAt: "2026-05-01T09:00:00Z", roles: ["Judge"] }
-  ];
 
   const loadUsers = async () => {
     setLoading(true);
@@ -31,16 +26,8 @@ export default function UsersPage() {
         status: user.isApproved ? "Approved" : "Pending",
         uni: user.schoolName ?? "-",
       })));
-    } catch (err) {
-      // Fallback to strict mock data matching AdminUsersController DTO
-      setUsers(mockAdminUsers.map((user) => ({
-        id: user.id,
-        name: user.fullName,
-        email: user.email,
-        type: user.studentType ?? user.roles?.join(", ") ?? "Member",
-        status: user.isApproved ? "Approved" : "Pending",
-        uni: user.schoolName ?? "-",
-      })));
+    } catch (err: any) {
+      message.error(err.message || "Tải danh sách người dùng thất bại");
     } finally {
       setLoading(false);
     }
@@ -61,52 +48,73 @@ export default function UsersPage() {
   const handleApprove = async (id: string) => {
     try {
       await apiRequest(`/admin/users/${id}/approve`, { method: "PUT" });
-      message.success("User approved successfully");
+      message.success("Đã duyệt người dùng");
       await loadUsers();
-    } catch (err) {
-      message.success("User approved successfully");
-      setUsers(users.map(u => u.id === id ? { ...u, status: "Approved" } : u));
+    } catch (err: any) {
+      message.error(err.message || "Duyệt người dùng thất bại");
     }
   };
 
   const handleReject = async (id: string) => {
     try {
       await apiRequest(`/admin/users/${id}/reject`, { method: "PUT" });
-      message.success("User rejected successfully");
+      message.success("Đã từ chối người dùng");
       await loadUsers();
-    } catch (err) {
-      message.success("User rejected successfully");
-      setUsers(users.filter(u => u.id !== id));
+    } catch (err: any) {
+      message.error(err.message || "Từ chối người dùng thất bại");
     }
   };
 
-  const handleCreateJudge = (values: any) => {
-    message.success(`Guest Judge ${values.name} created! Email sent with temporary credentials.`);
-    setIsModalOpen(false);
+  const handleCreateJudge = async (values: any) => {
+    try {
+      const res = await apiRequest<any>("/admin/users/judge", {
+        method: "POST",
+        body: JSON.stringify(values)
+      });
+      message.success(`Tạo tài khoản Giám khảo ${values.name} thành công! Mật khẩu tạm thời: ${res.tempPassword}`);
+      setIsModalOpen(false);
+      await loadUsers();
+    } catch (err: any) {
+      message.error(err.message || "Tạo tài khoản Giám khảo thất bại");
+    }
+  };
+
+  const handleCreateMentor = async (values: any) => {
+    try {
+      const res = await apiRequest<any>("/admin/users/mentor", {
+        method: "POST",
+        body: JSON.stringify(values)
+      });
+      message.success(`Tạo tài khoản Cố vấn ${values.name} thành công! Mật khẩu tạm thời: ${res.tempPassword}`, 8);
+      setIsMentorModalOpen(false);
+      await loadUsers();
+    } catch (err: any) {
+      message.error(err.message || "Tạo tài khoản Cố vấn thất bại");
+    }
   };
 
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name', render: (t: string) => <div style={{ fontWeight: 600 }}>{t}</div> },
+    { title: 'Họ tên', dataIndex: 'name', key: 'name', render: (t: string) => <div style={{ fontWeight: 600 }}>{t}</div> },
     { title: 'Email', dataIndex: 'email', key: 'email' },
-    { title: 'Type', dataIndex: 'type', key: 'type', render: (t: string) => (
-      <span className="glass-badge">{t}</span>
+    { title: 'Loại', dataIndex: 'type', key: 'type', render: (t: string) => (
+      <span className="glass-badge">{t === "Member" ? "Thành viên" : t}</span>
     )},
-    { title: 'University', dataIndex: 'uni', key: 'uni' },
-    { title: 'Status', dataIndex: 'status', key: 'status', render: (t: string) => (
-      <span className={`glass-badge ${t === "Pending" ? "warning" : "success"}`}>{t}</span>
+    { title: 'Trường Đại học', dataIndex: 'uni', key: 'uni' },
+    { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (t: string) => (
+      <span className={`glass-badge ${t === "Pending" ? "warning" : "success"}`}>{t === "Pending" ? "Chờ duyệt" : "Đã duyệt"}</span>
     )},
     {
-      title: 'Action', key: 'action', render: (_: any, record: any) => (
+      title: 'Thao tác', key: 'action', render: (_: any, record: any) => (
         record.status === "Pending" ? (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.1)", color: "#34d399", padding: "0.4rem 0.8rem", border: "1px solid rgba(16,185,129,0.2)" }} onClick={() => handleApprove(record.id)}>
-              <CheckCircle size={14} style={{ marginRight: 4 }} /> Approve
+              <CheckCircle size={14} style={{ marginRight: 4 }} /> Duyệt
             </button>
             <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.1)", color: "#f43f5e", padding: "0.4rem 0.8rem", border: "1px solid rgba(244,63,94,0.2)" }} onClick={() => handleReject(record.id)}>
-              <XCircle size={14} style={{ marginRight: 4 }} /> Reject
+              <XCircle size={14} style={{ marginRight: 4 }} /> Từ chối
             </button>
           </div>
-        ) : <span style={{ color: "var(--color-text-3)" }}>No actions</span>
+        ) : <span style={{ color: "var(--color-text-3)" }}>Không có thao tác</span>
       )
     }
   ];
@@ -115,8 +123,8 @@ export default function UsersPage() {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-1)" }}>
         <Shield size={48} style={{ color: "var(--color-danger)", marginBottom: 16 }} />
-        <h2>Access Denied</h2>
-        <p>This page is restricted to Event Administrators only.</p>
+        <h2>Truy cập bị từ chối</h2>
+        <p>Trang này chỉ dành cho Quản trị viên của Sự kiện.</p>
       </div>
     );
   }
@@ -125,20 +133,25 @@ export default function UsersPage() {
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexShrink: 0 }}>
         <div>
-          <h1 className="page-title"><Users size={28} /> User Management</h1>
-          <p className="page-subtitle">Approve participants and manage guest judges</p>
+          <h1 className="page-title"><Users size={28} /> Quản lý Người dùng</h1>
+          <p className="page-subtitle">Phê duyệt người tham gia và quản lý tài khoản Giám khảo, Cố vấn</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-          <UserPlus size={16} style={{ marginRight: "0.5rem" }} /> Create Guest Judge
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-secondary" onClick={() => setIsMentorModalOpen(true)} style={{ color: "#6366f1", borderColor: "rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.05)" }}>
+            <UserPlus size={16} style={{ marginRight: "0.5rem" }} /> Tạo Cố vấn
+          </button>
+          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+            <UserPlus size={16} style={{ marginRight: "0.5rem" }} /> Tạo Giám khảo
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexShrink: 0 }}>
         <button className={`btn ${activeTab === "pending" ? "btn-primary" : "btn-secondary"}`} onClick={() => setActiveTab("pending")}>
-          Pending Approvals
+          Chờ phê duyệt
         </button>
         <button className={`btn ${activeTab === "approved" ? "btn-primary" : "btn-secondary"}`} onClick={() => setActiveTab("approved")}>
-          Approved Users
+          Đã phê duyệt
         </button>
       </div>
 
@@ -154,26 +167,53 @@ export default function UsersPage() {
       </div>
 
       <Modal 
-        title={<div style={{ color: "var(--color-text-1)", display: "flex", alignItems: "center" }}><Shield size={18} style={{ marginRight: 8 }} /> Create Guest Judge Account</div>}
+        title={<div style={{ color: "var(--color-text-1)", display: "flex", alignItems: "center" }}><Shield size={18} style={{ marginRight: 8 }} /> Tạo tài khoản Giám khảo</div>}
         open={isModalOpen} 
         onCancel={() => setIsModalOpen(false)}
         footer={null}
         wrapClassName="glass-modal"
       >
         <Form layout="vertical" onFinish={handleCreateJudge} style={{ marginTop: 20 }}>
-          <Form.Item name="name" label={<span style={{ color: "var(--color-text-2)" }}>Judge Name</span>} rules={[{ required: true }]}>
-            <Input prefix={<Users size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="Dr. John Doe" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          <Form.Item name="name" label={<span style={{ color: "var(--color-text-2)" }}>Tên Giám khảo</span>} rules={[{ required: true }]}>
+            <Input prefix={<Users size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="Nguyễn Văn A" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
           </Form.Item>
-          <Form.Item name="email" label={<span style={{ color: "var(--color-text-2)" }}>Email Address</span>} rules={[{ required: true, type: 'email' }]}>
-            <Input prefix={<Mail size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="judge@example.com" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          <Form.Item name="email" label={<span style={{ color: "var(--color-text-2)" }}>Địa chỉ Email</span>} rules={[{ required: true, type: 'email' }]}>
+            <Input prefix={<Mail size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="giamkhao@example.com" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
           </Form.Item>
-          <Form.Item name="company" label={<span style={{ color: "var(--color-text-2)" }}>Company / University</span>} rules={[{ required: true }]}>
-            <Input prefix={<Building2 size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="Tech Corp" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          <Form.Item name="company" label={<span style={{ color: "var(--color-text-2)" }}>Công ty / Trường Đại học</span>} rules={[{ required: true }]}>
+            <Input prefix={<Building2 size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="Tập đoàn Công nghệ" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
           </Form.Item>
           <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem", marginBottom: 20 }}>
-            * Temporary credentials will be emailed securely. The account will only have access to assigned judging rounds.
+            * Thông tin đăng nhập tạm thời sẽ được gửi qua email. Tài khoản này chỉ có quyền truy cập vào các vòng thi được phân công.
           </div>
-          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Generate Account</button>
+          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Tạo tài khoản</button>
+        </Form>
+      </Modal>
+
+      <Modal 
+        title={<div style={{ color: "var(--color-text-1)", display: "flex", alignItems: "center" }}><Star size={18} style={{ marginRight: 8, color: '#6366f1' }} /> Tạo tài khoản Cố vấn</div>}
+        open={isMentorModalOpen} 
+        onCancel={() => setIsMentorModalOpen(false)}
+        footer={null}
+        wrapClassName="glass-modal"
+      >
+        <Form layout="vertical" onFinish={handleCreateMentor} style={{ marginTop: 20 }}>
+          <Form.Item name="name" label={<span style={{ color: "var(--color-text-2)" }}>Tên Cố vấn</span>} rules={[{ required: true }]}>
+            <Input prefix={<Users size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="Trần Văn B" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          </Form.Item>
+          <Form.Item name="email" label={<span style={{ color: "var(--color-text-2)" }}>Địa chỉ Email</span>} rules={[{ required: true, type: 'email' }]}>
+            <Input prefix={<Mail size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="covan@example.com" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          </Form.Item>
+          <Form.Item name="company" label={<span style={{ color: "var(--color-text-2)" }}>Công ty / Trường Đại học</span>} rules={[{ required: true }]}>
+            <Input prefix={<Building2 size={16} style={{ color: "var(--color-text-3)" }} />} placeholder="Tập đoàn Công nghệ" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          </Form.Item>
+          <Form.Item name="skills" label={<span style={{ color: "var(--color-text-2)" }}>Kỹ năng chuyên môn (cách nhau bởi dấu phẩy)</span>} rules={[{ required: true }]}>
+            <Input placeholder="Ví dụ: React, Node.js, AI, UX/UI" style={{ background: "rgba(0,0,0,0.2)", color: "var(--color-text-1)", border: "1px solid var(--color-border)" }} />
+          </Form.Item>
+          <div style={{ color: "var(--color-text-3)", fontSize: "0.85rem", marginBottom: 20 }}>
+            * Thông tin đăng nhập tạm thời sẽ được hiển thị ngay sau khi tạo. Cố vấn sẽ dùng kỹ năng trên để Matchmaking.
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ width: "100%", background: "#6366f1", borderColor: "#6366f1" }}>Tạo tài khoản Cố vấn</button>
         </Form>
       </Modal>
     </div>

@@ -1,24 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useState, use } from "react";
 import { Target, Clock, MessageSquare, Lock, CheckCircle, ChevronLeft, Send, AlertCircle } from "lucide-react";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import Link from "next/link";
 
 const CRITERIA = [
-  { id: 1, name: "Technical Implementation", weight: 30, description: "Quality of code, architecture, and technical decisions" },
-  { id: 2, name: "Innovation & Creativity",  weight: 25, description: "Originality and creative approach to the problem" },
-  { id: 3, name: "Presentation & Demo",       weight: 25, description: "Clarity of presentation and quality of demo" },
-  { id: 4, name: "Code Quality",             weight: 20, description: "Code readability, documentation, and best practices" },
+  { id: 1, name: "Triển khai Kỹ thuật", weight: 30, description: "Chất lượng mã nguồn, kiến trúc, và quyết định kỹ thuật" },
+  { id: 2, name: "Đổi mới & Sáng tạo",  weight: 25, description: "Tính độc đáo và cách tiếp cận sáng tạo cho vấn đề" },
+  { id: 3, name: "Trình bày & Demo",       weight: 25, description: "Độ rõ ràng của bài thuyết trình và chất lượng demo" },
+  { id: 4, name: "Chất lượng Mã nguồn",             weight: 20, description: "Khả năng đọc mã, tài liệu, và thực tiễn tốt nhất" },
 ];
 
 const SUBMISSION = {
-  team: "CodeCraft", track: "AI & Machine Learning", round: "Qualifying Round",
+  team: "CodeCraft", track: "Trí tuệ nhân tạo & Học máy", round: "Vòng sơ loại",
   event: "SEAL Spring 2026", repoUrl: "https://github.com/codecraft/seal-project",
   demoUrl: "https://demo.codecraft.app", reportUrl: "https://docs.google.com/presentation/...",
   submittedAt: "May 10, 2026 14:30",
 };
 
-export default function JudgingScorePage({ params }: { params: { id: string } }) {
+export default function JudgingScorePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scores, setScores]   = useState<Record<number,number>>({ 1: 75, 2: 80, 3: 70, 4: 85 });
   const [comment, setComment] = useState("");
   const [locked, setLocked]   = useState(false);
@@ -39,21 +40,21 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
             <Link href="/admin/judging"><button className="btn btn-ghost btn-sm btn-icon"><ChevronLeft size={16} /></button></Link>
-            <h1 className="page-title">Score Submission</h1>
+            <h1 className="page-title">Chấm điểm Bài nộp</h1>
           </div>
           <p className="page-subtitle">{SUBMISSION.team} · {SUBMISSION.track} · {SUBMISSION.round}</p>
         </div>
-        {locked && <span className="badge badge-success" style={{ padding: "0.4rem 0.8rem" }}><Lock size={12} /> Scores Locked</span>}
+        {locked && <span className="badge badge-success" style={{ padding: "0.4rem 0.8rem" }}><Lock size={12} /> Điểm đã khóa</span>}
       </div>
 
       {/* Submission Links */}
       <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
-        <h4 style={{ fontSize: "0.9rem", marginBottom: "1rem", color: "var(--color-text-2)" }}>SUBMISSION LINKS</h4>
+        <h4 style={{ fontSize: "0.9rem", marginBottom: "1rem", color: "var(--color-text-2)" }}>LIÊN KẾT BÀI NỘP</h4>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           {[
-            { label: "GitHub Repository", url: SUBMISSION.repoUrl },
-            { label: "Live Demo",         url: SUBMISSION.demoUrl },
-            { label: "Report / Slides",   url: SUBMISSION.reportUrl },
+            { label: "Kho lưu trữ GitHub", url: SUBMISSION.repoUrl },
+            { label: "Demo trực tiếp",         url: SUBMISSION.demoUrl },
+            { label: "Báo cáo / Slide",   url: SUBMISSION.reportUrl },
           ].map(l => (
             <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
               {l.label} ↗
@@ -61,26 +62,26 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
           ))}
         </div>
         <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "var(--color-text-3)" }}>
-          <Clock size={11} style={{ marginRight: 4 }} />Submitted: {SUBMISSION.submittedAt}
+          <Clock size={11} style={{ marginRight: 4 }} />Đã nộp: {SUBMISSION.submittedAt}
         </div>
       </div>
 
       {/* Criteria Scoring */}
       <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <h4 style={{ fontSize: "0.95rem" }}>Scoring Criteria</h4>
+          <h4 style={{ fontSize: "0.95rem" }}>Tiêu chí Chấm điểm</h4>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: getScoreColor(weightedTotal) }}>
               {weightedTotal.toFixed(1)}
             </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>Weighted Total</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>Tổng điểm Hệ số</div>
           </div>
         </div>
 
         {locked && (
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: "var(--radius-md)", padding: "0.75rem 1rem", marginBottom: "1.25rem" }}>
             <CheckCircle size={16} style={{ color: "#34d399" }} />
-            <span style={{ fontSize: "0.875rem", color: "#34d399" }}>Scores have been finalized and locked.</span>
+            <span style={{ fontSize: "0.875rem", color: "#34d399" }}>Điểm số đã được chốt và khóa.</span>
           </div>
         )}
 
@@ -110,7 +111,7 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
                   style={{ background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${scores[c.id] ?? 0}%, rgba(148,163,184,0.15) ${scores[c.id] ?? 0}%, rgba(148,163,184,0.15) 100%)` }}
                 />
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-                  <span>0 – Poor</span><span>50 – Average</span><span>100 – Excellent</span>
+                  <span>0 – Kém</span><span>50 – Trung bình</span><span>100 – Xuất sắc</span>
                 </div>
               </div>
             ))}
@@ -118,7 +119,7 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
 
           {/* Radar Chart */}
           <div style={{ background: "rgba(15,23,42,0.4)", borderRadius: "var(--radius-md)", padding: "1rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "1rem", alignSelf: "flex-start" }}>SCORE DISTRIBUTION</h4>
+            <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "1rem", alignSelf: "flex-start" }}>PHÂN BỐ ĐIỂM</h4>
             <div style={{ width: "100%", height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={CRITERIA.map(c => ({ subject: c.name.split(" ")[0], A: scores[c.id] ?? 0, fullMark: 100 }))}>
@@ -130,7 +131,7 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
               </ResponsiveContainer>
             </div>
             <div style={{ marginTop: "auto", fontSize: "0.75rem", color: "var(--color-text-3)", textAlign: "center" }}>
-              Visual representation of team performance across criteria
+              Biểu diễn trực quan hiệu suất của đội thi theo các tiêu chí
             </div>
           </div>
         </div>
@@ -140,12 +141,12 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
       <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
           <MessageSquare size={16} style={{ color: "var(--color-primary)" }} />
-          <h4 style={{ fontSize: "0.95rem" }}>Feedback & Comments</h4>
+          <h4 style={{ fontSize: "0.95rem" }}>Phản hồi & Nhận xét</h4>
         </div>
         <textarea
           className="form-textarea"
           rows={4}
-          placeholder="Provide constructive feedback for the team…"
+          placeholder="Cung cấp phản hồi mang tính xây dựng cho đội thi…"
           disabled={locked}
           value={comment}
           onChange={e => setComment(e.target.value)}
@@ -156,16 +157,16 @@ export default function JudgingScorePage({ params }: { params: { id: string } })
       {!locked ? (
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
           <button className="btn btn-secondary">
-            <Send size={15} /> Save Draft
+            <Send size={15} /> Lưu Nháp
           </button>
           <button className="btn btn-primary" onClick={handleLock} disabled={saving}>
-            {saving ? <span className="spinner" /> : <><Lock size={15} /> Finalize & Lock Scores</>}
+            {saving ? <span className="spinner" /> : <><Lock size={15} /> Chốt & Khóa Điểm</>}
           </button>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", justifyContent: "flex-end" }}>
           <AlertCircle size={15} style={{ color: "var(--color-text-3)" }} />
-          <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>Scores are locked and cannot be changed</span>
+          <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>Điểm số đã bị khóa và không thể thay đổi</span>
         </div>
       )}
     </div>

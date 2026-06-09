@@ -1,218 +1,262 @@
 "use client";
 import { useState, useEffect } from "react";
 import { FileText, Plus, Trash2, Edit2, Copy, Save, AlertCircle } from "lucide-react";
-import { App } from "antd";
-import { databaseService } from "@/services/databaseService";
+import { App, Modal, Tag, Space } from "antd";
 
-export default function CriteriaTemplatesPage() {
+import { apiRequest } from "@/lib/api";
+
+export default function CriteriaPage() {
   const { message } = App.useApp();
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [selectedRoundId, setSelectedRoundId] = useState<string>("");
+  const [criteria, setCriteria] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [isEditing, setIsEditing] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [editItem, setEditItem] = useState<any>(null); // null if adding new
 
   useEffect(() => {
-    loadData();
+    loadEvents();
   }, []);
 
-  const loadData = () => {
-    setTemplates(databaseService.getCriteriaTemplates());
+  const loadEvents = async () => {
+    try {
+      const data = await apiRequest<any[]>("/Events");
+      setEvents(data);
+      if (data.length > 0) {
+        setSelectedEventId(data[0].eventId);
+      }
+    } catch (err) {
+      message.error("Failed to load events.");
+    }
+  };
+
+  const selectedEvent = events.find(e => e.eventId === selectedEventId);
+
+  useEffect(() => {
+    if (selectedEvent && selectedEvent.rounds && selectedEvent.rounds.length > 0) {
+      setSelectedRoundId(selectedEvent.rounds[0].roundId);
+    } else {
+      setSelectedRoundId("");
+      setCriteria([]);
+    }
+  }, [selectedEventId, events]);
+
+  useEffect(() => {
+    if (selectedRoundId) {
+      loadCriteria();
+    }
+  }, [selectedRoundId]);
+
+  const loadCriteria = async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<any[]>(`/rounds/${selectedRoundId}/criteria`);
+      setCriteria(data);
+    } catch (err) {
+      message.error("Failed to load criteria.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddNew = () => {
-    setEditingTemplate({
-      id: `CT-${Date.now()}`,
-      name: "",
-      totalWeight: 100,
-      usageCount: 0,
-      status: "Active",
-      items: [
-        { key: `C-${Date.now()}-1`, name: "", weight: 100, desc: "" }
-      ]
+    if (!selectedRoundId) return message.warning("Please select a round first.");
+    setEditItem({
+      criteriaName: "",
+      maxScore: 10,
+      weight: 10
     });
     setIsEditing(true);
   };
 
-  const handleEdit = (template: any) => {
-    setEditingTemplate(JSON.parse(JSON.stringify(template)));
+  const handleEdit = (item: any) => {
+    setEditItem({ ...item });
     setIsEditing(true);
   };
 
-  const handleDelete = (id: string) => {
-    databaseService.deleteCriteriaTemplate(id);
-    loadData();
-    message.success("Template deleted.");
+  const handleDelete = (criteriaId: string) => {
+    Modal.confirm({
+      title: "Delete Criterion?",
+      onOk: async () => {
+        try {
+          await apiRequest(`/rounds/${selectedRoundId}/criteria/${criteriaId}`, { method: "DELETE" });
+          message.success("Deleted successfully.");
+          loadCriteria();
+        } catch (err: any) {
+          message.error(err.message || "Failed to delete.");
+        }
+      }
+    });
   };
 
-  const handleClone = (template: any) => {
-    const clone = JSON.parse(JSON.stringify(template));
-    clone.id = `CT-${Date.now()}`;
-    clone.name = `${clone.name} (Copy)`;
-    databaseService.addCriteriaTemplate(clone);
-    loadData();
-    message.success("Template cloned.");
-  };
-
-  const handleSave = () => {
-    if (!editingTemplate.name.trim()) return message.error("Template name is required.");
+  const handleSave = async () => {
+    if (!editItem.criteriaName.trim()) return message.error("Vui lòng nhập tên tiêu chí.");
+    if (editItem.maxScore <= 0) return message.error("Điểm tối đa phải lớn hơn 0.");
+    if (editItem.weight <= 0) return message.error("Trọng số phải lớn hơn 0.");
     
-    // Validate total weight
-    const total = editingTemplate.items.reduce((sum: number, item: any) => sum + Number(item.weight), 0);
-    if (total !== 100) {
-      return message.error(`Total weight must be exactly 100%. Current: ${total}%`);
+    // Kiểm tra tổng trọng số không được vượt quá 100%
+    const currentTotal = criteria
+      .filter(c => c.criteriaId !== editItem.criteriaId)
+      .reduce((sum, c) => sum + c.weight, 0);
+      
+    if (currentTotal + editItem.weight > 100) {
+      return message.error(`Tổng trọng số không được vượt quá 100%. Các tiêu chí hiện tại đã chiếm ${currentTotal}%.`);
     }
 
-    const exists = templates.some(t => t.id === editingTemplate.id);
-    if (exists) {
-      databaseService.updateCriteriaTemplate(editingTemplate);
-    } else {
-      databaseService.addCriteriaTemplate(editingTemplate);
+    try {
+      if (editItem.criteriaId) {
+        // Update
+        await apiRequest(`/rounds/${selectedRoundId}/criteria/${editItem.criteriaId}`, {
+          method: "PUT",
+          body: JSON.stringify(editItem)
+        });
+      } else {
+        // Create
+        await apiRequest(`/rounds/${selectedRoundId}/criteria`, {
+          method: "POST",
+          body: JSON.stringify(editItem)
+        });
+      }
+      message.success("Đã lưu thành công.");
+      setIsEditing(false);
+      loadCriteria();
+    } catch (err: any) {
+      message.error(err.message || "Thao tác thất bại.");
     }
-    
-    loadData();
-    setIsEditing(false);
-    message.success("Template saved successfully.");
   };
 
-  const updateItem = (index: number, field: string, value: any) => {
-    const updated = { ...editingTemplate };
-    updated.items[index][field] = value;
-    
-    // Auto calculate total weight
-    updated.totalWeight = updated.items.reduce((sum: number, item: any) => sum + Number(item.weight || 0), 0);
-    setEditingTemplate(updated);
-  };
-
-  const addItem = () => {
-    const updated = { ...editingTemplate };
-    updated.items.push({ key: `C-${Date.now()}`, name: "", weight: 0, desc: "" });
-    setEditingTemplate(updated);
-  };
-
-  const removeItem = (index: number) => {
-    const updated = { ...editingTemplate };
-    updated.items.splice(index, 1);
-    updated.totalWeight = updated.items.reduce((sum: number, item: any) => sum + Number(item.weight || 0), 0);
-    setEditingTemplate(updated);
-  };
+  const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
 
   return (
     <div style={{ maxWidth: 1000 }}>
       <div className="page-header">
         <div>
           <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FileText size={28} /> Scoring Criteria Templates
+            <FileText size={28} /> Tiêu chí chấm điểm
           </h1>
-          <p className="page-subtitle">Manage reusable grading rubrics for events</p>
+          <p className="page-subtitle">Quản lý bộ tiêu chí chấm điểm được chỉ định cho từng vòng thi.</p>
         </div>
         {!isEditing && (
           <button className="btn btn-primary" onClick={handleAddNew}>
-            <Plus size={16} /> New Template
+            <Plus size={16} /> Thêm tiêu chí
           </button>
         )}
       </div>
 
+      {!isEditing && (
+        <div className="glass-card" style={{ marginBottom: "1rem", display: "flex", gap: "1rem" }}>
+          <div style={{ flex: 1 }}>
+            <label className="form-label">Sự kiện</label>
+            <select className="form-select" value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)}>
+              {events.map(e => <option key={e.eventId} value={e.eventId}>{e.eventName}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="form-label">Vòng thi</label>
+            <select className="form-select" value={selectedRoundId} onChange={e => setSelectedRoundId(e.target.value)}>
+              {selectedEvent?.rounds?.map((r: any) => <option key={r.roundId} value={r.roundId}>{r.roundName}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
       {isEditing ? (
         <div className="glass-card" style={{ animation: "modal-in 0.3s ease" }}>
-          <h3 style={{ marginBottom: "1.5rem" }}>{editingTemplate.name ? "Edit Template" : "Create New Template"}</h3>
+          <h3 style={{ marginBottom: "1.5rem" }}>{editItem.criteriaId ? "Chỉnh sửa Tiêu chí" : "Thêm Tiêu chí Mới"}</h3>
           
-          <div className="form-group" style={{ marginBottom: "1.5rem" }}>
-            <label className="form-label">Template Name</label>
+          <div className="form-group" style={{ marginBottom: "1rem" }}>
+            <label className="form-label">Tên Tiêu chí</label>
+            {!editItem.criteriaId && (
+              <div style={{ marginBottom: 12 }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-3)', display: 'block', marginBottom: 8 }}>Gợi ý:</span>
+                <Space size={[0, 8]} wrap>
+                  {["Tính sáng tạo", "Đổi mới & Đột phá", "Tính khả thi", "Giao diện UI/UX", "Độ khó Kỹ thuật", "Kỹ năng Thuyết trình"].map(crit => (
+                    <Tag 
+                      key={crit} 
+                      style={{ cursor: 'pointer', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', color: 'var(--color-text-2)' }}
+                      onClick={() => setEditItem({...editItem, criteriaName: crit})}
+                    >
+                      {crit}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            )}
             <input 
               className="form-input" 
-              placeholder="e.g. Standard AI Hackathon Rubric" 
-              value={editingTemplate.name}
-              onChange={(e) => setEditingTemplate({...editingTemplate, name: e.target.value})}
+              placeholder="VD: Tính Đổi mới" 
+              value={editItem.criteriaName}
+              onChange={(e) => setEditItem({...editItem, criteriaName: e.target.value})}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: "1rem" }}>
+            <label className="form-label">Điểm tối đa</label>
+            <input 
+              className="form-input" 
+              type="number"
+              value={editItem.maxScore}
+              onChange={(e) => setEditItem({...editItem, maxScore: Number(e.target.value)})}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: "1.5rem" }}>
+            <label className="form-label">Trọng số (%)</label>
+            <input 
+              className="form-input" 
+              type="number"
+              value={editItem.weight}
+              onChange={(e) => setEditItem({...editItem, weight: Number(e.target.value)})}
             />
           </div>
 
-          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.5rem", marginBottom: "1.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <h4 style={{ color: "var(--color-text)" }}>Criteria Breakdown</h4>
-              <span className={`badge ${editingTemplate.totalWeight === 100 ? 'badge-success' : 'badge-danger'}`}>
-                Total Weight: {editingTemplate.totalWeight}%
-              </span>
-            </div>
-
-            <div className="table-wrapper">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Criterion Name</th>
-                    <th>Description</th>
-                    <th style={{ width: 100 }}>Weight (%)</th>
-                    <th style={{ width: 60 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {editingTemplate.items.map((item: any, index: number) => (
-                    <tr key={item.key}>
-                      <td>
-                        <input className="form-input" placeholder="e.g. Innovation" value={item.name} onChange={(e) => updateItem(index, 'name', e.target.value)} />
-                      </td>
-                      <td>
-                        <input className="form-input" placeholder="e.g. Originality of the idea" value={item.desc} onChange={(e) => updateItem(index, 'desc', e.target.value)} />
-                      </td>
-                      <td>
-                        <input className="form-input" type="number" min="0" max="100" value={item.weight} onChange={(e) => updateItem(index, 'weight', e.target.value)} />
-                      </td>
-                      <td>
-                        <button className="btn btn-icon btn-danger" style={{ background: "transparent", color: "var(--color-rose)" }} onClick={() => removeItem(index)}>
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            <button className="btn btn-secondary btn-sm" style={{ marginTop: "1rem" }} onClick={addItem}>
-              <Plus size={14} /> Add Criterion
-            </button>
-          </div>
-
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem" }}>
-            <button className="btn btn-ghost" onClick={() => setIsEditing(false)}>Cancel</button>
+            <button className="btn btn-ghost" onClick={() => setIsEditing(false)}>Hủy bỏ</button>
             <button className="btn btn-primary" onClick={handleSave}>
-              <Save size={16} /> Save Template
+              <Save size={16} /> Lưu lại
             </button>
           </div>
         </div>
       ) : (
-        <div className="grid-2">
-          {templates.map(template => (
-            <div key={template.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>{template.name}</h3>
-                  <span className="badge badge-neutral">Used in {template.usageCount} events</span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn btn-icon btn-secondary" onClick={() => handleEdit(template)} title="Edit">
-                    <Edit2 size={14} />
-                  </button>
-                  <button className="btn btn-icon btn-secondary" onClick={() => handleClone(template)} title="Clone">
-                    <Copy size={14} />
-                  </button>
-                  <button className="btn btn-icon btn-danger" style={{ background: "transparent", color: "var(--color-rose)" }} onClick={() => handleDelete(template.id)} title="Delete">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-              
-              <div style={{ flex: 1, background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", padding: "1rem", border: "1px solid var(--color-border-2)" }}>
-                <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginBottom: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Criteria Breakdown</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  {template.items.map((item: any, idx: number) => (
-                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem" }}>
-                      <span style={{ color: "var(--color-text)" }}>{item.name}</span>
-                      <span className="badge badge-primary">{item.weight}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="glass-card">
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
+            <h4 style={{ color: "var(--color-text)" }}>Danh sách Tiêu chí</h4>
+            <span className={`badge ${totalWeight === 100 ? 'badge-success' : 'badge-danger'}`}>
+              Tổng Trọng số: {totalWeight}%
+            </span>
+          </div>
+
+          <table className="table" style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                <th style={{ padding: "1rem" }}>Tên Tiêu chí</th>
+                <th style={{ padding: "1rem" }}>Điểm tối đa</th>
+                <th style={{ padding: "1rem" }}>Trọng số (%)</th>
+                <th style={{ padding: "1rem", textAlign: "right" }}>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={4} style={{ padding: "2rem", textAlign: "center" }}>Đang tải...</td></tr>
+              ) : criteria.length === 0 ? (
+                <tr><td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "var(--color-text-3)" }}>Chưa có tiêu chí nào cho vòng thi này.</td></tr>
+              ) : criteria.map(c => (
+                <tr key={c.criteriaId} style={{ borderBottom: "1px solid var(--color-border-1)" }}>
+                  <td style={{ padding: "1rem", fontWeight: "bold" }}>{c.criteriaName}</td>
+                  <td style={{ padding: "1rem" }}>{c.maxScore} pts</td>
+                  <td style={{ padding: "1rem" }}>{c.weight}%</td>
+                  <td style={{ padding: "1rem", textAlign: "right" }}>
+                    <button className="btn btn-icon btn-secondary" style={{ marginRight: 8 }} onClick={() => handleEdit(c)}>
+                      <Edit2 size={14} />
+                    </button>
+                    <button className="btn btn-icon btn-danger" style={{ background: "transparent", color: "var(--color-rose)" }} onClick={() => handleDelete(c.criteriaId)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

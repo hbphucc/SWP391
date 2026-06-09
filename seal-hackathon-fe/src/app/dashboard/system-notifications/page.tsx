@@ -3,17 +3,17 @@ import { AlertTriangle, Info, CheckCircle } from "lucide-react";
 
 export default function SystemNotificationsPage() {
   const alerts = [
-    { type: "warning", message: "High server load detected during team registrations.", time: "2 hours ago" },
-    { type: "info", message: "Database backup completed successfully.", time: "5 hours ago" },
-    { type: "success", message: "System update v1.2.0 deployed.", time: "1 day ago" },
+    { type: "warning", message: "Phát hiện tải máy chủ cao trong quá trình đăng ký đội thi.", time: "2 giờ trước" },
+    { type: "info", message: "Sao lưu cơ sở dữ liệu hoàn tất thành công.", time: "5 giờ trước" },
+    { type: "success", message: "Đã triển khai bản cập nhật hệ thống v1.2.0.", time: "1 ngày trước" },
   ];
 
   return (
     <div style={{ maxWidth: 800 }}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">System Alerts</h1>
-          <p className="page-subtitle">Platform health and system-wide notifications</p>
+          <h1 className="page-title">Cảnh báo hệ thống</h1>
+          <p className="page-subtitle">Tình trạng nền tảng và các thông báo toàn hệ thống</p>
         </div>
       </div>
 

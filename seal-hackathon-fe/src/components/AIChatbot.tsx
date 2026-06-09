@@ -175,7 +175,7 @@ export default function AIChatbot() {
               <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#3b82f6' }} />
               <div>
                 <div style={{ fontWeight: 'bold', fontSize: '15px' }}>SEAL AI Assistant</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Always online</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Luôn trực tuyến</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

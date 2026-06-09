@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     try {
       const user = JSON.parse(stored);
       if (user.role !== "Admin") {
-        message.error("Access denied. Admin privileges required.");
+        message.error("Từ chối truy cập. Yêu cầu quyền Quản trị viên.");
         router.push("/dashboard");
       }
     } catch (e) {

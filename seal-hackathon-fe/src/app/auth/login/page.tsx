@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { App } from "antd";
@@ -8,17 +8,28 @@ import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react
 import { apiRequest, saveAuthSession } from "@/lib/api";
 import styles from "../auth.module.css";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect");
+  const switchEmail = searchParams.get("switch_email");
+  const isAddingAccount = searchParams.get("add_account") === "true";
   const { message } = App.useApp();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ email: "", password: "", remember: false });
+  const [form, setForm] = useState({ email: switchEmail || "", password: "", remember: false });
+  const [isReadOnly, setIsReadOnly] = useState(true); // Anti-autofill trick
 
   useEffect(() => {
+    // We intentionally leave it as readOnly=true.
+    // It will only become false when the user explicitly triggers onFocus or onMouseDown.
+  }, []);
+
+  useEffect(() => {
+    // If user explicitly wants to switch or add account, don't auto-redirect
+    if (switchEmail || isAddingAccount) return;
+
     const stored = (localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser"));
     if (stored) {
       if (redirectUrl) {
@@ -29,6 +40,8 @@ export default function LoginPage() {
         const user = JSON.parse(stored);
         if (user.roles && user.roles.includes("Admin")) {
           router.push("/admin");
+        } else if (user.roles && user.roles.includes("Mentor")) {
+          router.push("/mentor");
         } else {
           router.push("/dashboard");
         }
@@ -36,7 +49,7 @@ export default function LoginPage() {
         router.push("/dashboard");
       }
     }
-  }, [router, redirectUrl]);
+  }, [router, redirectUrl, switchEmail, isAddingAccount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,58 +57,29 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // MOCK DATA FOR FRONTEND DEVELOPMENT
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      let payload;
-      
-      const mockUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
-      const foundUser = mockUsers.find((u: any) => u.email === form.email && u.password === form.password);
+      const payload = await apiRequest<any>("/Auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password
+        }),
+        auth: false
+      });
 
-      if (!foundUser && form.email !== "admin@fpt.edu.vn") {
-        throw new Error("Tài khoản hoặc mật khẩu không chính xác.");
-      }
-
-      if (form.email === "admin@fpt.edu.vn" || (foundUser && foundUser.email.includes("admin"))) {
-        payload = {
-          token: "mock-jwt-token-admin-123",
-          expiration: new Date(Date.now() + 86400000).toISOString(),
-          user: { 
-            id: "1", 
-            fullName: foundUser ? foundUser.fullName : "Admin User", 
-            email: form.email, 
-            roles: ["Admin"],
-            university: foundUser ? foundUser.schoolName : "FPT University",
-            studentId: foundUser ? foundUser.studentCode : "ADMIN123" 
-          }
-        };
-      } else {
-        payload = {
-          token: "mock-jwt-token-user-123",
-          expiration: new Date(Date.now() + 86400000).toISOString(),
-          user: { 
-            id: Date.now().toString(), 
-            fullName: foundUser.fullName, 
-            email: foundUser.email, 
-            roles: ["Member"],
-            university: foundUser.schoolName,
-            studentId: foundUser.studentCode
-          }
-        };
-      }
-
-      console.log("Mock Login Successful:", payload);
+      console.log("Login Successful:", payload);
 
       const currentUser = saveAuthSession(payload, form.remember);
-      message.success("Logged in successfully!");
+      message.success("Đăng nhập thành công!");
       
       if (redirectUrl) {
         router.push(redirectUrl);
       } else {
-        router.push(currentUser.roles.includes("Admin") ? "/admin" : "/dashboard");
+        if (currentUser.roles.includes("Admin")) router.push("/admin");
+        else if (currentUser.roles.includes("Mentor")) router.push("/mentor");
+        else router.push("/dashboard");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Khong the dang nhap. Vui long thu lai.");
+      setError(err instanceof Error ? err.message : "Không thể đăng nhập. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -116,38 +100,47 @@ export default function LoginPage() {
               <span className={styles.logoText}>SEAL</span>
             </div>
 
-            <h1 className={styles.title}>Welcome back</h1>
-            <p className={styles.subtitle}>Sign in with your SEAL backend account</p>
+            <h1 className={styles.title}>Chào mừng trở lại</h1>
+            <p className={styles.subtitle}>Đăng nhập bằng tài khoản hệ thống SEAL</p>
 
-            <form onSubmit={handleSubmit} className={styles.form}>
+            <div className={styles.form} onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(e as any); }}>
               <div className="form-group">
-                <label className="form-label" htmlFor="email">Email</label>
+                <label className="form-label">Email</label>
                 <div className={styles.inputWrap}>
                   <Mail size={16} className={styles.inputIcon} />
                   <input
-                    id="email"
-                    type="email"
+                    type="text"
+                    name="random_email_str"
                     className={`form-input ${styles.inputWithIcon}`}
                     placeholder="you@fpt.edu.vn"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     required
+                    disabled={!!switchEmail}
+                    readOnly={isReadOnly}
+                    onFocus={() => setIsReadOnly(false)}
+                    style={switchEmail ? { background: "rgba(0,0,0,0.3)", color: "var(--color-text-3)", cursor: "not-allowed" } : {}}
+                    autoComplete="new-password"
+                    spellCheck="false"
                   />
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="password">Password</label>
+                <label className="form-label">Mật khẩu</label>
                 <div className={styles.inputWrap}>
                   <Lock size={16} className={styles.inputIcon} />
                   <input
-                    id="password"
                     type={showPass ? "text" : "password"}
+                    name={"p_" + Math.random().toString(36).substring(7)}
                     className={`form-input ${styles.inputWithIcon} ${styles.inputWithTrail}`}
                     placeholder="Password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                     required
+                    readOnly={isReadOnly}
+                    onFocus={() => setIsReadOnly(false)}
+                    autoComplete="new-password"
                   />
                   <button type="button" className={styles.eyeBtn} onClick={() => setShowPass(!showPass)}>
                     {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -163,9 +156,9 @@ export default function LoginPage() {
                     onChange={(e) => setForm({ ...form, remember: e.target.checked })}
                     style={{ accentColor: "var(--color-primary)" }}
                   />
-                  Remember password
+                  Nhớ mật khẩu
                 </label>
-                <Link href="/auth/forgot-password" className={styles.forgotLink}>Forgot password?</Link>
+                <Link href="/auth/forgot-password" className={styles.forgotLink}>Quên mật khẩu?</Link>
               </div>
 
               {error && (
@@ -174,13 +167,13 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <button type="submit" className={`btn btn-primary btn-lg ${styles.submitBtn}`} disabled={loading}>
-                {loading ? <span className="spinner" /> : <><ArrowRight size={18} /> Sign In</>}
+              <button type="button" onClick={handleSubmit} className={`btn btn-primary btn-lg ${styles.submitBtn}`} disabled={loading}>
+                {loading ? <span className="spinner" /> : <><ArrowRight size={18} /> <span>Đăng nhập</span></>}
               </button>
-            </form>
+            </div>
 
             <p className={styles.switchRow}>
-              Don&apos;t have an account? <Link href="/auth/register" className={styles.switchLink}>Create new account</Link>
+              Chưa có tài khoản? <Link href="/auth/register" className={styles.switchLink}>Tạo tài khoản mới</Link>
             </p>
           </div>
         </div>
@@ -193,7 +186,7 @@ export default function LoginPage() {
             </div>
             <h1 className={styles.sloganTitle}>SEAL Hackathon</h1>
             <p className={styles.sloganDesc}>
-              Manage events, teams, submissions, judging, and rankings from one connected system.
+              Quản lý sự kiện, đội thi, bài nộp, chấm điểm và bảng xếp hạng từ một hệ thống kết nối.
             </p>
           </div>
         </div>
@@ -202,3 +195,11 @@ export default function LoginPage() {
   );
 }
 
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{display: 'flex', justifyContent: 'center', padding: '50px'}}>Đang tải...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}

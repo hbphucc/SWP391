@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://localhost:7266/api";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://seal-bhc5f6d9a6abe8ev.southeastasia-01.azurewebsites.net/api";
 
 type RequestOptions = RequestInit & {
   auth?: boolean;
@@ -24,10 +24,17 @@ async function parseResponse<T>(response: Response): Promise<T> {
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
+    let errorDetails = "";
+    if (data?.errors && typeof data.errors === "object") {
+      errorDetails = Object.values(data.errors)
+        .flat()
+        .join(", ");
+    }
+
     const message =
       data?.message ??
-      data?.title ??
-      (Array.isArray(data) ? data.map((item) => item.description).join(", ") : "") ??
+      (errorDetails ? errorDetails : data?.title) ??
+      (Array.isArray(data) ? data.map((item: any) => item.description).join(", ") : "") ??
       `Request failed with status ${response.status}`;
     throw new Error(message);
   }
@@ -39,7 +46,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   const token = getToken();
   const headers = new Headers(options.headers);
 
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -92,12 +99,69 @@ export function saveAuthSession(
   otherStorage.removeItem("seal_token");
   tokenStorage.setItem("currentUser", JSON.stringify(currentUser));
   otherStorage.removeItem("currentUser");
-  window.dispatchEvent(new Event("storage"));
+  
+  // Update seal_saved_accounts
+  try {
+    if (currentUser.role !== "Admin" && !currentUser.roles.includes("Admin")) {
+      const savedStr = localStorage.getItem("seal_saved_accounts");
+      let savedAccounts: any[] = savedStr ? JSON.parse(savedStr) : [];
+      
+      const existingIndex = savedAccounts.findIndex(a => a.email === currentUser.email);
+      const newSavedAccount = {
+        id: currentUser.id,
+        email: currentUser.email,
+        fullName: currentUser.fullName,
+        role: currentUser.role,
+        avatar: localStorage.getItem(`avatar_${currentUser.email}`),
+        remembered: remember,
+        token: remember ? payload.token : undefined
+      };
 
+      if (existingIndex >= 0) {
+        if (!newSavedAccount.avatar && savedAccounts[existingIndex].avatar) {
+          newSavedAccount.avatar = savedAccounts[existingIndex].avatar;
+        }
+        savedAccounts[existingIndex] = newSavedAccount;
+      } else {
+        savedAccounts.push(newSavedAccount);
+      }
+      localStorage.setItem("seal_saved_accounts", JSON.stringify(savedAccounts));
+    } else {
+      // If it's an admin, we ensure they are NOT in the saved accounts
+      const savedStr = localStorage.getItem("seal_saved_accounts");
+      if (savedStr) {
+        let savedAccounts: any[] = JSON.parse(savedStr);
+        savedAccounts = savedAccounts.filter(a => a.email !== currentUser.email);
+        localStorage.setItem("seal_saved_accounts", JSON.stringify(savedAccounts));
+      }
+    }
+  } catch (e) {
+    console.error("Failed to save account to switcher", e);
+  }
+
+  window.dispatchEvent(new Event("storage"));
   return currentUser;
 }
 
 export function clearAuthSession() {
+  try {
+    const curUserStr = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+    if (curUserStr) {
+      const curUser = JSON.parse(curUserStr);
+      const savedStr = localStorage.getItem("seal_saved_accounts");
+      if (savedStr) {
+        let savedAccounts = JSON.parse(savedStr);
+        const idx = savedAccounts.findIndex((a: any) => a.email === curUser.email);
+        if (idx >= 0) {
+          // When explicitly logging out, keep account in list but remove token
+          delete savedAccounts[idx].token;
+          savedAccounts[idx].remembered = false;
+          localStorage.setItem("seal_saved_accounts", JSON.stringify(savedAccounts));
+        }
+      }
+    }
+  } catch(e) {}
+
   localStorage.removeItem("currentUser");
   sessionStorage.removeItem("currentUser");
   localStorage.removeItem("seal_token");

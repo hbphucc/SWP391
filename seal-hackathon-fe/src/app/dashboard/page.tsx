@@ -7,22 +7,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import styles from "./page.module.css";
-import { databaseService } from "../../services/databaseService";
 import { apiRequest } from "@/lib/api";
 
-const RECENT_ACTIVITY = [
-  { icon: Users,       text: "Team **CodeCraft** registered for Track A",        time: "2m ago",   type: "team" },
-  { icon: Target,      text: "Team **InnovateSEAL** submitted Round 1 project",  time: "15m ago",  type: "submit" },
-  { icon: CheckCircle, text: "Judge **Dr. Nguyen** finalized scores for Track B", time: "1h ago",   type: "score" },
-  { icon: AlertCircle, text: "Team **AlphaCoders** submission deadline warning",  time: "3h ago",   type: "warn" },
-  { icon: Award,       text: "Results published for SEAL Fall 2025",              time: "1d ago",   type: "award" },
-];
-
-const UPCOMING = [
-  { event: "SEAL Spring 2026", task: "Submission Deadline – Round 1", date: "May 30", urgent: true },
-  { event: "SEAL Spring 2026", task: "Judge Assignment – Finals",     date: "Jun 02", urgent: false },
-  { event: "SEAL Summer 2026", task: "Registration Opens",            date: "Jun 15", urgent: false },
-];
+const RECENT_ACTIVITY: any[] = [];
 
 const STATUS_BADGE: Record<string, string> = {
   Active:   "badge-success",
@@ -59,10 +46,10 @@ export default function DashboardPage() {
           pendingApprovals: 0,
           upcomingEvent: mappedEvents[0]?.name ?? "SEAL Hackathon",
         });
-      } catch {
-        const fallbackEvents = databaseService.getEvents();
-        setEvents(fallbackEvents);
-        setMetrics(databaseService.getDashboardMetrics());
+      } catch (e) {
+        console.error("Failed to load dashboard data", e);
+        setEvents([]);
+        setMetrics({ activeEvents: 0, totalTeams: 0, pendingApprovals: 0, upcomingEvent: "SEAL Hackathon" });
       }
     };
 
@@ -77,20 +64,20 @@ export default function DashboardPage() {
 
   const dynamicStats = [
     {
-      label: "Active Events",    value: metrics?.activeEvents || "0",    icon: Calendar, color: "#6366f1",
-      trend: "Current running", up: true,
+      label: "Sự kiện đang diễn ra",    value: metrics?.activeEvents || "0",    icon: Calendar, color: "#6366f1",
+      trend: "Đang hoạt động", up: true,
     },
     {
-      label: "Registered Teams", value: metrics?.totalTeams || "0",   icon: Users,   color: "#8b5cf6",
-      trend: "Total in system",     up: true,
+      label: "Đội thi đã đăng ký", value: metrics?.totalTeams || "0",   icon: Users,   color: "#8b5cf6",
+      trend: "Tổng cộng trên hệ thống",     up: true,
     },
     {
-      label: "Pending Approvals", value: metrics?.pendingApprovals || "0", icon: AlertCircle,  color: "#f59e0b",
-      trend: "Needs your review",         up: false,
+      label: "Chờ duyệt", value: metrics?.pendingApprovals || "0", icon: AlertCircle,  color: "#f59e0b",
+      trend: "Cần bạn đánh giá",         up: false,
     },
     {
-      label: "Judges Active",    value: "16",   icon: Star,    color: "#06b6d4",
-      trend: "Ready to score", up: true,
+      label: "Giám khảo đang hoạt động",    value: "16",   icon: Star,    color: "#06b6d4",
+      trend: "Sẵn sàng chấm điểm", up: true,
     },
   ];
 
@@ -99,14 +86,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Dashboard Overview</h1>
-          <p className="page-subtitle">Welcome back · {metrics?.upcomingEvent || "SEAL Hackathon"} is live 🚀</p>
+          <h1 className="page-title">Tổng quan</h1>
+          <p className="page-subtitle">Chào mừng trở lại · {metrics?.upcomingEvent || "SEAL Hackathon"} đang diễn ra 🚀</p>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <Link href="/dashboard/events/create">
-            <button className="btn btn-primary"><Calendar size={16} /> New Event</button>
-          </Link>
-        </div>
+        {/* Removed the New Event button since this is the normal user dashboard */}
       </div>
 
       {/* Stats */}
@@ -137,24 +120,26 @@ export default function DashboardPage() {
           <div className="section">
             <div className="section-header">
               <span className="section-title">
-                <Calendar size={16} style={{ color: "var(--color-primary)" }} /> Hackathon Events
+                <Calendar size={16} style={{ color: "var(--color-primary)" }} /> Sự kiện Hackathon
               </span>
               <Link href="/dashboard/events">
-                <button className="btn btn-ghost btn-sm">View All <ArrowRight size={14} /></button>
+                <button className="btn btn-ghost btn-sm">Xem tất cả <ArrowRight size={14} /></button>
               </Link>
             </div>
 
             {/* Tabs */}
             <div className="tabs" style={{ marginBottom: "1rem" }}>
-              {(["all", "active", "upcoming"] as const).map(t => (
+              {(["all", "active", "upcoming"] as const).map(t => {
+                const labels: Record<string, string> = { all: "Tất cả", active: "Đang diễn ra", upcoming: "Sắp tới" };
+                return (
                 <button
                   key={t}
                   className={`tab-btn ${activeTab === t ? "active" : ""}`}
                   onClick={() => setActiveTab(t)}
                 >
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                  {labels[t]}
                 </button>
-              ))}
+              )})}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -169,11 +154,11 @@ export default function DashboardPage() {
                     </div>
                     <p className={styles.eventRound}>
                       <Zap size={13} style={{ color: "var(--color-cyan)" }} />
-                      Round: {ev.currentRound || "Registration"}
+                      Vòng thi: {ev.currentRound || "Đăng ký"}
                     </p>
                     <div className={styles.eventMeta}>
-                      <span><Users size={12} /> {ev.teamsCount || 0} teams</span>
-                      <span><Target size={12} /> {ev.tracksCount || 0} tracks</span>
+                      <span><Users size={12} /> {ev.teamsCount || 0} đội thi</span>
+                      <span><Target size={12} /> {ev.tracksCount || 0} hạng mục</span>
                       <span><Clock size={12} /> {new Date(ev.endDate).toLocaleDateString()}</span>
                     </div>
                   </div>
@@ -182,7 +167,7 @@ export default function DashboardPage() {
               {filteredEvents.length === 0 && (
                  <div className="empty-state">
                    <Calendar size={48} className="empty-icon" />
-                   <div className="empty-title">No events found</div>
+                   <div className="empty-title">Không tìm thấy sự kiện nào</div>
                  </div>
               )}
             </div>
@@ -192,11 +177,11 @@ export default function DashboardPage() {
           <div className="section">
             <div className="section-header">
               <span className="section-title">
-                <Clock size={16} style={{ color: "var(--color-amber)" }} /> Upcoming Deadlines
+                <Clock size={16} style={{ color: "var(--color-amber)" }} /> Hạn chót sắp tới
               </span>
             </div>
             <div className={styles.deadlineList}>
-              {UPCOMING.map((u, i) => (
+              {[{task: "Nộp bản mẫu", event: "SEAL Global", date: "Còn 2 ngày", urgent: true}, {task: "Thành lập đội thi", event: "FinTech Challenge", date: "Còn 5 ngày"}].map((u: any, i: number) => (
                 <div key={i} className={styles.deadlineItem}>
                   <div className={`${styles.deadlineDot} ${u.urgent ? styles.urgent : ""}`} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -215,15 +200,14 @@ export default function DashboardPage() {
           {/* Quick links */}
           <div className="section">
             <div className="section-header">
-              <span className="section-title"><Zap size={16} style={{ color: "var(--color-cyan)" }} /> Quick Actions</span>
+              <span className="section-title"><Zap size={16} style={{ color: "var(--color-cyan)" }} /> Thao tác nhanh</span>
             </div>
             <div className={styles.quickActions}>
               {[
-                { label: "Create Event",    href: "/dashboard/events",  icon: Calendar, color: "#6366f1" },
-                { label: "Register Team",   href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
-                { label: "Score Submissions",href: "/dashboard/judging",       icon: Target,  color: "#06b6d4" },
-                { label: "View Rankings",   href: "/dashboard/rankings",       icon: Trophy,  color: "#f59e0b" },
-                { label: "Manage Prizes",   href: "/dashboard/prizes",         icon: Award,   color: "#f43f5e" },
+                { label: "Tham gia sự kiện",      href: "/dashboard/events",  icon: Calendar, color: "#6366f1" },
+                { label: "Đội thi của tôi",        href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
+                { label: "Bài nộp của tôi",  href: "/dashboard/submissions", icon: Target,  color: "#06b6d4" },
+                { label: "Xem bảng xếp hạng",   href: "/dashboard/rankings",    icon: Trophy,  color: "#f59e0b" },
               ].map(q => {
                 const Icon = q.icon;
                 return (
@@ -239,7 +223,7 @@ export default function DashboardPage() {
           {/* Activity Feed */}
           <div className="section">
             <div className="section-header">
-              <span className="section-title"><TrendingUp size={16} style={{ color: "var(--color-emerald)" }} /> Recent Activity</span>
+              <span className="section-title"><TrendingUp size={16} style={{ color: "var(--color-emerald)" }} /> Hoạt động gần đây</span>
             </div>
             <div className={styles.activityFeed}>
               {RECENT_ACTIVITY.map((a, i) => {

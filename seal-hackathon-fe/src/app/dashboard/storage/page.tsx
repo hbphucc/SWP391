@@ -6,8 +6,8 @@ export default function StoragePage() {
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
-          <h1 className="page-title">Cloud Storage</h1>
-          <p className="page-subtitle">System storage usage and quotas</p>
+          <h1 className="page-title">Lưu trữ đám mây</h1>
+          <p className="page-subtitle">Mức sử dụng lưu trữ và hạn ngạch của hệ thống</p>
         </div>
       </div>
 

@@ -8,9 +8,9 @@ export default function AdminSettingsPage() {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   
   const handleSave = () => {
-    message.loading({ content: "Saving settings...", key: "settings" });
+    message.loading({ content: "Đang lưu cài đặt...", key: "settings" });
     setTimeout(() => {
-      message.success({ content: "Admin Settings saved successfully!", key: "settings" });
+      message.success({ content: "Lưu Cài đặt Quản trị viên thành công!", key: "settings" });
     }, 1000);
   };
 
@@ -18,8 +18,8 @@ export default function AdminSettingsPage() {
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
-          <h1 className="page-title">Global Settings</h1>
-          <p className="page-subtitle">Manage system-wide preferences, security, and configurations</p>
+          <h1 className="page-title">Cài đặt Toàn cầu</h1>
+          <p className="page-subtitle">Quản lý tùy chọn, bảo mật, và cấu hình trên toàn hệ thống</p>
         </div>
       </div>
 
@@ -27,41 +27,41 @@ export default function AdminSettingsPage() {
         <div className="glass-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "1.5rem" }}>
           <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
             <h3 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-1)" }}>
-              <Globe size={18} style={{ color: "var(--color-primary)" }} /> Platform Configuration
+              <Globe size={18} style={{ color: "var(--color-primary)" }} /> Cấu hình Nền tảng
             </h3>
             <div className="form-group">
-              <label className="form-label" style={{ color: "var(--color-text-2)" }}>Maintenance Mode</label>
+              <label className="form-label" style={{ color: "var(--color-text-2)" }}>Chế độ Bảo trì</label>
               <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem" }}>
                 <button 
                   className={`btn ${maintenanceMode ? "btn-primary" : "btn-secondary"}`} 
                   style={{ background: maintenanceMode ? "var(--color-danger)" : "", color: maintenanceMode ? "#fff" : "" }}
                   onClick={() => setMaintenanceMode(!maintenanceMode)}
                 >
-                  {maintenanceMode ? "Enabled (Platform Locked)" : "Disable Maintenance"}
+                  {maintenanceMode ? "Đã bật (Khóa Nền tảng)" : "Tắt Chế độ Bảo trì"}
                 </button>
                 <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)", flex: 1 }}>
-                  Prevent non-admin users from accessing the platform during upgrades.
+                  Ngăn chặn người dùng không phải quản trị viên truy cập nền tảng trong quá trình nâng cấp.
                 </span>
               </div>
             </div>
             
             <div className="form-group" style={{ marginTop: "1.5rem" }}>
-              <label className="form-label" style={{ color: "var(--color-text-2)" }}>Platform Name</label>
+              <label className="form-label" style={{ color: "var(--color-text-2)" }}>Tên Nền tảng</label>
               <input className="form-input" defaultValue="SEAL Hackathon Hub" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
             </div>
           </div>
 
           <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
             <h3 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-1)" }}>
-              <Shield size={18} style={{ color: "var(--color-primary)" }} /> Admin Security
+              <Shield size={18} style={{ color: "var(--color-primary)" }} /> Bảo mật Quản trị viên
             </h3>
             <div className="form-group">
-              <label className="form-label" style={{ color: "var(--color-text-2)" }}>Admin Two-Factor Authentication (2FA)</label>
+              <label className="form-label" style={{ color: "var(--color-text-2)" }}>Xác thực Hai yếu tố cho Quản trị viên (2FA)</label>
               <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem" }}>
-                <button className="btn btn-secondary">Enforce 2FA for all Admins</button>
+                <button className="btn btn-secondary">Bắt buộc 2FA cho tất cả Quản trị viên</button>
               </div>
               <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)", display: "block", marginTop: "0.75rem" }}>
-                Requires all administrators to use an authenticator app.
+                Yêu cầu tất cả quản trị viên sử dụng ứng dụng xác thực.
               </span>
             </div>
           </div>
@@ -69,15 +69,15 @@ export default function AdminSettingsPage() {
 
         <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
           <h3 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-1)" }}>
-            <Bell size={18} style={{ color: "var(--color-primary)" }} /> Notification Routing
+            <Bell size={18} style={{ color: "var(--color-primary)" }} /> Định tuyến Thông báo
           </h3>
           
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
             {[
-              "Notify Admins on new user registration", 
-              "Notify Admins on team creation", 
-              "Receive daily summary reports",
-              "Send alert when judging criteria changes"
+              "Thông báo cho Quản trị viên khi có người đăng ký mới", 
+              "Thông báo cho Quản trị viên khi có đội thi được tạo", 
+              "Nhận báo cáo tóm tắt hàng ngày",
+              "Gửi cảnh báo khi tiêu chí đánh giá thay đổi"
             ].map((item, idx) => (
               <label key={idx} style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", color: "var(--color-text-1)" }}>
                 <input type="checkbox" defaultChecked={idx === 0 || idx === 3} style={{ accentColor: "var(--color-primary)", width: 16, height: 16, cursor: "pointer" }} />
@@ -89,7 +89,7 @@ export default function AdminSettingsPage() {
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
           <button className="btn btn-primary" onClick={handleSave} style={{ padding: "0.7rem 2rem" }}>
-            <Save size={16} style={{ marginRight: 6 }} /> Save All Changes
+            <Save size={16} style={{ marginRight: 6 }} /> Lưu Tất cả Thay đổi
           </button>
         </div>
       </div>

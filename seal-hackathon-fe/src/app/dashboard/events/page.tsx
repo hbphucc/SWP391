@@ -2,17 +2,34 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Table, Button, Space, Card, Tag, Input, App } from 'antd';
 import { StarOutlined, FileOutlined, SearchOutlined, EyeOutlined } from '@ant-design/icons';
-import { databaseService } from '../../../services/databaseService';
-import Link from 'next/link';
+import { apiRequest } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
 export default function UserEventsPage() {
+  const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    setEvents(databaseService.getEvents());
+    const fetchEvents = async () => {
+      try {
+        const data = await apiRequest<any[]>('/Events');
+        const mapped = data.map(ev => ({
+          id: ev.eventId,
+          name: ev.eventName,
+          season: new Date(ev.startDate).getFullYear().toString(),
+          status: ev.status === "Ongoing" ? "Active" : ev.status,
+          roundsCount: ev.rounds?.length || 0,
+          icon: 'star'
+        }));
+        setEvents(mapped);
+      } catch (err) {
+        console.error("Tải sự kiện thất bại", err);
+      }
+    };
+    fetchEvents();
   }, []);
 
   const filteredEvents = events.filter(e => 
@@ -22,7 +39,7 @@ export default function UserEventsPage() {
 
   const columns = [
     { 
-      title: 'EVENT NAME', 
+      title: 'TÊN SỰ KIỆN', 
       dataIndex: 'name', 
       key: 'name', 
       render: (text: string, record: any) => (
@@ -34,9 +51,9 @@ export default function UserEventsPage() {
         </div>
       ) 
     },
-    { title: 'SEASON', dataIndex: 'season', key: 'season' },
+    { title: 'MÙA GIẢI', dataIndex: 'season', key: 'season' },
     { 
-      title: 'STATUS', 
+      title: 'TRẠNG THÁI', 
       dataIndex: 'status', 
       key: 'status',
       render: (text: string) => (
@@ -46,18 +63,23 @@ export default function UserEventsPage() {
       )
     },
     { 
-      title: 'ROUNDS', 
+      title: 'VÒNG THI', 
       dataIndex: 'roundsCount', 
       key: 'roundsCount',
-      render: (text: string) => <b>{text} Rounds</b>
+      render: (text: string) => <b>{text} Vòng thi</b>
     },
     { 
-      title: 'ACTIONS', 
+      title: 'THAO TÁC', 
       key: 'actions',
       render: (_: any, record: any) => (
-        <Link href={`/dashboard/events/${record.id}`}>
-          <Button type="primary" icon={<EyeOutlined />} style={{ borderRadius: '20px' }}>View & Participate</Button>
-        </Link>
+        <Button 
+          type="primary" 
+          icon={<EyeOutlined />} 
+          style={{ borderRadius: '20px' }}
+          onClick={() => router.push(`/dashboard/events/${record.id}`)}
+        >
+          Xem & Tham gia
+        </Button>
       )
     }
   ];
@@ -66,11 +88,11 @@ export default function UserEventsPage() {
     <div style={{ padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Discover Hackathons</Title>
-          <Text type="secondary">Browse and register for upcoming hackathon events organized by the system admin.</Text>
+          <Title level={2} style={{ margin: 0 }}>Khám phá Hackathon</Title>
+          <Text type="secondary">Duyệt và đăng ký các sự kiện hackathon sắp tới do quản trị viên hệ thống tổ chức.</Text>
         </div>
         <Input 
-          placeholder="Search events..." 
+          placeholder="Tìm kiếm sự kiện..." 
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           style={{ width: 300, borderRadius: '20px' }}

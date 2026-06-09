@@ -6,9 +6,9 @@ import { App } from "antd";
 export default function ProfilePage() {
   const { message } = App.useApp();
   const [user, setUser] = useState<any>({
-    name: "Loading...",
+    name: "Đang tải...",
     email: "",
-    role: "Member",
+    role: "Thành viên",
     university: "",
     studentId: "",
     skills: "",
@@ -30,7 +30,7 @@ export default function ProfilePage() {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem("currentUser", JSON.stringify(user));
-    message.success("Profile updated successfully!");
+    message.success("Cập nhật hồ sơ thành công!");
     // Dispatch a custom event to notify TopBar/Sidebar of changes
     window.dispatchEvent(new Event("storage"));
   };
@@ -47,7 +47,7 @@ export default function ProfilePage() {
         window.dispatchEvent(new Event("storage"));
         // Force local state update for immediate feedback
         setUser({ ...user, _t: Date.now() }); 
-        message.success("Avatar updated successfully!");
+        message.success("Cập nhật ảnh đại diện thành công!");
       };
       reader.readAsDataURL(file);
     }
@@ -57,8 +57,8 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
-          <h1 className="page-title">My Profile</h1>
-          <p className="page-subtitle">Manage your personal information and preferences</p>
+          <h1 className="page-title">Hồ sơ của tôi</h1>
+          <p className="page-subtitle">Quản lý thông tin cá nhân và tùy chọn của bạn</p>
         </div>
       </div>
 
@@ -77,7 +77,7 @@ export default function ProfilePage() {
             <span className="glass-badge primary">{user.role}</span>
           </div>
           <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer", marginTop: "0.5rem" }}>
-            <Upload size={14} style={{ marginRight: 4 }} /> Change Avatar
+            <Upload size={14} style={{ marginRight: 4 }} /> Đổi Ảnh đại diện
             <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarUpload} />
           </label>
         </div>
@@ -87,45 +87,45 @@ export default function ProfilePage() {
           <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
             <div className="glass-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "1.25rem" }}>
               <div className="form-group">
-                <label className="form-label"><User size={13} style={{ display: 'inline', marginRight: 4 }} /> Full Name</label>
+                <label className="form-label"><User size={13} style={{ display: 'inline', marginRight: 4 }} /> Họ và Tên</label>
                 <input className="form-input" value={user.name || ""} onChange={(e) => setUser({ ...user, name: e.target.value })} required disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
               </div>
               <div className="form-group">
-                <label className="form-label"><Mail size={13} style={{ display: 'inline', marginRight: 4 }} /> Email Address</label>
+                <label className="form-label"><Mail size={13} style={{ display: 'inline', marginRight: 4 }} /> Địa chỉ Email</label>
                 <input className="form-input" type="email" value={user.email || ""} disabled style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)", opacity: 0.7 }} />
-                <span className="form-hint">Email cannot be changed</span>
+                <span className="form-hint">Không thể thay đổi email</span>
               </div>
             </div>
 
             <div className="glass-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "1.25rem" }}>
               <div className="form-group">
-                <label className="form-label"><Book size={13} style={{ display: 'inline', marginRight: 4 }} /> University</label>
+                <label className="form-label"><Book size={13} style={{ display: 'inline', marginRight: 4 }} /> Trường Đại học</label>
                 <input className="form-input" placeholder="FPT University" value={user.university || ""} onChange={(e) => setUser({ ...user, university: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
               </div>
               <div className="form-group">
-                <label className="form-label"><GraduationCap size={13} style={{ display: 'inline', marginRight: 4 }} /> Student ID</label>
-                <input className="form-input" placeholder="e.g. SE123456" value={user.studentId || ""} onChange={(e) => setUser({ ...user, studentId: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
+                <label className="form-label"><GraduationCap size={13} style={{ display: 'inline', marginRight: 4 }} /> Mã sinh viên</label>
+                <input className="form-input" placeholder="vd. SE123456" value={user.studentId || ""} onChange={(e) => setUser({ ...user, studentId: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label"><Target size={13} style={{ display: 'inline', marginRight: 4 }} /> Skills / Technologies</label>
-              <input className="form-input" placeholder="e.g. React, Node.js, AI, Figma" value={user.skills || ""} onChange={(e) => setUser({ ...user, skills: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
+              <label className="form-label"><Target size={13} style={{ display: 'inline', marginRight: 4 }} /> Kỹ năng / Công nghệ</label>
+              <input className="form-input" placeholder="vd. React, Node.js, AI, Figma" value={user.skills || ""} onChange={(e) => setUser({ ...user, skills: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)" }} />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Bio / About Me</label>
-              <textarea className="form-textarea" rows={4} placeholder="A short description about yourself..." value={user.bio || ""} onChange={(e) => setUser({ ...user, bio: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)", resize: "none" }} />
+              <label className="form-label">Tiểu sử / Về tôi</label>
+              <textarea className="form-textarea" rows={4} placeholder="Một đoạn mô tả ngắn gọn về bản thân..." value={user.bio || ""} onChange={(e) => setUser({ ...user, bio: e.target.value })} disabled={user.role === "Admin"} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--color-border-1)", resize: "none" }} />
             </div>
 
             {user.role === "Admin" ? (
               <div style={{ marginTop: "1rem", color: "var(--color-danger)", fontSize: "0.85rem", textAlign: "right" }}>
-                Administrator profile cannot be modified.
+                Hồ sơ Quản trị viên không thể chỉnh sửa.
               </div>
             ) : (
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--color-border-1)" }}>
                 <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 1.5rem" }}>
-                  <Save size={16} style={{ marginRight: 6 }} /> Save Changes
+                  <Save size={16} style={{ marginRight: 6 }} /> Lưu Thay đổi
                 </button>
               </div>
             )}

@@ -2,34 +2,48 @@
 import { useState, useEffect } from "react";
 import { Bell, CheckCircle } from "lucide-react";
 import { App } from "antd";
+import { apiRequest } from "@/lib/api";
 
 export default function UserNotificationsPage() {
   const { message } = App.useApp();
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Merge standard mock notifications with the global ones sent by Admin
-    const globalNotifs = JSON.parse(localStorage.getItem("globalNotifications") || "[]");
-    setNotifications(globalNotifs);
+    const fetchNotifications = async () => {
+      try {
+        const data = await apiRequest<any[]>("/SystemNotifications");
+        setNotifications(data.map((n: any) => ({
+          id: n.notificationId || n.id,
+          title: n.title,
+          desc: n.message,
+          time: new Date(n.createdAt).toLocaleString(),
+          unread: true // System notifications are currently global and not tracked per-user for read status
+        })));
+      } catch (err: any) {
+        message.error("Lỗi khi tải thông báo");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchNotifications();
   }, []);
 
   const markAllRead = () => {
     const updated = notifications.map(n => ({ ...n, unread: false }));
     setNotifications(updated);
-    localStorage.setItem("globalNotifications", JSON.stringify(updated));
-    message.success("All notifications marked as read.");
-    window.dispatchEvent(new Event("storage"));
+    message.success("Tất cả thông báo đã được đánh dấu là đã đọc.");
   };
 
   return (
     <div style={{ maxWidth: 800 }}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Notifications</h1>
-          <p className="page-subtitle">Stay updated with system alerts and team activity</p>
+          <h1 className="page-title">Thông báo</h1>
+          <p className="page-subtitle">Cập nhật cảnh báo hệ thống và hoạt động của đội thi</p>
         </div>
         <button className="btn btn-secondary" onClick={markAllRead}>
-          <CheckCircle size={16} /> Mark all as read
+          <CheckCircle size={16} /> Đánh dấu tất cả đã đọc
         </button>
       </div>
 
@@ -37,8 +51,8 @@ export default function UserNotificationsPage() {
         {notifications.length === 0 ? (
           <div className="empty-state">
             <Bell size={48} className="empty-icon" />
-            <div className="empty-title">No notifications</div>
-            <div className="empty-desc">You're all caught up!</div>
+            <div className="empty-title">Không có thông báo</div>
+            <div className="empty-desc">Bạn đã xem hết!</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>

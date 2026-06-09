@@ -12,44 +12,44 @@ import { clearAuthSession } from "@/lib/api";
 
 const NAV_SECTIONS = [
   {
-    title: "Main",
+    title: "Chính",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard",       href: "/dashboard" },
+      { icon: LayoutDashboard, label: "Tổng quan",       href: "/dashboard" },
     ],
   },
   {
-    title: "Events",
+    title: "Sự kiện",
     items: [
-      { icon: Calendar, label: "Events",    href: "/dashboard/events" },
-      { icon: Tag,      label: "Tracks",    href: "/dashboard/tracks" },
-      { icon: Users,    label: "Teams",     href: "/dashboard/teams" },
-      { icon: Search,   label: "Matchmaking", href: "/dashboard/matchmaking" },
-      { icon: Send,     label: "Submissions", href: "/dashboard/submissions" },
+      { icon: Calendar, label: "Sự kiện",    href: "/dashboard/events" },
+      { icon: Tag,      label: "Hạng mục",    href: "/dashboard/tracks" },
+      { icon: Users,    label: "Đội thi",     href: "/dashboard/teams" },
+      { icon: Search,   label: "Ghép đội", href: "/dashboard/matchmaking" },
+      { icon: Send,     label: "Bài nộp", href: "/dashboard/submissions" },
     ],
   },
   {
-    title: "Judging",
+    title: "Chấm điểm",
     items: [
-      { icon: FileText,label: "Criteria",  href: "/dashboard/criteria" },
-      { icon: Target,  label: "Scoring",   href: "/dashboard/judging" },
-      { icon: Trophy,  label: "Rankings",  href: "/dashboard/rankings" },
-      { icon: Star,    label: "Prizes",    href: "/dashboard/prizes" },
+      { icon: FileText,label: "Tiêu chí",  href: "/dashboard/criteria" },
+      { icon: Target,  label: "Chấm điểm",   href: "/dashboard/judging" },
+      { icon: Trophy,  label: "Bảng xếp hạng",  href: "/dashboard/rankings" },
+      { icon: Star,    label: "Giải thưởng",    href: "/dashboard/prizes" },
     ],
   },
   {
-    title: "Content",
+    title: "Nội dung",
     items: [
-      { icon: FileText, label: "Documents", href: "/dashboard/documents" },
-      { icon: Cloud,    label: "Storage",   href: "/dashboard/storage" },
-      { icon: BookOpen, label: "Analytics", href: "/dashboard/analytics" },
+      { icon: FileText, label: "Tài liệu", href: "/dashboard/documents" },
+      { icon: Cloud,    label: "Lưu trữ",   href: "/dashboard/storage" },
+      { icon: BookOpen, label: "Phân tích", href: "/dashboard/analytics" },
     ],
   },
   {
-    title: "System",
+    title: "Hệ thống",
     items: [
-      { icon: Users,    label: "User Approvals", href: "/dashboard/users" },
-      { icon: Shield,   label: "System Alerts",  href: "/dashboard/system-notifications" },
-      { icon: Settings, label: "Settings",        href: "/dashboard/settings" },
+      { icon: Users,    label: "Duyệt người dùng", href: "/dashboard/users" },
+      { icon: Shield,   label: "Cảnh báo hệ thống",  href: "/dashboard/system-notifications" },
+      { icon: Settings, label: "Cài đặt",        href: "/dashboard/settings" },
     ],
   },
 ];
@@ -94,31 +94,49 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
   };
 
   const visibleSections = NAV_SECTIONS.map(section => {
-    if (isAdminPortal) {
-      if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Admin Dashboard", href: "/admin" }] };
-      if (section.title === "Events") return { ...section, items: [
-        { icon: Calendar, label: "Events", href: "/admin/events" },
-        { icon: Users, label: "Teams", href: "/admin/teams" },
-        { icon: Tag, label: "Tracks", href: "/admin/tracks" }
+    if (isAdminPortal || currentUser?.role === "Admin" || currentUser?.roles?.includes("Admin")) {
+      if (section.title === "Chính") return { ...section, items: [{ icon: LayoutDashboard, label: "Tổng quan Admin", href: "/admin" }] };
+      if (section.title === "Sự kiện") return { ...section, items: [
+        { icon: Calendar, label: "Sự kiện", href: "/admin/events" },
+        { icon: Tag,      label: "Hạng mục", href: "/admin/tracks" },
+        { icon: Users,    label: "Đội thi", href: "/admin/teams" },
       ] };
-      if (section.title === "System") return { ...section, items: [
-        { icon: Users, label: "User Approvals", href: "/admin/users" },
-        { icon: Shield, label: "System Alerts", href: "/admin/system-notifications" },
-        { icon: Settings, label: "Settings", href: "/admin/settings" }
-      ]};
-      if (section.title === "Judging") return { ...section, items: [
-        { icon: FileText, label: "Criteria", href: "/admin/criteria" },
-        { icon: Target, label: "Assignments", href: "/admin/assignments" },
-        { icon: Trophy, label: "Scoring Queue", href: "/admin/judging" }
+      if (section.title === "Chấm điểm") return { ...section, items: [
+        { icon: FileText, label: "Tiêu chí", href: "/admin/criteria" },
+        { icon: Target,   label: "Phân công", href: "/admin/assignments" },
+        { icon: Send,     label: "Chấm điểm", href: "/admin/judging" },
+      ] };
+      if (section.title === "Hệ thống") return { ...section, items: [
+        { icon: Users,    label: "Quản lý Người dùng", href: "/admin/users" },
+        { icon: Shield,   label: "Thông báo Hệ thống", href: "/admin/system-notifications" },
+        { icon: Settings, label: "Cài đặt Chung", href: "/admin/settings" },
       ] };
       return null;
-    } else if (pathname.startsWith("/mentor")) {
-      if (section.title === "Main") return { ...section, items: [{ icon: LayoutDashboard, label: "Mentor Dashboard", href: "/mentor" }] };
-      if (section.title === "Events") return { ...section, items: [{ icon: Users, label: "My Teams", href: "/mentor/teams" }] };
+    } else if (pathname.startsWith("/mentor") || currentUser?.role === "Mentor" || currentUser?.roles?.includes("Mentor")) {
+      if (section.title === "Chính") return { ...section, items: [{ icon: LayoutDashboard, label: "Tổng quan Cố vấn", href: "/mentor" }] };
+      if (section.title === "Sự kiện") return { ...section, items: [{ icon: Users, label: "Đội thi của tôi", href: "/mentor/teams" }] };
+      if (section.title === "Hệ thống") return { ...section, items: [{ icon: Bell, label: "Thông báo", href: "/dashboard/notifications" }] };
       return null;
     } else {
-      if (section.title === "System") return { ...section, items: section.items.filter(item => item.label === "Settings") };
-      if (section.title === "Judging") return { ...section, items: section.items.filter(item => item.label !== "Criteria") };
+      const role = (currentUser?.role || "").toLowerCase().trim();
+      
+      // Filter "Sự kiện" section: Judges don't need Matchmaking or Submissions or personal Teams management
+      if (section.title === "Sự kiện") {
+        if (role.includes("judge")) {
+          return { ...section, items: section.items.filter(item => item.label !== "Đội thi" && item.label !== "Ghép đội" && item.label !== "Bài nộp") };
+        }
+        return section;
+      }
+
+      // Filter "Chấm điểm" section: Only Judges (and Admins if they access dashboard) see Judging
+      if (section.title === "Chấm điểm") {
+        if (!role.includes("judge") && !role.includes("admin")) {
+          return { ...section, items: section.items.filter(item => item.label !== "Tiêu chí" && item.label !== "Chấm điểm") };
+        }
+        return { ...section, items: section.items.filter(item => item.label !== "Tiêu chí") };
+      }
+
+      if (section.title === "Hệ thống") return { ...section, items: section.items.filter(item => item.label === "Cài đặt") };
       return section;
     }
   }).filter(section => section && section.items.length > 0);
@@ -208,7 +226,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
               </div>
             )}
           </Link>
-          <button className={styles.logoutBtn} title="Logout" onClick={handleLogout} style={{ flexShrink: 0 }}>
+          <button className={styles.logoutBtn} title="Đăng xuất" onClick={handleLogout} style={{ flexShrink: 0 }}>
             <LogOut size={16} />
           </button>
         </div>
