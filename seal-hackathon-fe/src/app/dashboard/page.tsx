@@ -7,6 +7,7 @@ import {
 import Link from "next/link";
 import styles from "./page.module.css";
 import { apiRequest } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 import { App } from "antd";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -95,32 +96,15 @@ interface MappedEvent {
 
 export default function DashboardPage() {
   const { message } = App.useApp();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"all" | "active" | "upcoming">("all");
   const [events, setEvents] = useState<MappedEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    const readRole = () => {
-      const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
-      if (!stored) {
-        setIsAdmin(false);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(stored) as { roles?: string[]; role?: string };
-        const roles = parsed.roles?.length ? parsed.roles : parsed.role ? [parsed.role] : [];
-        setIsAdmin(roles.includes("Admin"));
-      } catch {
-        setIsAdmin(false);
-      }
-    };
-    readRole();
-    window.addEventListener("storage", readRole);
-    return () => window.removeEventListener("storage", readRole);
-  }, []);
+  const userRoles = user?.roles ?? [];
+  const isAdmin = userRoles.includes("Admin");
+  const canJudge = isAdmin || userRoles.includes("Judge");
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -356,9 +340,10 @@ export default function DashboardPage() {
               {[
                 ...(isAdmin ? [{ label: "Create Event", href: "/dashboard/events/create", icon: Calendar, color: "#6366f1" }] : []),
                 { label: "Register Team",   href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
-                { label: "Score Submissions",href: "/dashboard/judging",       icon: Target,  color: "#06b6d4" },
+                // Scoring is only accessible to Judges/Admins — don't tease it to Members.
+                ...(canJudge ? [{ label: "Score Submissions", href: "/dashboard/judging", icon: Target, color: "#06b6d4" }] : []),
                 { label: "View Rankings",   href: "/dashboard/rankings",       icon: Trophy,  color: "#f59e0b" },
-                { label: "Manage Prizes",   href: "/dashboard/prizes",         icon: Award,   color: "#f43f5e" },
+                { label: "View Prizes",     href: "/dashboard/prizes",         icon: Award,   color: "#f43f5e" },
               ].map(q => {
                 const Icon = q.icon;
                 return (

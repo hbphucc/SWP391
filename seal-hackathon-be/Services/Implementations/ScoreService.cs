@@ -10,10 +10,12 @@ namespace SEAL.NET.Services.Implementations
     public class ScoreService : IScoreService
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notificationService;
 
-        public ScoreService(ApplicationDbContext context)
+        public ScoreService(ApplicationDbContext context, INotificationService notificationService)
         {
             _context = context;
+            _notificationService = notificationService;
         }
 
         public async Task<ServiceResult> SubmitScoreAsync(Guid judgeId, CreateScoreRequest request)
@@ -189,6 +191,7 @@ namespace SEAL.NET.Services.Implementations
         {
             var submission = await _context.Submissions
                 .Include(s => s.Team)
+                    .ThenInclude(t => t!.Members)
                 .Include(s => s.Round)
                 .FirstOrDefaultAsync(s => s.SubmissionId == request.SubmissionId);
 
@@ -257,6 +260,18 @@ namespace SEAL.NET.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
+
+            if (request.Finalize)
+            {
+                var memberIds = submission.Team!.Members.Select(m => m.UserId);
+
+                await _notificationService.CreateForUsersAsync(
+                    memberIds,
+                    "Your submission has been scored",
+                    $"A judge has finalized the evaluation of your submission for round '{submission.Round!.RoundName}'. " +
+                    "Open the Submission page to view your score and the judge's feedback.",
+                    "success");
+            }
 
             var msg = request.Finalize
                 ? "Scores finalized and locked successfully."

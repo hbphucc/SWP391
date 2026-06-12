@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { App } from "antd";
 import { Key, Mail, Shield } from "lucide-react";
-import { apiRequest, saveAuthSession } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function AdminLogin() {
   const router = useRouter();
   const { message } = App.useApp();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,13 +20,18 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const payload = await apiRequest<{
-        user: { id: string; fullName: string; email: string; roles: string[] };
-      }>("/Auth/login", {
+      await apiRequest("/Auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, remember: true }),
       });
-      const user = saveAuthSession(payload, true);
+
+      // Re-source identity from /Auth/me — the login response is not the
+      // source of truth for role gates.
+      const user = await refresh();
+      if (!user) {
+        message.error("Signed in, but the server did not return a user.");
+        return;
+      }
 
       if (!user.roles.includes("Admin")) {
         message.error("Access denied. Admin privileges required.");

@@ -33,13 +33,15 @@ type MentorAssignment = {
 };
 
 export default function MentorAssignmentsPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [users, setUsers] = useState<UserDto[]>([]);
   const [assignments, setAssignments] = useState<MentorAssignment[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [selectedMentorId, setSelectedMentorId] = useState("");
   const [loading, setLoading] = useState(true);
+  // Guards assign/remove buttons against double-clicks.
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const mentors = useMemo(
     () => users.filter((user) => user.isApproved && user.roles.includes("Mentor")),
@@ -74,11 +76,13 @@ export default function MentorAssignmentsPage() {
   }, []);
 
   const handleAssignMentor = async () => {
+    if (busyAction) return;
     if (!selectedTeamId || !selectedMentorId) {
       message.warning("Select both a team and a mentor.");
       return;
     }
 
+    setBusyAction("assign");
     try {
       await apiRequest("/admin/mentors/assign", {
         method: "POST",
@@ -88,17 +92,29 @@ export default function MentorAssignmentsPage() {
       await loadData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not assign mentor.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
-  const handleDeactivate = async (assignmentId: string) => {
-    try {
-      await apiRequest(`/admin/mentors/assignments/${assignmentId}`, { method: "DELETE" });
-      message.success("Assignment deactivated.");
-      await loadData();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not deactivate assignment.");
-    }
+  const handleDeactivate = (assignment: MentorAssignment) => {
+    modal.confirm({
+      title: `Remove ${assignment.mentorName} from ${assignment.teamName}?`,
+      okText: "Remove",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setBusyAction(`remove-${assignment.id}`);
+        try {
+          await apiRequest(`/admin/mentors/assignments/${assignment.id}`, { method: "DELETE" });
+          message.success("Assignment deactivated.");
+          await loadData();
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : "Could not deactivate assignment.");
+        } finally {
+          setBusyAction(null);
+        }
+      },
+    });
   };
 
   return (
@@ -142,8 +158,8 @@ export default function MentorAssignmentsPage() {
               </select>
             </div>
 
-            <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading}>
-              <UserCheck size={16} /> Assign Mentor
+            <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading || busyAction !== null}>
+              {busyAction === "assign" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Mentor</>}
             </button>
           </div>
         </div>
@@ -164,8 +180,8 @@ export default function MentorAssignmentsPage() {
                     <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{assignment.mentorName}</div>
                     <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{assignment.teamName}</div>
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivate(assignment.id)}>
-                    <XCircle size={14} /> Remove
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivate(assignment)} disabled={busyAction !== null}>
+                    {busyAction === `remove-${assignment.id}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
                   </button>
                 </div>
               ))

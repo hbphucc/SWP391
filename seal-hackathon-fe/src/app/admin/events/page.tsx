@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import { TRACKS_OPTIONS } from "@/lib/constants";
 
 /* ─── Types ─── */
 type RoundDto = {
@@ -35,8 +36,12 @@ function toDateTimeLocal(value: string | null) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function toApiDate(value: string) {
-  return new Date(value).toISOString();
+function toApiDate(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  // Guard against `new Date("").toISOString()` throwing a cryptic RangeError
+  // when a deadline field has been cleared.
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function toDisplayDate(value?: string | null) {
@@ -50,7 +55,6 @@ function toDisplayDate(value?: string | null) {
 /* ─── Create-form defaults ─── */
 const INITIAL_EVENT_FORM = { eventName: "", description: "", startDate: "", endDate: "" };
 const INITIAL_ROUND = () => ({ id: Date.now(), name: "", topN: "5", deadline: "" });
-const TRACKS_OPTIONS = ["AI & Machine Learning", "Web Development", "Mobile App", "Cybersecurity", "Open Innovation"];
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function AdminEventsPage() {
@@ -176,29 +180,47 @@ export default function AdminEventsPage() {
 
       const eventId = created.eventId ?? created.id ?? "";
 
-      await Promise.all(
-        rounds.map((r, i) =>
-          apiRequest(`/events/${eventId}/rounds`, {
-            method: "POST",
-            body: JSON.stringify({
-              roundName: r.name.trim(),
-              submissionDeadline: toApiDate(r.deadline),
-              roundOrder: i + 1,
-              maxTeamsAdvancing: Number(r.topN) || 0,
-            }),
-          }),
-        ),
-      );
-
-      if (selectedTracks.length > 0) {
+      // The event now exists; if a follow-up call fails, surface what happened
+      // instead of letting a retry create a duplicate event.
+      try {
         await Promise.all(
-          selectedTracks.map((track) =>
-            apiRequest(`/events/${eventId}/categories`, {
+          rounds.map((r, i) =>
+            apiRequest(`/events/${eventId}/rounds`, {
               method: "POST",
-              body: JSON.stringify({ categoryName: track, description: null }),
+              body: JSON.stringify({
+                roundName: r.name.trim(),
+                submissionDeadline: toApiDate(r.deadline),
+                roundOrder: i + 1,
+                maxTeamsAdvancing: Number(r.topN) || 0,
+              }),
             }),
           ),
         );
+
+        if (selectedTracks.length > 0) {
+          await Promise.all(
+            selectedTracks.map((track) =>
+              apiRequest(`/events/${eventId}/categories`, {
+                method: "POST",
+                body: JSON.stringify({ categoryName: track, description: null }),
+              }),
+            ),
+          );
+        }
+      } catch (configErr) {
+        message.warning(
+          `The event was created, but part of its configuration failed: ${
+            configErr instanceof Error ? configErr.message : "unknown error"
+          }. Finish setting it up from the event list instead of creating it again.`,
+          8,
+        );
+        setEventForm(INITIAL_EVENT_FORM);
+        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "" }]);
+        setSelectedTracks([]);
+        setCreateStep(1);
+        setView("list");
+        await refreshEvents();
+        return;
       }
 
       message.success("Event created successfully.");
@@ -424,7 +446,7 @@ export default function AdminEventsPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 {rounds.map((r, i) => (
-                  <div key={r.id} style={{ background: "rgba(15,23,42,0.5)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "1.25rem" }}>
+                  <div key={r.id} style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "1.25rem" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                       <GripVertical size={16} style={{ color: "var(--color-text-3)" }} />
                       <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--color-primary)", background: "rgba(99,102,241,0.1)", padding: "0.15rem 0.5rem", borderRadius: "var(--radius-sm)" }}>
@@ -487,7 +509,7 @@ export default function AdminEventsPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: "0.75rem",
                       padding: "0.9rem 1rem", cursor: "pointer", transition: "all 0.15s",
-                      background: selectedTracks.includes(t) ? "rgba(99,102,241,0.08)" : "rgba(15,23,42,0.4)",
+                      background: selectedTracks.includes(t) ? "rgba(99,102,241,0.08)" : "var(--color-surface-2)",
                       border: `1px solid ${selectedTracks.includes(t) ? "rgba(99,102,241,0.4)" : "var(--color-border-2)"}`,
                       borderRadius: "var(--radius-md)",
                     }}

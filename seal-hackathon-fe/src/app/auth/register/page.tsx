@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { App } from "antd";
 import { ArrowLeft, Building2, CheckCircle, Code2, GraduationCap, Lock, Mail, Trophy, User } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { PASSWORD_PATTERN, PASSWORD_RULE_MESSAGE } from "@/lib/constants";
 import styles from "../auth.module.css";
 import vnUniversities from "../../../data/vietnam_universities.json";
 
@@ -32,6 +33,11 @@ export default function RegisterPage() {
 
     if (!studentType) {
       message.error("Please select a student type.");
+      return;
+    }
+
+    if (!PASSWORD_PATTERN.test(form.password)) {
+      message.error(PASSWORD_RULE_MESSAGE);
       return;
     }
 
@@ -140,6 +146,7 @@ export default function RegisterPage() {
                       <Lock size={16} className={styles.inputIcon} />
                       <input id="reg-pass" type="password" className={`form-input ${styles.inputWithIcon}`} placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
                     </div>
+                    <span className="form-hint">{PASSWORD_RULE_MESSAGE}</span>
                   </div>
 
                   <div className="form-group">
@@ -217,7 +224,7 @@ export default function RegisterPage() {
                 <h1 className={styles.title} style={{ fontSize: "1.3rem", marginBottom: "0.25rem" }}>Confirm your details</h1>
                 <p className={styles.subtitle}>Please verify your information before registering.</p>
 
-                <div style={{ background: "rgba(15,23,42,0.5)", border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1.25rem", marginBottom: "1.5rem", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1.25rem", marginBottom: "1.5rem", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--color-text-3)" }}>Full Name</span>
                     <strong style={{ color: "var(--color-text)" }}>{form.fullName}</strong>
