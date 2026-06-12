@@ -3,12 +3,13 @@
 import { useState, useRef, useEffect, useContext, useCallback } from "react";
 import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, Languages } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Dropdown } from "antd";
+import { App, Dropdown } from "antd";
 import Link from "next/link";
 import styles from "./TopBar.module.css";
 import { ALL_LANGUAGES } from "@/lib/languages";
 import { ThemeContext } from "./ThemeProvider";
-import { apiRequest, clearAuthSession, type CurrentUser } from "@/lib/api";
+import { useAuth } from "./AuthProvider";
+import { apiRequest } from "@/lib/api";
 
 interface TopBarProps {
   onMenuToggle: () => void;
@@ -26,11 +27,16 @@ type NotificationDto = {
 
 export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) {
   const router = useRouter();
+  const { message } = App.useApp();
   const { isDarkMode, toggleTheme } = useContext(ThemeContext);
+  const { user: currentUser, logout } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
+  // Defer the theme icon to post-mount so SSR's default-dark Sun doesn't
+  // briefly flash before the client picks Moon (when user chose light mode).
+  const [themeIconMounted, setThemeIconMounted] = useState(false);
+  useEffect(() => setThemeIconMounted(true), []);
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -38,11 +44,16 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const searchRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // Events fetched once per session for the global search; null = not loaded yet.
+  const searchEventsRef = useRef<{ eventId: string; eventName: string }[] | null>(null);
+  const latestQueryRef = useRef("");
 
   const changeLanguage = (langCode: string) => {
     let select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
     if (!select) {
-      const google = (window as any).google;
+      const google = (window as unknown as {
+        google?: { translate?: { TranslateElement?: new (options: { pageLanguage: string }, element: string) => unknown } };
+      }).google;
       if (google?.translate?.TranslateElement) {
         try {
           new google.translate.TranslateElement({ pageLanguage: "en" }, "google_translate_element");
@@ -72,23 +83,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     onClick: () => changeLanguage(language.key),
   }));
 
-  const loadUser = useCallback(() => {
-    const stored = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as CurrentUser;
-        setCurrentUser(parsed);
-        setAvatar(localStorage.getItem(`avatar_${parsed.email}`));
-      } catch {
-        setCurrentUser(null);
-        setAvatar(null);
-      }
-    } else {
-      setCurrentUser(null);
-      setAvatar(null);
-    }
-  }, []);
-
   const loadNotifications = useCallback(async () => {
     try {
       setNotifications(await apiRequest<NotificationDto[]>("/notifications"));
@@ -96,6 +90,16 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       setNotifications([]);
     }
   }, []);
+
+  // Avatar is a UI-only per-email preference stored locally — it never drives
+  // identity/authz, so reading it from localStorage is fine.
+  useEffect(() => {
+    if (!currentUser) {
+      setAvatar(null);
+      return;
+    }
+    setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+  }, [currentUser]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -106,7 +110,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
 
     document.addEventListener("mousedown", handleClickOutside);
     const id = window.setTimeout(() => {
-      loadUser();
       void loadNotifications();
     }, 0);
 
@@ -114,61 +117,62 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       void loadNotifications();
     }, 15000); // Poll every 15 seconds for notifications
 
-    const handleStorageChange = () => {
-      loadUser();
-      void loadNotifications();
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
     return () => {
       window.clearTimeout(id);
       clearInterval(intervalId);
       document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("storage", handleStorageChange);
     };
-  }, [loadNotifications, loadUser]);
+  }, [loadNotifications]);
 
   const markAllRead = async () => {
     try {
       await apiRequest("/notifications/read-all", { method: "POST" });
       await loadNotifications();
       window.dispatchEvent(new Event("storage"));
-    } catch {
-      setNotifications([]);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not mark notifications as read.");
     }
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Searches real backend events (fetched once, then filtered client-side).
+  const handleSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
     setSearchQuery(q);
-    if (q.length < 2) {
+    latestQueryRef.current = q;
+
+    if (q.trim().length < 2) {
       setSearchResults([]);
       return;
     }
 
-    const results = [];
+    if (searchEventsRef.current === null) {
+      try {
+        searchEventsRef.current = await apiRequest<{ eventId: string; eventName: string }[]>("/Events");
+      } catch {
+        searchEventsRef.current = [];
+      }
+      // The user kept typing while we fetched — only render for the latest query.
+      if (latestQueryRef.current !== q) return;
+    }
+
     const qLower = q.toLowerCase();
+    const matches = searchEventsRef.current
+      .filter((ev) => ev.eventName.toLowerCase().includes(qLower))
+      .slice(0, 6)
+      .map((ev) => ({ type: "Event", title: ev.eventName, link: `/dashboard/events/${ev.eventId}` }));
 
-    if (qLower.includes("team") || qLower.includes("cyb") || qLower.includes("hack")) {
-      results.push({ type: "Team", title: `Team ${q} (Match)`, link: "/dashboard/teams/1" });
-    }
-    if (qLower.includes("event") || qLower.includes("fin")) {
-      results.push({ type: "Event", title: "Grand Finale 2026", link: "/dashboard/events/EV-001" });
-    }
-    if (qLower.includes("track") || qLower.includes("ai")) {
-      results.push({ type: "Track", title: "AI/ML Track", link: "/dashboard/tracks" });
-    }
-    if (results.length === 0) {
-      results.push({ type: "Empty", title: `No results for "${q}"`, link: "#" });
-    }
-
-    setSearchResults(results);
+    setSearchResults(
+      matches.length > 0 ? matches : [{ type: "Empty", title: `No results for "${q}"`, link: "#" }],
+    );
   };
 
-  const handleLogout = () => {
-    void clearAuthSession();
-    router.push("/auth/login");
+  const handleLogout = async () => {
+    // Capture role BEFORE logout — once logout() resolves, currentUser is null.
+    // Admins land on the public landing page; non-admins go back to login so
+    // they can hop back into their dashboard quickly.
+    const wasAdmin = currentUser?.roles.includes("Admin") ?? false;
+    await logout();
+    router.push(wasAdmin ? "/" : "/auth/login");
   };
 
   if (!currentUser) return null;
@@ -179,14 +183,15 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       style={{ left: sidebarCollapsed ? "var(--sidebar-collapsed-width)" : "var(--sidebar-width)" }}
     >
       <div className={styles.left}>
-        <button className={styles.menuBtn} onClick={onMenuToggle}>
+        <button className={styles.menuBtn} onClick={onMenuToggle} aria-label="Toggle navigation menu">
           <Menu size={20} />
         </button>
         <div className="search-bar" style={{ minWidth: 280, position: "relative" }} ref={searchRef}>
           <Search size={16} style={{ color: "var(--color-text-3)", flexShrink: 0 }} />
           <input
             className="search-input"
-            placeholder="Search events, teams, documents..."
+            placeholder="Search events..."
+            aria-label="Search events"
             value={searchQuery}
             onChange={handleSearch}
           />
@@ -211,13 +216,13 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
 
       <div className={styles.right}>
         <Dropdown menu={{ items: languageItems, style: { maxHeight: 400, overflowY: "auto" } }} placement="bottomRight" trigger={["click"]}>
-          <button className={styles.iconBtn} title="Change language">
+          <button className={styles.iconBtn} title="Change language" aria-label="Change language">
             <Languages size={18} />
           </button>
         </Dropdown>
 
-        <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle theme">
-          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+        <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
+          {themeIconMounted ? (isDarkMode ? <Sun size={18} /> : <Moon size={18} />) : null}
         </button>
 
         <div className="dropdown" ref={notifRef}>
@@ -232,6 +237,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
               }
             }}
             style={{ position: "relative" }}
+            aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
           >
             <Bell size={18} />
             {unreadCount > 0 && <span className="notif-dot" />}

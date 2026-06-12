@@ -1,8 +1,28 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import ThemeProvider from "../components/ThemeProvider";
+import AuthProvider from "../components/AuthProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
+import FloatingThemeToggle from "../components/FloatingThemeToggle";
 import "./globals.css";
+
+// Runs in the browser BEFORE React hydrates so we can paint the correct theme
+// on the first frame. SSR can't know the user's preference, so without this
+// users who picked light mode see a dark flash. Reads saved choice, falls
+// back to the OS-level prefers-color-scheme, defaults to dark.
+const themeBootstrap = `
+(function() {
+  try {
+    var saved = localStorage.getItem('seal_theme');
+    var theme = saved
+      ? saved
+      : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  } catch (e) { /* private mode / disabled storage: fall through to default dark */ }
+})();
+`;
 
 export const metadata: Metadata = {
   title: "SEAL – Software Engineering Hackathon Management System",
@@ -23,8 +43,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the inline themeBootstrap script may set
+    // data-theme="light" before React hydrates. Without this, React would
+    // either warn about the attribute mismatch or, worse, treat the
+    // out-of-sync attribute as a hydration error.
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
@@ -32,8 +57,11 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          {children}
-          <AIChatbotWrapper />
+          <AuthProvider>
+            {children}
+            <FloatingThemeToggle />
+            <AIChatbotWrapper />
+          </AuthProvider>
         </ThemeProvider>
         
         {/* Google Translate container */}

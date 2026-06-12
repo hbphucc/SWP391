@@ -4,7 +4,7 @@ import { Target, ChevronRight, RefreshCw, ExternalLink, ShieldOff } from "lucide
 import Link from "next/link";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
-import type { CurrentUser } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 
 type AssignedSubmission = {
   submissionId: string;
@@ -22,24 +22,16 @@ type AssignedSubmission = {
   };
 };
 
-function getCurrentUserFromStorage(): CurrentUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("currentUser");
-    return raw ? (JSON.parse(raw) as CurrentUser) : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function JudgingQueuePage() {
   const { message } = App.useApp();
+  const { user, isLoading: authLoading } = useAuth();
   const [submissions, setSubmissions] = useState<AssignedSubmission[]>([]);
-  const [currentUser] = useState<CurrentUser | null>(getCurrentUserFromStorage);
 
-  const canJudge = currentUser?.roles.some((r) => r === "Judge" || r === "Admin") ?? false;
+  const canJudge = user?.roles.some((r) => r === "Judge" || r === "Admin") ?? false;
 
-  const [loading, setLoading] = useState(canJudge);
+  // Stay in the loading state until the auth bootstrap has resolved, then keep
+  // it on while we fetch the assigned submissions for judges.
+  const [loading, setLoading] = useState(true);
 
   const loadQueue = async () => {
     if (!canJudge) return;
@@ -55,7 +47,11 @@ export default function JudgingQueuePage() {
   };
 
   useEffect(() => {
-    if (!canJudge) return;
+    if (authLoading) return;
+    if (!canJudge) {
+      setLoading(false);
+      return;
+    }
 
     let active = true;
 
@@ -75,7 +71,16 @@ export default function JudgingQueuePage() {
     return () => {
       active = false;
     };
-  }, [message, canJudge]);
+  }, [authLoading, canJudge, message]);
+
+  if (authLoading) {
+    return (
+      <div className="empty-state">
+        <span className="spinner" />
+        <div className="empty-title">Verifying access</div>
+      </div>
+    );
+  }
 
   if (!canJudge) {
     return (
