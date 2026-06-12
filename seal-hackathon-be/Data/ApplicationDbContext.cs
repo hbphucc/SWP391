@@ -63,6 +63,21 @@ namespace SEAL.NET.Data
                 .IsUnique()
                 .HasFilter("\"StudentCode\" IS NOT NULL");
 
+            // Persist these enums as their string name (e.g. "Internal", "Backend") to
+            // match the column type the Postgres DB was provisioned with (character
+            // varying carried over from the original SQL Server schema). Without the
+            // converter EF would expect integer and FindByEmailAsync would throw
+            // System.InvalidCastException: Reading as 'System.Int32' is not supported.
+            builder.Entity<ApplicationUser>()
+                .Property(u => u.StudentType)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            builder.Entity<ApplicationUser>()
+                .Property(u => u.DeveloperRole)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
             builder.Entity<IdentityRole<Guid>>().ToTable("Roles");
             builder.Entity<IdentityUserRole<Guid>>().ToTable("UserRoles");
             builder.Entity<IdentityUserClaim<Guid>>().ToTable("UserClaims");

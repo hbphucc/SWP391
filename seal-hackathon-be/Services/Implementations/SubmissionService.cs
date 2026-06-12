@@ -11,10 +11,37 @@ namespace SEAL.NET.Services.Implementations
     public class SubmissionService : ISubmissionService
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notificationService;
 
-        public SubmissionService(ApplicationDbContext context)
+        public SubmissionService(ApplicationDbContext context, INotificationService notificationService)
         {
             _context = context;
+            _notificationService = notificationService;
+        }
+
+        private async Task NotifySubmissionReceivedAsync(Team team, Round round, bool isUpdate)
+        {
+            var action = isUpdate ? "updated their submission" : "submitted their project";
+
+            var adminIds = await _context.UserRoles
+                .Join(_context.Roles.Where(r => r.Name == "Admin"),
+                    ur => ur.RoleId, r => r.Id, (ur, r) => ur.UserId)
+                .ToListAsync();
+
+            await _notificationService.CreateForUsersAsync(
+                adminIds,
+                "New submission received",
+                $"Team '{team.TeamName}' {action} for round '{round.RoundName}'. Assign judges to start grading.");
+
+            var assignedJudgeIds = await _context.JudgeAssignments
+                .Where(a => a.RoundId == round.RoundId && a.CategoryId == team.CategoryId)
+                .Select(a => a.JudgeId)
+                .ToListAsync();
+
+            await _notificationService.CreateForUsersAsync(
+                assignedJudgeIds,
+                "New submission to grade",
+                $"Team '{team.TeamName}' {action} for round '{round.RoundName}'. It is ready for evaluation.");
         }
 
         public async Task<ServiceResult> SubmitProjectAsync(Guid currentUserId, CreateSubmissionRequest request)
@@ -53,6 +80,7 @@ namespace SEAL.NET.Services.Implementations
                 existingSubmission.SubmittedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+                await NotifySubmissionReceivedAsync(team, round, isUpdate: true);
 
                 return ServiceResult.Ok(new
                 {
@@ -72,6 +100,7 @@ namespace SEAL.NET.Services.Implementations
 
             _context.Submissions.Add(submission);
             await _context.SaveChangesAsync();
+            await NotifySubmissionReceivedAsync(team, round, isUpdate: false);
 
             return ServiceResult.Ok(new
             {
@@ -96,9 +125,38 @@ namespace SEAL.NET.Services.Implementations
 
             var submissions = await _context.Submissions
                 .Include(s => s.Round)
+                .Include(s => s.Scores.Where(sc => sc.IsLocked))
+                    .ThenInclude(sc => sc.Criteria)
+                .Include(s => s.Scores.Where(sc => sc.IsLocked))
+                    .ThenInclude(sc => sc.Judge)
                 .Where(s => s.TeamId == teamId)
                 .OrderByDescending(s => s.SubmittedAt)
-                .Select(s => new
+                .ToListAsync();
+
+            var result = submissions.Select(s =>
+            {
+                // Teams only ever see finalized (locked) scores.
+                var judges = s.Scores
+                    .GroupBy(sc => sc.JudgeId)
+                    .Select(g => new
+                    {
+                        judgeName = g.First().Judge?.FullName ?? "Judge",
+                        totalScore = Math.Round(g.Sum(sc =>
+                            sc.Criteria == null || sc.Criteria.MaxScore == 0
+                                ? 0
+                                : (sc.ScoreValue / sc.Criteria.MaxScore) * sc.Criteria.Weight), 2),
+                        criteria = g.Select(sc => new
+                        {
+                            criteriaName = sc.Criteria?.CriteriaName ?? "",
+                            sc.ScoreValue,
+                            maxScore = sc.Criteria?.MaxScore ?? 0,
+                            weight = sc.Criteria?.Weight ?? 0,
+                            comment = sc.Comment
+                        }).ToList()
+                    })
+                    .ToList();
+
+                return new
                 {
                     s.SubmissionId,
                     s.RepositoryUrl,
@@ -109,11 +167,17 @@ namespace SEAL.NET.Services.Implementations
                     {
                         s.Round!.RoundId,
                         s.Round.RoundName
+                    },
+                    evaluation = new
+                    {
+                        isScored = judges.Count > 0,
+                        averageScore = judges.Count > 0 ? Math.Round(judges.Average(j => j.totalScore), 2) : 0,
+                        judges
                     }
-                })
-                .ToListAsync();
+                };
+            }).ToList();
 
-            return ServiceResult.Ok(submissions);
+            return ServiceResult.Ok(result);
         }
 
         public async Task<ServiceResult> GetRoundSubmissionsAsync(Guid roundId)
