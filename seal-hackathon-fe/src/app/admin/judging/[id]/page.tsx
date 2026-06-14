@@ -214,7 +214,7 @@ export default function AdminJudgingScorePage({ params }: { params: Promise<{ id
           </div>
 
           {/* Radar Chart */}
-          <div style={{ background: "rgba(15,23,42,0.4)", borderRadius: "var(--radius-md)", padding: "1rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", padding: "1rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
             <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "1rem", alignSelf: "flex-start" }}>SCORE DISTRIBUTION</h4>
             <div style={{ width: "100%", height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">

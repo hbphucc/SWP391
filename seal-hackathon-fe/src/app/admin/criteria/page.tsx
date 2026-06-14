@@ -99,6 +99,7 @@ export default function CriteriaPage() {
 
       <div className="card">
         <Table
+          className="custom-antd-table"
           dataSource={rows}
           columns={columns}
           rowKey="key"

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useEffect, useState } from "react";
 import { Typography, Table, Button, Card, Tag, Input, App } from "antd";
 import { StarOutlined, FileOutlined, SearchOutlined, EyeOutlined } from "@ant-design/icons";
@@ -114,6 +114,7 @@ export default function UserEventsPage() {
 
       <Card variant="borderless" styles={{ body: { padding: 0 } }} style={{ background: "transparent" }}>
         <Table
+          className="custom-antd-table"
           columns={columns}
           dataSource={filteredEvents}
           pagination={{ pageSize: 10 }}

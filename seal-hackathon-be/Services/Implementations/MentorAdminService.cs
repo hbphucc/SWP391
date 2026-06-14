@@ -74,6 +74,26 @@ namespace SEAL.NET.Services.Implementations
             if (duplicate)
                 return ServiceResult.BadRequest("This mentor is already actively assigned to this team.");
 
+            // Deactivate any existing active mentor assignments for this team
+            var activeAssignments = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == request.TeamId && ma.IsActive)
+                .ToListAsync();
+
+            foreach (var ma in activeAssignments)
+            {
+                ma.IsActive = false;
+                try
+                {
+                    await _notificationService.CreateAsync(
+                        ma.MentorUserId,
+                        "Mentor Unassigned",
+                        $"You have been unassigned from mentoring team {team.TeamName}.",
+                        "team"
+                    );
+                }
+                catch { }
+            }
+
             var assignment = new MentorAssignment
             {
                 MentorUserId = request.MentorUserId,

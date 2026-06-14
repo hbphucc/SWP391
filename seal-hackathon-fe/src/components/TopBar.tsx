@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { Dropdown } from "antd";
 import Link from "next/link";
 import styles from "./TopBar.module.css";
-import { ALL_LANGUAGES } from "@/lib/languages";
 import { ThemeContext } from "./ThemeProvider";
 import { apiRequest, clearAuthSession, type CurrentUser } from "@/lib/api";
+import { ALL_LANGUAGES } from "@/lib/languages";
+import { changeTranslateLanguage, getSavedTranslateLanguage } from "@/lib/googleTranslate";
 
 interface TopBarProps {
   onMenuToggle: () => void;
@@ -37,39 +38,16 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const [searchResults, setSearchResults] = useState<{ type: string; title: string; link: string }[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [language, setLanguage] = useState("en");
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const changeLanguage = (langCode: string) => {
-    let select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
-    if (!select) {
-      const google = (window as any).google;
-      if (google?.translate?.TranslateElement) {
-        try {
-          new google.translate.TranslateElement({ pageLanguage: "en" }, "google_translate_element");
-          setTimeout(() => {
-            select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
-            if (select) {
-              select.value = langCode;
-              select.dispatchEvent(new Event("change"));
-            }
-          }, 150);
-          return;
-        } catch (err) {
-          console.error("Dynamic translate init failed:", err);
-        }
-      }
-    }
-
-    if (select) {
-      select.value = langCode;
-      select.dispatchEvent(new Event("change"));
-    }
-  };
-
-  const languageItems = ALL_LANGUAGES.map((language) => ({
-    key: language.key,
-    label: language.label,
-    onClick: () => changeLanguage(language.key),
+  const languageItems = ALL_LANGUAGES.map((item) => ({
+    key: item.key,
+    label: item.label,
+    onClick: () => {
+      setLanguage(item.key);
+      changeTranslateLanguage(item.key);
+    },
   }));
 
   const loadUser = useCallback(() => {
@@ -106,6 +84,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
 
     document.addEventListener("mousedown", handleClickOutside);
     const id = window.setTimeout(() => {
+      setLanguage(getSavedTranslateLanguage());
       loadUser();
       void loadNotifications();
     }, 0);
@@ -210,7 +189,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       </div>
 
       <div className={styles.right}>
-        <Dropdown menu={{ items: languageItems, style: { maxHeight: 400, overflowY: "auto" } }} placement="bottomRight" trigger={["click"]}>
+        <Dropdown menu={{ items: languageItems, selectedKeys: [language], style: { maxHeight: 400, overflowY: "auto" } }} placement="bottomRight" trigger={["click"]}>
           <button className={styles.iconBtn} title="Change language">
             <Languages size={18} />
           </button>

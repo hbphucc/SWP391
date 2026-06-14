@@ -217,7 +217,7 @@ export default function RegisterPage() {
                 <h1 className={styles.title} style={{ fontSize: "1.3rem", marginBottom: "0.25rem" }}>Confirm your details</h1>
                 <p className={styles.subtitle}>Please verify your information before registering.</p>
 
-                <div style={{ background: "rgba(15,23,42,0.5)", border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1.25rem", marginBottom: "1.5rem", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1.25rem", marginBottom: "1.5rem", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--color-text-3)" }}>Full Name</span>
                     <strong style={{ color: "var(--color-text)" }}>{form.fullName}</strong>

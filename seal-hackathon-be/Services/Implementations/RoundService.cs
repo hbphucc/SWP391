@@ -11,10 +11,12 @@ namespace SEAL.NET.Services.Implementations
     public class RoundService : IRoundService
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notificationService;
 
-        public RoundService(ApplicationDbContext context)
+        public RoundService(ApplicationDbContext context, INotificationService notificationService)
         {
             _context = context;
+            _notificationService = notificationService;
         }
 
         public async Task<ServiceResult> GetRoundsAsync(Guid eventId)
@@ -177,6 +179,8 @@ namespace SEAL.NET.Services.Implementations
             var submissions = await _context.Submissions
                 .Include(s => s.Team)
                     .ThenInclude(t => t.Category)
+                .Include(s => s.Team)
+                    .ThenInclude(t => t.Members)
                 .Include(s => s.Scores)
                     .ThenInclude(sc => sc.Criteria)
                 .Where(s =>
@@ -230,6 +234,16 @@ namespace SEAL.NET.Services.Implementations
                         categoryId = item.Team.CategoryId,
                         totalScore = item.TotalScore
                     });
+
+                    var memberIds = item.Team.Members.Select(m => m.UserId).ToList();
+                    if (memberIds.Any())
+                    {
+                        await _notificationService.CreateForUsersAsync(
+                            memberIds,
+                            "Advanced to next round",
+                            $"Congratulations! Team {item.Team.TeamName} has advanced to {nextRound.RoundName} with a total score of {item.TotalScore:F1}.",
+                            "round_advance");
+                    }
                 }
 
                 foreach (var item in losers)
@@ -245,6 +259,16 @@ namespace SEAL.NET.Services.Implementations
                         categoryId = item.Team.CategoryId,
                         totalScore = item.TotalScore
                     });
+
+                    var memberIds = item.Team.Members.Select(m => m.UserId).ToList();
+                    if (memberIds.Any())
+                    {
+                        await _notificationService.CreateForUsersAsync(
+                            memberIds,
+                            "Team eliminated",
+                            $"Team {item.Team.TeamName} was eliminated after round ranking of {currentRound.RoundName} with a score of {item.TotalScore:F1}.",
+                            "round_eliminate");
+                    }
                 }
             }
 

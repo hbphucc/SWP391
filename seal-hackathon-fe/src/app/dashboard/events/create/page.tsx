@@ -238,7 +238,7 @@ export default function CreateEventPage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {rounds.map((r, i) => (
-              <div key={r.id} style={{ background: "rgba(15,23,42,0.5)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "1.25rem" }}>
+              <div key={r.id} style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "1.25rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <GripVertical size={16} style={{ color: "var(--color-text-3)", cursor: "grab" }} />
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--color-primary)", background: "rgba(99,102,241,0.1)", padding: "0.15rem 0.5rem", borderRadius: "var(--radius-sm)" }}>
@@ -283,7 +283,7 @@ export default function CreateEventPage() {
               <label key={t} style={{
                 display: "flex", alignItems: "center", gap: "0.75rem",
                 padding: "0.9rem 1rem",
-                background: selectedTracks.includes(t) ? "rgba(99,102,241,0.08)" : "rgba(15,23,42,0.4)",
+                background: selectedTracks.includes(t) ? "rgba(99,102,241,0.08)" : "var(--color-surface-2)",
                 border: `1px solid ${selectedTracks.includes(t) ? "rgba(99,102,241,0.4)" : "var(--color-border-2)"}`,
                 borderRadius: "var(--radius-md)", cursor: "pointer", transition: "all 0.15s",
               }}>
@@ -316,7 +316,7 @@ export default function CreateEventPage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {criteria.map(c => (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.9rem 1rem", background: "rgba(15,23,42,0.5)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
                 <GripVertical size={15} style={{ color: "var(--color-text-3)", cursor: "grab", flexShrink: 0 }} />
                 <input className="form-input" style={{ flex: 1 }} value={c.name}
                   onChange={e => setCriteria(criteria.map(x => x.id===c.id ? {...x, name: e.target.value} : x))} />

@@ -15,7 +15,7 @@ type AdminTeam = {
 };
 
 export default function AdminTeamsPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
@@ -47,6 +47,43 @@ export default function AdminTeamsPage() {
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not update team status.");
     }
+  };
+
+  const handleEliminateTeam = (teamId: string) => {
+    let reason = "";
+    modal.confirm({
+      title: "Eliminate Team",
+      content: (
+        <div style={{ marginTop: "1rem" }}>
+          <p>Please enter the reason for eliminating this team:</p>
+          <textarea
+            className="form-input"
+            rows={3}
+            onChange={(e) => { reason = e.target.value; }}
+            placeholder="Reason for elimination"
+            style={{ marginTop: "0.5rem", width: "100%", background: "var(--color-surface-2)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+          />
+        </div>
+      ),
+      okText: "Eliminate",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        if (!reason.trim()) {
+          message.error("Elimination reason is required.");
+          throw new Error("Reason required");
+        }
+        try {
+          await apiRequest(`/admin/teams/${teamId}/eliminate`, {
+            method: "PUT",
+            body: JSON.stringify({ reason: reason.trim() })
+          });
+          message.success("Team eliminated.");
+          await loadTeams();
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : "Could not eliminate team.");
+        }
+      }
+    });
   };
 
   const filteredTeams = useMemo(() => {
@@ -150,14 +187,19 @@ export default function AdminTeamsPage() {
                   </td>
                   <td style={{ padding: "1.25rem 1.5rem", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                      {team.status !== "Approved" && (
-                        <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.1)", color: "#34d399", padding: "0.4rem 0.8rem", border: "1px solid rgba(16,185,129,0.2)" }} onClick={() => handleUpdateStatus(team.teamId, "approve")}>
-                          <CheckCircle size={14} /> Approve
-                        </button>
+                      {team.status === "Pending" && (
+                        <>
+                          <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.1)", color: "var(--color-badge-success-text)", padding: "0.4rem 0.8rem", border: "1px solid rgba(16,185,129,0.2)" }} onClick={() => handleUpdateStatus(team.teamId, "approve")}>
+                            <CheckCircle size={14} /> Approve
+                          </button>
+                          <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.1)", color: "var(--color-badge-danger-text)", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => handleUpdateStatus(team.teamId, "reject")}>
+                            <XCircle size={14} /> Reject
+                          </button>
+                        </>
                       )}
-                      {team.status !== "Eliminated" && (
-                        <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.1)", color: "#fb7185", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => handleUpdateStatus(team.teamId, "reject")}>
-                          <XCircle size={14} /> Reject
+                      {team.status === "Approved" && (
+                        <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.1)", color: "var(--color-badge-danger-text)", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => handleEliminateTeam(team.teamId)}>
+                          <XCircle size={14} /> Eliminate
                         </button>
                       )}
                     </div>

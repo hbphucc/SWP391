@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import ThemeProvider from "../components/ThemeProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
+import GoogleTranslate from "../components/GoogleTranslate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,22 +32,10 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
+          <GoogleTranslate />
           {children}
           <AIChatbotWrapper />
         </ThemeProvider>
-        
-        {/* Google Translate container */}
-        <div id="google_translate_element" style={{ opacity: 0, position: "absolute", zIndex: -1, pointerEvents: "none" }} />
-
-        {/* Google Translate scripts */}
-        <Script id="google-translate-init" strategy="afterInteractive">
-          {`
-            function googleTranslateElementInit() {
-              new window.google.translate.TranslateElement({pageLanguage: 'en'}, 'google_translate_element');
-            }
-          `}
-        </Script>
-        <Script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" strategy="afterInteractive" />
       </body>
     </html>
   );

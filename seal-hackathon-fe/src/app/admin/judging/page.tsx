@@ -92,7 +92,7 @@ export default function JudgingQueuePage() {
           </p>
 
           {!calibrationDone ? (
-            <div style={{ background: "rgba(15,23,42,0.4)", padding: "1.5rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
+            <div style={{ background: "var(--color-surface-2)", padding: "1.5rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
               <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "1rem" }}>Sample Project: &ldquo;EcoTrack Mobile App&rdquo;</div>
               <ul style={{ paddingLeft: "1.5rem", marginBottom: "1.5rem", color: "var(--color-text-2)", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: 6 }}>
                 <li><strong>Technical:</strong> React Native + Firebase. Basic CRUD works, but map integration is buggy.</li>

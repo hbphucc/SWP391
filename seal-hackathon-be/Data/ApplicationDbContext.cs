@@ -27,6 +27,7 @@ namespace SEAL.NET.Data
         public DbSet<MentorAssignment> MentorAssignments { get; set; }
         public DbSet<Prize> Prizes { get; set; }
         public DbSet<Document> Documents { get; set; }
+        public DbSet<KickRequest> KickRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -62,6 +63,14 @@ namespace SEAL.NET.Data
                 .HasIndex(u => u.StudentCode)
                 .IsUnique()
                 .HasFilter("\"StudentCode\" IS NOT NULL");
+
+            builder.Entity<ApplicationUser>()
+                .Property(u => u.StudentType)
+                .HasConversion<string>();
+
+            builder.Entity<ApplicationUser>()
+                .Property(u => u.DeveloperRole)
+                .HasConversion<string>();
 
             builder.Entity<IdentityRole<Guid>>().ToTable("Roles");
             builder.Entity<IdentityUserRole<Guid>>().ToTable("UserRoles");
@@ -223,6 +232,24 @@ namespace SEAL.NET.Data
                 .WithMany()
                 .HasForeignKey(d => d.UploaderId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<KickRequest>()
+                .HasOne(kr => kr.Team)
+                .WithMany()
+                .HasForeignKey(kr => kr.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<KickRequest>()
+                .HasOne(kr => kr.User)
+                .WithMany()
+                .HasForeignKey(kr => kr.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<JudgeAssignment>()
+                .HasOne(ja => ja.Team)
+                .WithMany()
+                .HasForeignKey(ja => ja.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
