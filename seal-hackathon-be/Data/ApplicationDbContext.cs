@@ -66,11 +66,13 @@ namespace SEAL.NET.Data
 
             builder.Entity<ApplicationUser>()
                 .Property(u => u.StudentType)
-                .HasConversion<string>();
+                .HasConversion<string>()
+                .HasMaxLength(20);
 
             builder.Entity<ApplicationUser>()
                 .Property(u => u.DeveloperRole)
-                .HasConversion<string>();
+                .HasConversion<string>()
+                .HasMaxLength(20);
 
             builder.Entity<IdentityRole<Guid>>().ToTable("Roles");
             builder.Entity<IdentityUserRole<Guid>>().ToTable("UserRoles");

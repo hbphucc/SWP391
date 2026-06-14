@@ -1,193 +1,105 @@
 using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
-using SEAL.NET.DTOs.Submission;
+using SEAL.NET.DTOs.Score;
 using SEAL.NET.Models.Entities;
-using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
 namespace SEAL.NET.Services.Implementations
 {
-    public class SubmissionService : ISubmissionService
+    public class ScoreService : IScoreService
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notificationService;
 
-        public SubmissionService(ApplicationDbContext context)
+        public ScoreService(ApplicationDbContext context, INotificationService notificationService)
         {
             _context = context;
+            _notificationService = notificationService;
         }
 
-        public async Task<ServiceResult> SubmitProjectAsync(Guid currentUserId, CreateSubmissionRequest request)
+        public async Task<ServiceResult> SubmitScoreAsync(Guid judgeId, CreateScoreRequest request)
         {
-            var team = await _context.Teams
-                .Include(t => t.Members)
-                .FirstOrDefaultAsync(t => t.TeamId == request.TeamId);
+            var submission = await _context.Submissions
+                .Include(s => s.Team)
+                .Include(s => s.Round)
+                .FirstOrDefaultAsync(s => s.SubmissionId == request.SubmissionId);
 
-            if (team == null)
-                return ServiceResult.NotFound("Team not found.");
+            if (submission == null)
+                return ServiceResult.NotFound("Submission not found.");
 
-            if (team.LeaderId != currentUserId)
+            var criteria = await _context.Criteria
+                .FirstOrDefaultAsync(c =>
+                    c.CriteriaId == request.CriteriaId &&
+                    c.RoundId == submission.RoundId);
+
+            if (criteria == null)
+                return ServiceResult.BadRequest("Criteria does not belong to this submission round.");
+
+            if (request.ScoreValue < 0 || request.ScoreValue > criteria.MaxScore)
+                return ServiceResult.BadRequest($"Score must be between 0 and {criteria.MaxScore}.");
+
+            var isAssigned = await _context.JudgeAssignments.AnyAsync(a =>
+                a.JudgeId == judgeId &&
+                a.RoundId == submission.RoundId &&
+                a.CategoryId == submission.Team!.CategoryId);
+
+            if (!isAssigned)
                 return ServiceResult.Forbidden();
 
-            if (team.Status != TeamStatus.Approved)
-                return ServiceResult.BadRequest("Only approved teams can submit.");
+            var existingScore = await _context.Scores.FirstOrDefaultAsync(s =>
+                s.SubmissionId == request.SubmissionId &&
+                s.JudgeId == judgeId &&
+                s.CriteriaId == request.CriteriaId);
 
-            if (team.CurrentRoundId != request.RoundId)
-                return ServiceResult.BadRequest("Team can only submit for its current round.");
-
-            var round = await _context.Rounds.FindAsync(request.RoundId);
-            if (round == null)
-                return ServiceResult.NotFound("Round not found.");
-
-            if (DateTime.UtcNow > round.SubmissionDeadline)
-                return ServiceResult.BadRequest("Submission deadline has passed.");
-
-            var existingSubmission = await _context.Submissions
-                .FirstOrDefaultAsync(s => s.TeamId == request.TeamId && s.RoundId == request.RoundId);
-
-            if (existingSubmission != null)
+            if (existingScore != null)
             {
-                existingSubmission.RepositoryUrl = request.RepositoryUrl;
-                existingSubmission.DemoUrl = request.DemoUrl;
-                existingSubmission.SlideUrl = request.SlideUrl;
-                existingSubmission.SubmittedAt = DateTime.UtcNow;
+                existingScore.ScoreValue = request.ScoreValue;
+                existingScore.Comment = request.Comment;
+                existingScore.CreatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                return ServiceResult.Ok(new
-                {
-                    message = "Submission updated successfully.",
-                    existingSubmission.SubmissionId
-                });
+                return ServiceResult.OkMessage("Score updated successfully.");
             }
 
-            var submission = new Submission
+            var score = new Score
             {
-                TeamId = request.TeamId,
-                RoundId = request.RoundId,
-                RepositoryUrl = request.RepositoryUrl,
-                DemoUrl = request.DemoUrl,
-                SlideUrl = request.SlideUrl
+                SubmissionId = request.SubmissionId,
+                JudgeId = judgeId,
+                CriteriaId = request.CriteriaId,
+                ScoreValue = request.ScoreValue,
+                Comment = request.Comment
             };
 
-            _context.Submissions.Add(submission);
+            _context.Scores.Add(score);
             await _context.SaveChangesAsync();
 
-            return ServiceResult.Ok(new
-            {
-                message = "Submission created successfully.",
-                submission.SubmissionId
-            });
+            return ServiceResult.Ok(new { message = "Score submitted successfully.", score.ScoreId });
         }
 
-        public async Task<ServiceResult> GetTeamSubmissionsAsync(Guid currentUserId, Guid teamId, bool isAdminOrJudge)
+        public async Task<ServiceResult> GetMyAssignedSubmissionsAsync(Guid judgeId)
         {
-            var team = await _context.Teams
-                .Include(t => t.Members)
-                .FirstOrDefaultAsync(t => t.TeamId == teamId);
-
-            if (team == null)
-                return ServiceResult.NotFound("Team not found.");
-
-            var isMember = team.Members.Any(m => m.UserId == currentUserId);
-
-            if (!isMember && !isAdminOrJudge)
-                return ServiceResult.Forbidden();
-
-            var submissions = await _context.Submissions
-                .Include(s => s.Round)
-                .Where(s => s.TeamId == teamId)
-                .OrderByDescending(s => s.SubmittedAt)
-                .Select(s => new
-                {
-                    s.SubmissionId,
-                    s.RepositoryUrl,
-                    s.DemoUrl,
-                    s.SlideUrl,
-                    s.SubmittedAt,
-                    round = new
-                    {
-                        s.Round!.RoundId,
-                        s.Round.RoundName
-                    }
-                })
+            var assignments = await _context.JudgeAssignments
+                .Where(a => a.JudgeId == judgeId)
                 .ToListAsync();
 
-            return ServiceResult.Ok(submissions);
-        }
+            var roundIds = assignments.Select(a => a.RoundId).ToList();
+            var categoryIds = assignments.Select(a => a.CategoryId).ToList();
 
-        public async Task<ServiceResult> GetRoundSubmissionsAsync(Guid roundId)
-        {
             var submissions = await _context.Submissions
                 .Include(s => s.Team)
                     .ThenInclude(t => t.Category)
-                .Where(s => s.RoundId == roundId)
-                .Select(s => new
-                {
-                    s.SubmissionId,
-                    s.RepositoryUrl,
-                    s.DemoUrl,
-                    s.SlideUrl,
-                    s.SubmittedAt,
-                    team = new
-                    {
-                        s.Team!.TeamId,
-                        s.Team.TeamName,
-                        category = s.Team.Category!.CategoryName
-                    }
-                })
-                .ToListAsync();
-
-            return ServiceResult.Ok(submissions);
-        }
-
-        public async Task<ServiceResult> GetScoringQueueAsync(Guid userId, bool isAdmin)
-        {
-            IQueryable<Submission> query = _context.Submissions;
-
-            if (!isAdmin)
-            {
-                var assignments = await _context.JudgeAssignments
-                    .Where(a => a.JudgeId == userId)
-                    .ToListAsync();
-
-                var roundIds = assignments.Select(a => a.RoundId).ToList();
-                var categoryIds = assignments.Select(a => a.CategoryId).ToList();
-
-                query = query.Where(s =>
+                .Include(s => s.Round)
+                .Where(s =>
                     roundIds.Contains(s.RoundId) &&
-                    categoryIds.Contains(s.Team!.CategoryId));
-            }
-
-            var submissions = await query
-                .Include(s => s.Team)
-                    .ThenInclude(t => t.Category)
-                .Include(s => s.Round)
-                .ToListAsync();
-
-            var submissionIds = submissions.Select(s => s.SubmissionId).ToList();
-
-            var userScores = await _context.Scores
-                .Where(s => submissionIds.Contains(s.SubmissionId) && s.JudgeId == userId)
-                .ToListAsync();
-
-            var result = submissions.Select(s =>
-            {
-                var scoresForSub = userScores.Where(sc => sc.SubmissionId == s.SubmissionId).ToList();
-                var status = "pending";
-                if (scoresForSub.Any())
-                {
-                    status = scoresForSub.All(sc => sc.IsLocked) ? "locked" : "scored";
-                }
-
-                return new
+                    categoryIds.Contains(s.Team!.CategoryId))
+                .Select(s => new
                 {
                     s.SubmissionId,
                     s.RepositoryUrl,
                     s.DemoUrl,
                     s.SlideUrl,
-                    s.SubmittedAt,
-                    status,
                     team = new
                     {
                         s.Team!.TeamId,
@@ -199,10 +111,173 @@ namespace SEAL.NET.Services.Implementations
                         s.Round!.RoundId,
                         s.Round.RoundName
                     }
-                };
-            }).ToList();
+                })
+                .ToListAsync();
 
-            return ServiceResult.Ok(result);
+            return ServiceResult.Ok(submissions);
+        }
+
+        public async Task<ServiceResult> GetEvaluationAsync(Guid judgeId, Guid submissionId, bool isAdmin)
+        {
+            var submission = await _context.Submissions
+                .Include(s => s.Team)
+                    .ThenInclude(t => t.Category)
+                .Include(s => s.Round)
+                .FirstOrDefaultAsync(s => s.SubmissionId == submissionId);
+
+            if (submission == null)
+                return ServiceResult.NotFound("Submission not found.");
+
+            if (!isAdmin)
+            {
+                var isAssigned = await _context.JudgeAssignments.AnyAsync(a =>
+                    a.JudgeId == judgeId &&
+                    a.RoundId == submission.RoundId &&
+                    a.CategoryId == submission.Team!.CategoryId);
+
+                if (!isAssigned)
+                    return ServiceResult.Forbidden();
+            }
+
+            var criteria = await _context.Criteria
+                .Where(c => c.RoundId == submission.RoundId)
+                .ToListAsync();
+
+            var existingScores = await _context.Scores
+                .Where(s => s.SubmissionId == submissionId && s.JudgeId == judgeId)
+                .ToListAsync();
+
+            var isLocked = existingScores.Any() && existingScores.All(s => s.IsLocked);
+
+            var response = new ScoreEvaluationResponse
+            {
+                SubmissionId = submission.SubmissionId,
+                RepositoryUrl = submission.RepositoryUrl,
+                DemoUrl = submission.DemoUrl,
+                SlideUrl = submission.SlideUrl,
+                SubmittedAt = submission.SubmittedAt,
+                IsLocked = isLocked,
+                Team = new EvaluationTeamDto
+                {
+                    TeamId = submission.Team!.TeamId,
+                    TeamName = submission.Team.TeamName,
+                    Category = submission.Team.Category?.CategoryName ?? ""
+                },
+                Round = new EvaluationRoundDto
+                {
+                    RoundId = submission.Round!.RoundId,
+                    RoundName = submission.Round.RoundName
+                },
+                Criteria = criteria.Select(c =>
+                {
+                    var existing = existingScores.FirstOrDefault(s => s.CriteriaId == c.CriteriaId);
+                    return new CriterionScoreItemDto
+                    {
+                        CriteriaId = c.CriteriaId,
+                        CriteriaName = c.CriteriaName,
+                        Description = c.Description,
+                        Weight = c.Weight,
+                        MaxScore = c.MaxScore,
+                        ScoreValue = existing?.ScoreValue,
+                        Comment = existing?.Comment
+                    };
+                }).ToList()
+            };
+
+            return ServiceResult.Ok(response);
+        }
+
+        public async Task<ServiceResult> SaveEvaluationAsync(Guid judgeId, SaveEvaluationRequest request, bool isAdmin)
+        {
+            var submission = await _context.Submissions
+                .Include(s => s.Team)
+                    .ThenInclude(t => t!.Members)
+                .Include(s => s.Round)
+                .FirstOrDefaultAsync(s => s.SubmissionId == request.SubmissionId);
+
+            if (submission == null)
+                return ServiceResult.NotFound("Submission not found.");
+
+            if (!isAdmin)
+            {
+                var isAssigned = await _context.JudgeAssignments.AnyAsync(a =>
+                    a.JudgeId == judgeId &&
+                    a.RoundId == submission.RoundId &&
+                    a.CategoryId == submission.Team!.CategoryId);
+
+                if (!isAssigned)
+                    return ServiceResult.Forbidden();
+            }
+
+            // Check if already locked
+            var existingScores = await _context.Scores
+                .Where(s => s.SubmissionId == request.SubmissionId && s.JudgeId == judgeId)
+                .ToListAsync();
+
+            if (existingScores.Any(s => s.IsLocked))
+                return ServiceResult.BadRequest("Scores have already been finalized and cannot be edited.");
+
+            // Load criteria for this round to validate score ranges
+            var roundCriteria = await _context.Criteria
+                .Where(c => c.RoundId == submission.RoundId)
+                .ToListAsync();
+
+            var roundCriteriaIds = roundCriteria.Select(c => c.CriteriaId).ToHashSet();
+
+            foreach (var item in request.Scores)
+            {
+                if (!roundCriteriaIds.Contains(item.CriteriaId))
+                    return ServiceResult.BadRequest($"Criteria {item.CriteriaId} does not belong to this submission's round.");
+
+                var criteriaEntity = roundCriteria.First(c => c.CriteriaId == item.CriteriaId);
+                if (item.ScoreValue < 0 || item.ScoreValue > criteriaEntity.MaxScore)
+                    return ServiceResult.BadRequest($"Score for '{criteriaEntity.CriteriaName}' must be between 0 and {criteriaEntity.MaxScore}.");
+            }
+
+            // Upsert scores
+            foreach (var item in request.Scores)
+            {
+                var existing = existingScores.FirstOrDefault(s => s.CriteriaId == item.CriteriaId);
+                if (existing != null)
+                {
+                    existing.ScoreValue = item.ScoreValue;
+                    existing.Comment = item.Comment;
+                    existing.IsLocked = request.Finalize;
+                    existing.CreatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.Scores.Add(new Score
+                    {
+                        SubmissionId = request.SubmissionId,
+                        JudgeId = judgeId,
+                        CriteriaId = item.CriteriaId,
+                        ScoreValue = item.ScoreValue,
+                        Comment = item.Comment,
+                        IsLocked = request.Finalize
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            if (request.Finalize)
+            {
+                var memberIds = submission.Team!.Members.Select(m => m.UserId);
+
+                await _notificationService.CreateForUsersAsync(
+                    memberIds,
+                    "Your submission has been scored",
+                    $"A judge has finalized the evaluation of your submission for round '{submission.Round!.RoundName}'. " +
+                    "Open the Submission page to view your score and the judge's feedback.",
+                    "success");
+            }
+
+            var msg = request.Finalize
+                ? "Scores finalized and locked successfully."
+                : "Draft scores saved successfully.";
+
+            return ServiceResult.OkMessage(msg);
         }
     }
 }

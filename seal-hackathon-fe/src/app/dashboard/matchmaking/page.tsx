@@ -1,6 +1,6 @@
 ﻿"use client";
-import React, { useState, useEffect, useCallback } from "react";
-import { Search, Filter, UserPlus, MessageSquare, GraduationCap, Zap, Send, Inbox, Clock } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Search, Filter, UserPlus, GraduationCap, Zap, Send, Inbox, Clock } from "lucide-react";
 import { App, Spin, Empty, Button, Tag } from "antd";
 import { apiRequest, fetchCurrentUser } from "@/lib/api";
 
@@ -82,6 +82,11 @@ export default function MatchmakingPage() {
   const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
   const [loadingReceived, setLoadingReceived] = useState(false);
 
+  // Guards: `busyAction` prevents duplicate requests from double-clicks;
+  // `suggestionsSeqRef` discards out-of-order search responses.
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const suggestionsSeqRef = useRef(0);
+
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
@@ -110,21 +115,26 @@ export default function MatchmakingPage() {
   }, [loadInitialData]);
 
   const loadSuggestionsOrAgents = useCallback(async () => {
+    const seq = ++suggestionsSeqRef.current;
     setLoadingSuggestions(true);
     try {
-      if (searchQuery || skillFilter) {
-        const data = await apiRequest<FreeAgentOrSuggestion[]>(
-          `/users/free-agents?search=${encodeURIComponent(searchQuery)}&role=${encodeURIComponent(skillFilter)}`
-        );
-        setSuggestions(data);
-      } else {
-        const data = await apiRequest<FreeAgentOrSuggestion[]>("/matchmaking/suggestions");
-        setSuggestions(data);
-      }
+      const data = searchQuery || skillFilter
+        ? await apiRequest<FreeAgentOrSuggestion[]>(
+            `/users/free-agents?search=${encodeURIComponent(searchQuery)}&role=${encodeURIComponent(skillFilter)}`
+          )
+        : await apiRequest<FreeAgentOrSuggestion[]>("/matchmaking/suggestions");
+
+      // A newer search has started since this one — drop the stale result.
+      if (seq !== suggestionsSeqRef.current) return;
+      setSuggestions(data);
     } catch {
-      message.error("Could not load candidate list.");
+      if (seq === suggestionsSeqRef.current) {
+        message.error("Could not load candidate list.");
+      }
     } finally {
-      setLoadingSuggestions(false);
+      if (seq === suggestionsSeqRef.current) {
+        setLoadingSuggestions(false);
+      }
     }
   }, [searchQuery, skillFilter, message]);
 
@@ -153,21 +163,30 @@ export default function MatchmakingPage() {
     }
   }, [message]);
 
+  // Debounce the suggestions/search load so typing doesn't fire one API
+  // request per keystroke.
+  useEffect(() => {
+    if (activeTab !== "suggestions") return;
+    const timer = setTimeout(() => {
+      void loadSuggestionsOrAgents();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [activeTab, loadSuggestionsOrAgents]);
+
   useEffect(() => {
     const trigger = async () => {
       await Promise.resolve();
-      if (activeTab === "suggestions") {
-        void loadSuggestionsOrAgents();
-      } else if (activeTab === "sent") {
+      if (activeTab === "sent") {
         void loadSentInvites();
       } else if (activeTab === "received") {
         void loadReceivedInvites();
       }
     };
     void trigger();
-  }, [activeTab, loadSuggestionsOrAgents, loadSentInvites, loadReceivedInvites]);
+  }, [activeTab, loadSentInvites, loadReceivedInvites]);
 
   const handleInvite = async (targetUser: FreeAgentOrSuggestion) => {
+    if (busyAction) return;
     if (!myTeam) {
       message.error("You don't have a team yet. Please create a team before inviting members.");
       return;
@@ -185,6 +204,7 @@ export default function MatchmakingPage() {
       return;
     }
 
+    setBusyAction(`invite-${targetUser.id}`);
     try {
       await apiRequest("/teams/invitations", {
         method: "POST",
@@ -197,20 +217,28 @@ export default function MatchmakingPage() {
       void loadSuggestionsOrAgents();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to send invitation.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const handleCancelInvite = async (id: string) => {
+    if (busyAction) return;
+    setBusyAction(`cancel-${id}`);
     try {
       await apiRequest(`/teams/invitations/${id}/cancel`, { method: "POST" });
       message.success("Invitation cancelled.");
       void loadSentInvites();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to cancel invitation.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const handleAcceptInvite = async (id: string) => {
+    if (busyAction) return;
+    setBusyAction(`accept-${id}`);
     try {
       await apiRequest(`/teams/invitations/${id}/accept`, { method: "POST" });
       message.success("You have successfully joined the team!");
@@ -223,16 +251,22 @@ export default function MatchmakingPage() {
       void loadReceivedInvites();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to join team.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const handleRejectInvite = async (id: string) => {
+    if (busyAction) return;
+    setBusyAction(`reject-${id}`);
     try {
       await apiRequest(`/teams/invitations/${id}/reject`, { method: "POST" });
       message.success("Invitation declined.");
       void loadReceivedInvites();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
@@ -396,16 +430,13 @@ export default function MatchmakingPage() {
                   </div>
                   
                   <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", paddingTop: "1rem", borderTop: "1px solid var(--color-border)" }}>
-                    <button 
-                      className="btn btn-primary" 
-                      style={{ flex: 1, padding: "0.6rem" }} 
+                    <button
+                      className="btn btn-primary"
+                      style={{ flex: 1, padding: "0.6rem" }}
                       onClick={() => handleInvite(user)}
-                      disabled={!myTeam || myTeam.leaderId !== currentUser?.id}
+                      disabled={!myTeam || myTeam.leaderId !== currentUser?.id || busyAction !== null}
                     >
-                      <UserPlus size={16} /> Invite to Team
-                    </button>
-                    <button className="btn btn-secondary" style={{ padding: "0.6rem" }} onClick={() => message.info(`Started chat with ${user.name}`)}>
-                      <MessageSquare size={16} />
+                      {busyAction === `invite-${user.id}` ? <span className="spinner" /> : <><UserPlus size={16} /> Invite to Team</>}
                     </button>
                   </div>
                 </div>
@@ -448,7 +479,14 @@ export default function MatchmakingPage() {
                   </div>
                   <div>
                     {invite.status === "Pending" && myTeam.leaderId === currentUser?.id && (
-                      <Button danger onClick={() => handleCancelInvite(invite.id)}>Cancel Invitation</Button>
+                      <Button
+                        danger
+                        loading={busyAction === `cancel-${invite.id}`}
+                        disabled={busyAction !== null && busyAction !== `cancel-${invite.id}`}
+                        onClick={() => handleCancelInvite(invite.id)}
+                      >
+                        Cancel Invitation
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -492,8 +530,22 @@ export default function MatchmakingPage() {
                   <div>
                     {invite.status === "Pending" && (
                       <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <Button type="primary" onClick={() => handleAcceptInvite(invite.id)}>Accept</Button>
-                        <Button danger onClick={() => handleRejectInvite(invite.id)}>Decline</Button>
+                        <Button
+                          type="primary"
+                          loading={busyAction === `accept-${invite.id}`}
+                          disabled={busyAction !== null && busyAction !== `accept-${invite.id}`}
+                          onClick={() => handleAcceptInvite(invite.id)}
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          danger
+                          loading={busyAction === `reject-${invite.id}`}
+                          disabled={busyAction !== null && busyAction !== `reject-${invite.id}`}
+                          onClick={() => handleRejectInvite(invite.id)}
+                        >
+                          Decline
+                        </Button>
                       </div>
                     )}
                   </div>

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import { TRACKS_OPTIONS } from "@/lib/constants";
 
 /* ─── Types ─── */
 type RoundDto = {
@@ -35,8 +36,12 @@ function toDateTimeLocal(value: string | null) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function toApiDate(value: string) {
-  return new Date(value).toISOString();
+function toApiDate(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  // Guard against `new Date("").toISOString()` throwing a cryptic RangeError
+  // when a deadline field has been cleared.
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function toDisplayDate(value?: string | null) {
@@ -50,7 +55,6 @@ function toDisplayDate(value?: string | null) {
 /* ─── Create-form defaults ─── */
 const INITIAL_EVENT_FORM = { eventName: "", description: "", startDate: "", endDate: "" };
 const INITIAL_ROUND = () => ({ id: Date.now(), name: "", topN: "5", deadline: "" });
-const TRACKS_OPTIONS = ["AI & Machine Learning", "Web Development", "Mobile App", "Cybersecurity", "Open Innovation"];
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function AdminEventsPage() {
@@ -176,29 +180,47 @@ export default function AdminEventsPage() {
 
       const eventId = created.eventId ?? created.id ?? "";
 
-      await Promise.all(
-        rounds.map((r, i) =>
-          apiRequest(`/events/${eventId}/rounds`, {
-            method: "POST",
-            body: JSON.stringify({
-              roundName: r.name.trim(),
-              submissionDeadline: toApiDate(r.deadline),
-              roundOrder: i + 1,
-              maxTeamsAdvancing: Number(r.topN) || 0,
-            }),
-          }),
-        ),
-      );
-
-      if (selectedTracks.length > 0) {
+      // The event now exists; if a follow-up call fails, surface what happened
+      // instead of letting a retry create a duplicate event.
+      try {
         await Promise.all(
-          selectedTracks.map((track) =>
-            apiRequest(`/events/${eventId}/categories`, {
+          rounds.map((r, i) =>
+            apiRequest(`/events/${eventId}/rounds`, {
               method: "POST",
-              body: JSON.stringify({ categoryName: track, description: null }),
+              body: JSON.stringify({
+                roundName: r.name.trim(),
+                submissionDeadline: toApiDate(r.deadline),
+                roundOrder: i + 1,
+                maxTeamsAdvancing: Number(r.topN) || 0,
+              }),
             }),
           ),
         );
+
+        if (selectedTracks.length > 0) {
+          await Promise.all(
+            selectedTracks.map((track) =>
+              apiRequest(`/events/${eventId}/categories`, {
+                method: "POST",
+                body: JSON.stringify({ categoryName: track, description: null }),
+              }),
+            ),
+          );
+        }
+      } catch (configErr) {
+        message.warning(
+          `The event was created, but part of its configuration failed: ${
+            configErr instanceof Error ? configErr.message : "unknown error"
+          }. Finish setting it up from the event list instead of creating it again.`,
+          8,
+        );
+        setEventForm(INITIAL_EVENT_FORM);
+        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "" }]);
+        setSelectedTracks([]);
+        setCreateStep(1);
+        setView("list");
+        await refreshEvents();
+        return;
       }
 
       message.success("Event created successfully.");

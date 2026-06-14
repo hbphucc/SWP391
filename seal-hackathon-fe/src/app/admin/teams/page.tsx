@@ -20,6 +20,8 @@ export default function AdminTeamsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  // Per-row action guard against double-clicks (`approve-<id>` / `reject-<id>`).
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadTeams = async () => {
     setLoading(true);
@@ -40,49 +42,26 @@ export default function AdminTeamsPage() {
   }, []);
 
   const handleUpdateStatus = async (teamId: string, action: "approve" | "reject") => {
+    if (busyAction) return;
+    setBusyAction(`${action}-${teamId}`);
     try {
       await apiRequest(`/admin/teams/${teamId}/${action}`, { method: "PUT" });
       message.success(action === "approve" ? "Team approved." : "Team rejected.");
       await loadTeams();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not update team status.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
-  const handleEliminateTeam = (teamId: string) => {
-    let reason = "";
+  const confirmReject = (team: AdminTeam) => {
     modal.confirm({
-      title: "Eliminate Team",
-      content: (
-        <div style={{ marginTop: "1rem" }}>
-          <p>Please enter the reason for eliminating this team:</p>
-          <textarea
-            className="form-input"
-            rows={3}
-            onChange={(e) => { reason = e.target.value; }}
-            placeholder="Reason for elimination"
-            style={{ marginTop: "0.5rem", width: "100%", background: "var(--color-surface-2)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
-          />
-        </div>
-      ),
-      okText: "Eliminate",
+      title: `Reject "${team.teamName}"?`,
+      content: "The team will be marked as eliminated and removed from the competition flow.",
+      okText: "Reject Team",
       okButtonProps: { danger: true },
-      onOk: async () => {
-        if (!reason.trim()) {
-          message.error("Elimination reason is required.");
-          throw new Error("Reason required");
-        }
-        try {
-          await apiRequest(`/admin/teams/${teamId}/eliminate`, {
-            method: "PUT",
-            body: JSON.stringify({ reason: reason.trim() })
-          });
-          message.success("Team eliminated.");
-          await loadTeams();
-        } catch (err) {
-          message.error(err instanceof Error ? err.message : "Could not eliminate team.");
-        }
-      }
+      onOk: () => handleUpdateStatus(team.teamId, "reject"),
     });
   };
 
@@ -187,19 +166,24 @@ export default function AdminTeamsPage() {
                   </td>
                   <td style={{ padding: "1.25rem 1.5rem", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                      {team.status === "Pending" && (
-                        <>
-                          <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.1)", color: "var(--color-badge-success-text)", padding: "0.4rem 0.8rem", border: "1px solid rgba(16,185,129,0.2)" }} onClick={() => handleUpdateStatus(team.teamId, "approve")}>
-                            <CheckCircle size={14} /> Approve
-                          </button>
-                          <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.1)", color: "var(--color-badge-danger-text)", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => handleUpdateStatus(team.teamId, "reject")}>
-                            <XCircle size={14} /> Reject
-                          </button>
-                        </>
+                      {team.status !== "Approved" && (
+                        <button
+                          className="btn btn-sm"
+                          style={{ background: "rgba(16,185,129,0.1)", color: "#34d399", padding: "0.4rem 0.8rem", border: "1px solid rgba(16,185,129,0.2)" }}
+                          disabled={busyAction !== null}
+                          onClick={() => handleUpdateStatus(team.teamId, "approve")}
+                        >
+                          {busyAction === `approve-${team.teamId}` ? <span className="spinner" /> : <><CheckCircle size={14} /> Approve</>}
+                        </button>
                       )}
-                      {team.status === "Approved" && (
-                        <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.1)", color: "var(--color-badge-danger-text)", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }} onClick={() => handleEliminateTeam(team.teamId)}>
-                          <XCircle size={14} /> Eliminate
+                      {team.status !== "Eliminated" && (
+                        <button
+                          className="btn btn-sm"
+                          style={{ background: "rgba(239,68,68,0.1)", color: "#fb7185", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }}
+                          disabled={busyAction !== null}
+                          onClick={() => confirmReject(team)}
+                        >
+                          {busyAction === `reject-${team.teamId}` ? <span className="spinner" /> : <><XCircle size={14} /> Reject</>}
                         </button>
                       )}
                     </div>
