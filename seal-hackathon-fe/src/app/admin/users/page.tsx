@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { Users, UserPlus, CheckCircle, XCircle, Mail, Shield, Building2 } from "lucide-react";
 import { App, Table, Tag, Button, Modal, Form, Input } from "antd";
@@ -224,6 +224,7 @@ export default function UsersPage() {
 
       <div className="card">
         <Table 
+          className="custom-antd-table"
           dataSource={activeTab === "pending" ? users.filter(u => u.status === "Pending") : users.filter(u => u.status === "Approved")} 
           columns={columns} 
           rowKey="id" 

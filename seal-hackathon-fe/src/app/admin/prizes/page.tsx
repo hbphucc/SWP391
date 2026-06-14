@@ -239,6 +239,7 @@ export default function AdminPrizesPage() {
 
       <Card variant="borderless" styles={{ body: { padding: 0 } }} style={{ background: "transparent" }}>
         <Table
+          className="custom-antd-table"
           columns={columns}
           dataSource={filteredPrizes}
           pagination={{ pageSize: 10 }}

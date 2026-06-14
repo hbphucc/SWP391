@@ -23,5 +23,9 @@ namespace SEAL.NET.Services.Interfaces
         Task<ServiceResult> GetMentorsAsync();
         Task<ServiceResult> AssignMentorToMyTeamAsync(Guid currentUserId, ChooseMentorRequest request);
         Task<ServiceResult> RemoveMentorFromMyTeamAsync(Guid currentUserId);
+        Task<ServiceResult> CreateKickRequestAsync(Guid currentUserId, Guid userId, CreateKickRequestRequest request);
+        Task<ServiceResult> GetPendingKickRequestsForJudgeAsync(Guid judgeUserId);
+        Task<ServiceResult> ApproveKickRequestAsync(Guid judgeUserId, Guid kickRequestId);
+        Task<ServiceResult> RejectKickRequestAsync(Guid judgeUserId, Guid kickRequestId);
     }
 }

@@ -56,6 +56,11 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> RemoveMemberFromMyTeam(string studentCode)
             => ToActionResult(await _teamService.RemoveMemberFromMyTeamAsync(GetCurrentUserId(), studentCode));
 
+        [HttpPost("my-team/members/{userId}/kick-request")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> CreateKickRequest(Guid userId, [FromBody] CreateKickRequestRequest request)
+            => ToActionResult(await _teamService.CreateKickRequestAsync(GetCurrentUserId(), userId, request));
+
         [HttpPost("leave")]
         [Authorize(Roles = "Member,TeamLeader")]
         public async Task<IActionResult> LeaveTeam()

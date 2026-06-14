@@ -230,11 +230,6 @@ app.Use(async (context, next) =>
 
 using (var scope = app.Services.CreateScope())
 {
-    if (app.Environment.IsDevelopment())
-    {
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    }
-
     await DbSeeder.SeedRolesAndAdminAsync(scope.ServiceProvider);
 }
 

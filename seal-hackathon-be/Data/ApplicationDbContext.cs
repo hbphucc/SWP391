@@ -27,6 +27,7 @@ namespace SEAL.NET.Data
         public DbSet<MentorAssignment> MentorAssignments { get; set; }
         public DbSet<Prize> Prizes { get; set; }
         public DbSet<Document> Documents { get; set; }
+        public DbSet<KickRequest> KickRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -63,11 +64,6 @@ namespace SEAL.NET.Data
                 .IsUnique()
                 .HasFilter("\"StudentCode\" IS NOT NULL");
 
-            // Persist these enums as their string name (e.g. "Internal", "Backend") to
-            // match the column type the Postgres DB was provisioned with (character
-            // varying carried over from the original SQL Server schema). Without the
-            // converter EF would expect integer and FindByEmailAsync would throw
-            // System.InvalidCastException: Reading as 'System.Int32' is not supported.
             builder.Entity<ApplicationUser>()
                 .Property(u => u.StudentType)
                 .HasConversion<string>()
@@ -238,6 +234,24 @@ namespace SEAL.NET.Data
                 .WithMany()
                 .HasForeignKey(d => d.UploaderId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<KickRequest>()
+                .HasOne(kr => kr.Team)
+                .WithMany()
+                .HasForeignKey(kr => kr.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<KickRequest>()
+                .HasOne(kr => kr.User)
+                .WithMany()
+                .HasForeignKey(kr => kr.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<JudgeAssignment>()
+                .HasOne(ja => ja.Team)
+                .WithMany()
+                .HasForeignKey(ja => ja.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

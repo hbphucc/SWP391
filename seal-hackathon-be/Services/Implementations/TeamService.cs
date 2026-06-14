@@ -251,6 +251,13 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ma => ma.Mentor)
                 .FirstOrDefaultAsync();
 
+            var assignedJudge = await _context.JudgeAssignments
+                .Where(ja => ja.TeamId == team.TeamId || (ja.CategoryId == team.CategoryId && ja.TeamId == null))
+                .OrderByDescending(ja => ja.TeamId.HasValue)
+                .Include(ja => ja.Judge)
+                .Select(ja => ja.Judge)
+                .FirstOrDefaultAsync();
+
             return ServiceResult.Ok(new
             {
                 team.TeamId,
@@ -281,6 +288,12 @@ namespace SEAL.NET.Services.Implementations
                     fullName = activeMentor.FullName,
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
+                },
+                judge = assignedJudge == null ? null : new
+                {
+                    id = assignedJudge.Id,
+                    fullName = assignedJudge.FullName,
+                    email = assignedJudge.Email
                 }
             });
         }
@@ -565,6 +578,13 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ma => ma.Mentor)
                 .FirstOrDefaultAsync();
 
+            var assignedJudge = await _context.JudgeAssignments
+                .Where(ja => ja.TeamId == team.TeamId || (ja.CategoryId == team.CategoryId && ja.TeamId == null))
+                .OrderByDescending(ja => ja.TeamId.HasValue)
+                .Include(ja => ja.Judge)
+                .Select(ja => ja.Judge)
+                .FirstOrDefaultAsync();
+
             return ServiceResult.Ok(new
             {
                 team.TeamId,
@@ -608,6 +628,12 @@ namespace SEAL.NET.Services.Implementations
                     fullName = activeMentor.FullName,
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
+                },
+                judge = assignedJudge == null ? null : new
+                {
+                    id = assignedJudge.Id,
+                    fullName = assignedJudge.FullName,
+                    email = assignedJudge.Email
                 }
             });
         }
@@ -726,6 +752,184 @@ namespace SEAL.NET.Services.Implementations
             await _context.SaveChangesAsync();
 
             return ServiceResult.OkMessage("Mentor removed successfully.");
+        }
+
+        public async Task<ServiceResult> CreateKickRequestAsync(Guid currentUserId, Guid userId, CreateKickRequestRequest request)
+        {
+            var team = await GetCurrentUserTeamAsync(currentUserId);
+
+            if (team == null)
+                return ServiceResult.NotFound("You have not joined any team yet.");
+
+            if (team.LeaderId != currentUserId)
+                return ServiceResult.Forbidden();
+
+            var isApprovedTeam = team.Status == TeamStatus.Approved;
+            if (!isApprovedTeam)
+                return ServiceResult.BadRequest("Only approved teams can submit kick requests.");
+
+            var isMember = team.Members.Any(m => m.UserId == userId);
+            if (!isMember)
+                return ServiceResult.NotFound("Member not found in this team.");
+
+            if (userId == currentUserId)
+                return ServiceResult.BadRequest("You cannot kick yourself.");
+
+            var pending = await _context.KickRequests.AnyAsync(kr => kr.TeamId == team.TeamId && kr.UserId == userId && kr.Status == "Pending");
+            if (pending)
+                return ServiceResult.BadRequest("A kick request for this member is already pending.");
+
+            var kickRequest = new KickRequest
+            {
+                TeamId = team.TeamId,
+                UserId = userId,
+                Reason = request.Reason.Trim(),
+                Status = "Pending",
+                RequestedAt = DateTime.UtcNow
+            };
+
+            _context.KickRequests.Add(kickRequest);
+            await _context.SaveChangesAsync();
+
+            // Send notification to judges assigned to this round and category
+            var judges = await _context.JudgeAssignments
+                .Where(ja => ja.CategoryId == team.CategoryId && ja.RoundId == team.CurrentRoundId)
+                .Select(ja => ja.JudgeId)
+                .Distinct()
+                .ToListAsync();
+
+            if (judges.Any())
+            {
+                await _notificationService.CreateForUsersAsync(
+                    judges,
+                    "Member Kick Request",
+                    $"Leader of team {team.TeamName} requested to kick a member. Reason: {request.Reason}",
+                    "team");
+            }
+
+            return ServiceResult.OkMessage("Kick request submitted for Judge approval.");
+        }
+
+        public async Task<ServiceResult> GetPendingKickRequestsForJudgeAsync(Guid judgeUserId)
+        {
+            var assignedPairs = await _context.JudgeAssignments
+                .Where(ja => ja.JudgeId == judgeUserId)
+                .Select(ja => new { ja.CategoryId, ja.RoundId, ja.TeamId })
+                .ToListAsync();
+
+            var pendingRequests = await _context.KickRequests
+                .Include(kr => kr.Team)
+                .Include(kr => kr.User)
+                .Where(kr => kr.Status == "Pending")
+                .ToListAsync();
+
+            var judgeRequests = pendingRequests
+                .Where(kr => assignedPairs.Any(ja => ja.CategoryId == kr.Team.CategoryId && ja.RoundId == kr.Team.CurrentRoundId && (ja.TeamId == null || ja.TeamId == kr.TeamId)))
+                .Select(kr => new
+                {
+                    kr.KickRequestId,
+                    kr.TeamId,
+                    teamName = kr.Team.TeamName,
+                    userId = kr.UserId,
+                    userName = kr.User.FullName,
+                    userEmail = kr.User.Email,
+                    kr.Reason,
+                    kr.Status,
+                    kr.RequestedAt
+                })
+                .OrderByDescending(kr => kr.RequestedAt)
+                .ToList();
+
+            return ServiceResult.Ok(judgeRequests);
+        }
+
+        public async Task<ServiceResult> ApproveKickRequestAsync(Guid judgeUserId, Guid kickRequestId)
+        {
+            var kickRequest = await _context.KickRequests
+                .Include(kr => kr.Team)
+                .Include(kr => kr.User)
+                .FirstOrDefaultAsync(kr => kr.KickRequestId == kickRequestId);
+
+            if (kickRequest == null)
+                return ServiceResult.NotFound("Kick request not found.");
+
+            if (kickRequest.Status != "Pending")
+                return ServiceResult.BadRequest("Kick request has already been resolved.");
+
+            // Verify if the judge is assigned to this team's category & round
+            var isAssigned = await _context.JudgeAssignments
+                .AnyAsync(ja => ja.JudgeId == judgeUserId && ja.CategoryId == kickRequest.Team.CategoryId && ja.RoundId == kickRequest.Team.CurrentRoundId && (ja.TeamId == null || ja.TeamId == kickRequest.TeamId));
+
+            // Check if user is Admin as well (Admin can resolve too)
+            var isAdmin = await _context.UserRoles
+                .AnyAsync(ur => ur.UserId == judgeUserId && _context.Roles.Any(r => r.Id == ur.RoleId && r.Name == "Admin"));
+
+            if (!isAssigned && !isAdmin)
+                return ServiceResult.Forbidden();
+
+            kickRequest.Status = "Approved";
+
+            var membership = await _context.TeamMembers
+                .FirstOrDefaultAsync(tm => tm.TeamId == kickRequest.TeamId && tm.UserId == kickRequest.UserId);
+
+            if (membership != null)
+            {
+                _context.TeamMembers.Remove(membership);
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Notify member and leader
+            await _notificationService.CreateAsync(
+                kickRequest.UserId,
+                "Removed from team",
+                $"You were removed from team {kickRequest.Team.TeamName} after Judge approval.",
+                "team");
+
+            await _notificationService.CreateAsync(
+                kickRequest.Team.LeaderId,
+                "Kick Request Approved",
+                $"Your request to kick member {kickRequest.User.FullName} was approved by the Judge.",
+                "team");
+
+            return ServiceResult.OkMessage("Kick request approved. Member has been removed from the team.");
+        }
+
+        public async Task<ServiceResult> RejectKickRequestAsync(Guid judgeUserId, Guid kickRequestId)
+        {
+            var kickRequest = await _context.KickRequests
+                .Include(kr => kr.Team)
+                .Include(kr => kr.User)
+                .FirstOrDefaultAsync(kr => kr.KickRequestId == kickRequestId);
+
+            if (kickRequest == null)
+                return ServiceResult.NotFound("Kick request not found.");
+
+            if (kickRequest.Status != "Pending")
+                return ServiceResult.BadRequest("Kick request has already been resolved.");
+
+            // Verify if the judge is assigned to this team's category & round
+            var isAssigned = await _context.JudgeAssignments
+                .AnyAsync(ja => ja.JudgeId == judgeUserId && ja.CategoryId == kickRequest.Team.CategoryId && ja.RoundId == kickRequest.Team.CurrentRoundId && (ja.TeamId == null || ja.TeamId == kickRequest.TeamId));
+
+            // Check if user is Admin
+            var isAdmin = await _context.UserRoles
+                .AnyAsync(ur => ur.UserId == judgeUserId && _context.Roles.Any(r => r.Id == ur.RoleId && r.Name == "Admin"));
+
+            if (!isAssigned && !isAdmin)
+                return ServiceResult.Forbidden();
+
+            kickRequest.Status = "Rejected";
+            await _context.SaveChangesAsync();
+
+            // Notify leader
+            await _notificationService.CreateAsync(
+                kickRequest.Team.LeaderId,
+                "Kick Request Rejected",
+                $"Your request to kick member {kickRequest.User.FullName} was rejected by the Judge.",
+                "team");
+
+            return ServiceResult.OkMessage("Kick request rejected. Member remains in the team.");
         }
     }
 }

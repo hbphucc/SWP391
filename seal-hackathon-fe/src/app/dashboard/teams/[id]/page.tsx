@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { use, useState, useEffect } from "react";
 import { ChevronLeft, Users, Crown, Mail, Shield, BookOpen, Target, ExternalLink } from "lucide-react";
 import Link from "next/link";

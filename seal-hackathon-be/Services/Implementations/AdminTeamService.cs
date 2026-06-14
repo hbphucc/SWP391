@@ -67,6 +67,9 @@ namespace SEAL.NET.Services.Implementations
             if (team == null)
                 return ServiceResult.NotFound("Team not found.");
 
+            if (team.Status == TeamStatus.Rejected || team.Status == TeamStatus.Eliminated)
+                return ServiceResult.BadRequest("Cannot approve a team that has been rejected or eliminated.");
+
             if (team.Members.Count < 3 || team.Members.Count > 5)
                 return ServiceResult.BadRequest("Team must have 3 to 5 members before approval.");
 

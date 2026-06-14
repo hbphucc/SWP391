@@ -29,7 +29,8 @@ namespace SEAL.NET.Services.Implementations
                     c.CategoryId,
                     c.CategoryName,
                     c.Description,
-                    c.EventId
+                    c.EventId,
+                    Teams = c.Teams.Select(t => new { t.TeamId, t.TeamName }).ToList()
                 })
                 .ToListAsync();
 
