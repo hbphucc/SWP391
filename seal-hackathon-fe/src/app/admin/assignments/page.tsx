@@ -42,31 +42,37 @@ type RoundDto = {
   roundName: string;
 };
 
+type CategoryTeam = { teamId: string; teamName: string };
+
 type CategoryDto = {
   categoryId: string;
   categoryName: string;
+  teams?: CategoryTeam[];
 };
 
 type JudgeAssignmentDto = {
   assignmentId: string;
   judge: { judgeId: string; fullName: string; email: string };
   round: { roundId: string; roundName: string };
-  category: { categoryId: string; categoryName: string };
+  category: { categoryId: string; categoryName: string; teams?: CategoryTeam[] };
 };
 
 export default function AssignmentsPage() {
   const { message, modal } = App.useApp();
   const [activeTab, setActiveTab] = useState<"mentor" | "judge">("mentor");
   const [loading, setLoading] = useState(true);
+  // Per-action guard against double-clicks ("assign" / `remove-<id>`).
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [users, setUsers] = useState<UserDto[]>([]);
 
+  // Mentor tab state
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [mentorAssignments, setMentorAssignments] = useState<MentorAssignment[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [selectedMentorId, setSelectedMentorId] = useState("");
 
+  // Judge tab state
   const [events, setEvents] = useState<EventDto[]>([]);
   const [rounds, setRounds] = useState<RoundDto[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
@@ -75,6 +81,9 @@ export default function AssignmentsPage() {
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedJudgeId, setSelectedJudgeId] = useState("");
+  // Empty array = category-wide (assign judge to all teams in category).
+  // Non-empty = specific per-team assignments.
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
   const mentors = useMemo(
     () => users.filter((u) => u.isApproved && u.roles.includes("Mentor")),
@@ -85,6 +94,11 @@ export default function AssignmentsPage() {
     () => users.filter((u) => u.isApproved && u.roles.includes("Judge")),
     [users],
   );
+
+  const currentCategoryTeams = useMemo<CategoryTeam[]>(() => {
+    if (!selectedCategoryId) return [];
+    return categories.find((c) => c.categoryId === selectedCategoryId)?.teams ?? [];
+  }, [selectedCategoryId, categories]);
 
   const loadMentorData = async () => {
     setLoading(true);
@@ -134,6 +148,7 @@ export default function AssignmentsPage() {
     }
   }, [activeTab]);
 
+  // When event changes, refetch its rounds + categories (with their teams).
   useEffect(() => {
     if (activeTab !== "judge" || !selectedEventId) {
       setRounds([]);
@@ -155,6 +170,11 @@ export default function AssignmentsPage() {
       }
     })();
   }, [selectedEventId, activeTab, message]);
+
+  // Selecting a different category invalidates the previous team picks.
+  useEffect(() => {
+    setSelectedTeamIds([]);
+  }, [selectedCategoryId, selectedEventId]);
 
   const handleRefresh = () => {
     if (activeTab === "mentor") void loadMentorData();
@@ -210,15 +230,22 @@ export default function AssignmentsPage() {
     }
     setBusyAction("assign");
     try {
+      // Empty teamIds = backend treats it as category-wide assignment.
       await apiRequest("/admin/judge-assignments", {
         method: "POST",
         body: JSON.stringify({
           judgeId: selectedJudgeId,
           roundId: selectedRoundId,
           categoryId: selectedCategoryId,
+          teamIds: selectedTeamIds,
         }),
       });
-      message.success("Judge assigned successfully.");
+      message.success(
+        selectedTeamIds.length > 0
+          ? `Judge assigned to ${selectedTeamIds.length} team(s).`
+          : "Judge assigned to entire category.",
+      );
+      setSelectedTeamIds([]);
       await loadJudgeData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not assign judge.");
@@ -230,6 +257,7 @@ export default function AssignmentsPage() {
   const handleRemoveJudgeAssignment = (assignment: JudgeAssignmentDto) => {
     modal.confirm({
       title: `Remove ${assignment.judge.fullName} from ${assignment.category.categoryName} / ${assignment.round.roundName}?`,
+      content: "All team assignments under this judge/round/category will be removed.",
       okText: "Remove",
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -245,6 +273,12 @@ export default function AssignmentsPage() {
         }
       },
     });
+  };
+
+  const toggleTeamSelection = (teamId: string) => {
+    setSelectedTeamIds((prev) =>
+      prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId],
+    );
   };
 
   return (
@@ -375,7 +409,57 @@ export default function AssignmentsPage() {
                     {judges.map((j) => (<option key={j.id} value={j.id}>{j.fullName} ({j.email})</option>))}
                   </select>
                 </div>
-                <button className="btn btn-primary" onClick={handleAssignJudge} disabled={loading || busyAction !== null}>
+
+                {selectedCategoryId && (
+                  <div style={{ borderTop: "1px solid var(--color-border-2)", paddingTop: "1rem" }}>
+                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "0.5rem", fontWeight: 500 }}>
+                      Teams to manage{" "}
+                      <span style={{ color: "var(--color-text-3)", fontWeight: 400 }}>
+                        ({selectedTeamIds.length === 0 ? "leave empty = all teams in category" : `${selectedTeamIds.length} selected`})
+                      </span>
+                    </div>
+                    {currentCategoryTeams.length === 0 ? (
+                      <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", fontStyle: "italic" }}>
+                        No teams registered in this category.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                        {currentCategoryTeams.map((team) => {
+                          const isChecked = selectedTeamIds.includes(team.teamId);
+                          return (
+                            <label
+                              key={team.teamId}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                background: isChecked ? "rgba(99, 102, 241, 0.15)" : "var(--color-surface-2)",
+                                padding: "0.35rem 0.75rem",
+                                borderRadius: "20px",
+                                fontSize: "0.8rem",
+                                color: isChecked ? "var(--color-primary)" : "var(--color-text-2)",
+                                border: isChecked ? "1px solid var(--color-primary)" : "1px solid var(--color-border-2)",
+                                cursor: "pointer",
+                                userSelect: "none",
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleTeamSelection(team.teamId)}
+                                style={{ accentColor: "var(--color-primary)", cursor: "pointer" }}
+                              />
+                              {team.teamName}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button className="btn btn-primary" onClick={handleAssignJudge} disabled={loading || busyAction !== null || !selectedRoundId || !selectedCategoryId || !selectedJudgeId}>
                   {busyAction === "assign" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Judge</>}
                 </button>
               </div>
@@ -389,20 +473,28 @@ export default function AssignmentsPage() {
                 {judgeAssignments.length === 0 ? (
                   <p style={{ color: "var(--color-text-3)" }}>No active judge assignments.</p>
                 ) : (
-                  judgeAssignments.map((a) => (
-                    <div key={a.assignmentId} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
-                      <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem" }}>{a.judge.fullName.charAt(0)}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{a.judge.fullName}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
-                          {a.category.categoryName} · {a.round.roundName}
+                  judgeAssignments.map((a) => {
+                    const managedTeams = a.category.teams?.map((t) => t.teamName).join(", ") || "All teams";
+                    return (
+                      <div key={a.assignmentId} style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
+                        <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", flexShrink: 0 }}>
+                          {a.judge.fullName.charAt(0)}
                         </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{a.judge.fullName}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
+                            {a.category.categoryName} · {a.round.roundName}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--color-text-2)", marginTop: "0.35rem" }}>
+                            <strong>Teams:</strong> {managedTeams}
+                          </div>
+                        </div>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleRemoveJudgeAssignment(a)} disabled={busyAction !== null}>
+                          {busyAction === `remove-${a.assignmentId}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
+                        </button>
                       </div>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleRemoveJudgeAssignment(a)} disabled={busyAction !== null}>
-                        {busyAction === `remove-${a.assignmentId}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
