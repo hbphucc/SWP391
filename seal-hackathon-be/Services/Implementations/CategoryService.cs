@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Category;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -30,7 +31,12 @@ namespace SEAL.NET.Services.Implementations
                     c.CategoryName,
                     c.Description,
                     c.EventId,
-                    Teams = c.Teams.Select(t => new { t.TeamId, t.TeamName }).ToList()
+                    Teams = c.Teams
+                        .Where(t => t.Status != TeamStatus.Eliminated &&
+                                    t.Status != TeamStatus.Rejected &&
+                                    t.Status != TeamStatus.Withdrawn)
+                        .Select(t => new { t.TeamId, t.TeamName })
+                        .ToList()
                 })
                 .ToListAsync();
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Filter, UserPlus, GraduationCap, Zap, Send, Inbox, Clock } from "lucide-react";
 import { App, Spin, Empty, Button, Tag } from "antd";
@@ -60,6 +60,16 @@ interface InvitationResponse {
   respondedAt?: string | null;
 }
 
+interface RecruitingTeam {
+  teamId: string;
+  teamName: string;
+  categoryName: string;
+  leaderName: string;
+  memberCount: number;
+  members: string[];
+  hasPendingRequest: boolean;
+}
+
 export default function MatchmakingPage() {
   const { message } = App.useApp();
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
@@ -67,6 +77,9 @@ export default function MatchmakingPage() {
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<"suggestions" | "sent" | "received">("suggestions");
+
+  const [recruitingTeams, setRecruitingTeams] = useState<RecruitingTeam[]>([]);
+  const [loadingRecruiting, setLoadingRecruiting] = useState(false);
 
   // Tab 1: Suggestions / Free Agents
   const [suggestions, setSuggestions] = useState<FreeAgentOrSuggestion[]>([]);
@@ -139,7 +152,6 @@ export default function MatchmakingPage() {
   }, [searchQuery, skillFilter, message]);
 
   const loadSentInvites = useCallback(async () => {
-    if (!myTeam) return;
     setLoadingSent(true);
     try {
       const data = await apiRequest<InvitationResponse[]>("/teams/invitations/sent");
@@ -149,7 +161,29 @@ export default function MatchmakingPage() {
     } finally {
       setLoadingSent(false);
     }
-  }, [myTeam, message]);
+  }, [message]);
+
+  const loadRecruitingTeams = useCallback(async () => {
+    setLoadingRecruiting(true);
+    try {
+      const data = await apiRequest<RecruitingTeam[]>("/teams/recruiting");
+      setRecruitingTeams(data);
+    } catch {
+      message.error("Could not load recruiting teams list.");
+    } finally {
+      setLoadingRecruiting(false);
+    }
+  }, [message]);
+
+  const handleRequestToJoin = async (teamId: string, teamName: string) => {
+    try {
+      await apiRequest(`/teams/${teamId}/join-request`, { method: "POST" });
+      message.success(`Join request sent to team ${teamName}!`);
+      void loadRecruitingTeams();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to send join request.");
+    }
+  };
 
   const loadReceivedInvites = useCallback(async () => {
     setLoadingReceived(true);
@@ -176,14 +210,20 @@ export default function MatchmakingPage() {
   useEffect(() => {
     const trigger = async () => {
       await Promise.resolve();
-      if (activeTab === "sent") {
+      if (activeTab === "suggestions") {
+        if (myTeam) {
+          void loadSuggestionsOrAgents();
+        } else {
+          void loadRecruitingTeams();
+        }
+      } else if (activeTab === "sent") {
         void loadSentInvites();
       } else if (activeTab === "received") {
         void loadReceivedInvites();
       }
     };
     void trigger();
-  }, [activeTab, loadSentInvites, loadReceivedInvites]);
+  }, [activeTab, myTeam, loadSuggestionsOrAgents, loadRecruitingTeams, loadSentInvites, loadReceivedInvites]);
 
   const handleInvite = async (targetUser: FreeAgentOrSuggestion) => {
     if (busyAction) return;
@@ -333,19 +373,20 @@ export default function MatchmakingPage() {
         <button 
           className={`tab-btn ${activeTab === "sent" ? "active" : ""}`} 
           onClick={() => setActiveTab("sent")}
-          disabled={!myTeam}
         >
-          <Send size={14} style={{ marginRight: 6 }} /> Sent Invitations {!myTeam && " (Requires a team)"}
+          <Send size={14} style={{ marginRight: 6 }} /> Sent Invitations / Requests
         </button>
         <button className={`tab-btn ${activeTab === "received" ? "active" : ""}`} onClick={() => setActiveTab("received")}>
-          <Inbox size={14} style={{ marginRight: 6 }} /> Received Invitations
+          <Inbox size={14} style={{ marginRight: 6 }} /> Received Invitations / Requests
         </button>
       </div>
 
       {/* SUGGESTIONS TAB */}
       {activeTab === "suggestions" && (
         <>
-          <div className="glass-card" style={{ marginBottom: "2rem", padding: "1.5rem" }}>
+          {myTeam ? (
+            <>
+              <div className="glass-card" style={{ marginBottom: "2rem", padding: "1.5rem" }}>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
               <div className="search-bar" style={{ flex: "1 1 300px", maxWidth: "500px" }}>
                 <Search size={16} style={{ color: "var(--color-text-3)" }} />
@@ -443,11 +484,92 @@ export default function MatchmakingPage() {
               ))}
             </div>
           )}
+          </>
+          ) : (
+            <>
+              {/* User search recruiting teams logic */}
+              <div className="glass-card" style={{ marginBottom: "2rem", padding: "1.5rem" }}>
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <div className="search-bar" style={{ flex: "1 1 300px", maxWidth: "500px" }}>
+                    <Search size={16} style={{ color: "var(--color-text-3)" }} />
+                    <input 
+                      className="search-input" 
+                      placeholder="Search teams by name, category, or leader..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {loadingRecruiting ? (
+                <div className="empty-state">
+                  <Spin />
+                  <div className="empty-title" style={{ marginTop: 10 }}>Loading recruiting teams...</div>
+                </div>
+              ) : recruitingTeams.filter(team =>
+                team.teamName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                team.categoryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                team.leaderName.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 ? (
+                <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
+                  <Empty description="No recruiting teams found." />
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1.5rem" }}>
+                  {recruitingTeams.filter(team =>
+                    team.teamName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    team.categoryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    team.leaderName.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).map((team) => (
+                    <div key={team.teamId} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      <div>
+                        <h3 style={{ margin: "0 0 0.2rem 0", fontSize: "1.10rem", color: "var(--color-text-1)" }}>
+                          {team.teamName}
+                        </h3>
+                        <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>
+                          Category: <strong>{team.categoryName}</strong>
+                        </span>
+                      </div>
+                      
+                      <div style={{ fontSize: "0.9rem", color: "var(--color-text-2)" }}>
+                        <div>Leader: <strong>{team.leaderName}</strong></div>
+                        <div style={{ marginTop: "0.25rem" }}>Members ({team.memberCount}/5):</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginTop: "0.25rem" }}>
+                          {team.members.map((member, idx) => (
+                            <span key={idx} className="badge badge-neutral" style={{ fontSize: "0.75rem" }}>
+                              {member}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)" }}>
+                        {team.hasPendingRequest ? (
+                          <button className="btn btn-secondary" style={{ width: "100%", justifyContent: "center" }} disabled>
+                            <Clock size={16} style={{ marginRight: 4 }} /> Request Pending
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-primary" 
+                            style={{ width: "100%", justifyContent: "center" }} 
+                            onClick={() => handleRequestToJoin(team.teamId, team.teamName)}
+                          >
+                            <UserPlus size={16} style={{ marginRight: 4 }} /> Request to Join
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
 
       {/* SENT INVITATIONS TAB */}
-      {activeTab === "sent" && myTeam && (
+      {activeTab === "sent" && (
         <>
           {loadingSent ? (
             <div className="empty-state">
@@ -464,8 +586,12 @@ export default function MatchmakingPage() {
                 <div key={invite.id} className="glass-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem" }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      <span style={{ fontWeight: 700, fontSize: "1rem" }}>{invite.inviteeUserName}</span>
-                      <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>({invite.inviteeUserEmail})</span>
+                      <span style={{ fontWeight: 700, fontSize: "1rem" }}>
+                        {myTeam ? invite.inviteeUserName : `Team: ${invite.teamName}`}
+                      </span>
+                      <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>
+                        {myTeam ? `(${invite.inviteeUserEmail})` : `(Leader: ${invite.inviteeUserName})`}
+                      </span>
                       {getStatusTag(invite.status)}
                     </div>
                     {invite.message && (
@@ -478,14 +604,14 @@ export default function MatchmakingPage() {
                     </div>
                   </div>
                   <div>
-                    {invite.status === "Pending" && myTeam.leaderId === currentUser?.id && (
+                    {invite.status === "Pending" && (!myTeam || myTeam.leaderId === currentUser?.id) && (
                       <Button
                         danger
                         loading={busyAction === `cancel-${invite.id}`}
                         disabled={busyAction !== null && busyAction !== `cancel-${invite.id}`}
                         onClick={() => handleCancelInvite(invite.id)}
                       >
-                        Cancel Invitation
+                        {myTeam ? "Cancel Invitation" : "Cancel Request"}
                       </Button>
                     )}
                   </div>
@@ -513,11 +639,20 @@ export default function MatchmakingPage() {
               {receivedInvites.map((invite) => (
                 <div key={invite.id} className="glass-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem" }}>
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      <span style={{ fontWeight: 700, fontSize: "1rem" }}>Team: {invite.teamName}</span>
-                      <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>Invited by: {invite.inviterUserName}</span>
-                      {getStatusTag(invite.status)}
-                    </div>
+                    {(() => {
+                      const isJoinRequest = myTeam && myTeam.teamId === invite.teamId && myTeam.leaderId === currentUser?.id;
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <span style={{ fontWeight: 700, fontSize: "1rem" }}>
+                            {isJoinRequest ? `Join Request: ${invite.teamName}` : `Team: ${invite.teamName}`}
+                          </span>
+                          <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>
+                            {isJoinRequest ? `Applicant: ${invite.inviterUserName}` : `Invited by: ${invite.inviterUserName}`}
+                          </span>
+                          {getStatusTag(invite.status)}
+                        </div>
+                      );
+                    })()}
                     {invite.message && (
                       <div style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginTop: "0.5rem", fontStyle: "italic" }}>
                         &ldquo;{invite.message}&rdquo;

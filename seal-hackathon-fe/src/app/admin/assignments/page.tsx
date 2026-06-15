@@ -330,8 +330,12 @@ export default function AssignmentsPage() {
                   <label className="form-label">Team</label>
                   <select className="form-select" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
                     <option value="">Select a team...</option>
-                    {teams.map((team) => (
-                      <option key={team.teamId} value={team.teamId}>{team.teamName} ({team.category?.categoryName ?? team.status})</option>
+                    {teams
+                      .filter((team) => team.status !== "Eliminated" && team.status !== "Rejected" && team.status !== "Withdrawn")
+                      .map((team) => (
+                      <option key={team.teamId} value={team.teamId}>
+                        {team.teamName} ({team.category?.categoryName ?? team.status})
+                      </option>
                     ))}
                   </select>
                 </div>

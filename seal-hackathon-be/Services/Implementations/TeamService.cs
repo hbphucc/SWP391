@@ -217,21 +217,49 @@ namespace SEAL.NET.Services.Implementations
 
             _context.Teams.Add(team);
 
+            // Add leader as the sole initial member of the team
+            _context.TeamMembers.Add(new TeamMember
+            {
+                TeamId = team.TeamId,
+                UserId = leaderId,
+                Role = "Leader"
+            });
+
+            // For all other members, create a pending team invitation and system notification
             foreach (var memberId in allMemberIds)
             {
-                _context.TeamMembers.Add(new TeamMember
+                if (memberId != leaderId)
                 {
-                    TeamId = team.TeamId,
-                    UserId = memberId,
-                    Role = memberId == leaderId ? "Leader" : "Member"
-                });
+                    var invitation = new TeamInvitation
+                    {
+                        TeamId = team.TeamId,
+                        InviterUserId = leaderId,
+                        InviteeUserId = memberId,
+                        Status = InvitationStatus.Pending,
+                        Message = $"Invitation to join team {team.TeamName}",
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _context.TeamInvitations.Add(invitation);
+
+                    try
+                    {
+                        await _notificationService.CreateAsync(
+                            memberId,
+                            "Team Invitation",
+                            $"You have been invited to join team {team.TeamName}.",
+                            "team"
+                        );
+                    }
+                    catch { }
+                }
             }
 
             await _context.SaveChangesAsync();
 
             return ServiceResult.Ok(new
             {
-                message = "Team registered successfully and is waiting for approval.",
+                message = "Team registered successfully and invitations have been sent.",
                 teamId = team.TeamId,
                 teamName = team.TeamName,
                 status = team.Status.ToString()
@@ -258,6 +286,10 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ja => ja.Judge)
                 .FirstOrDefaultAsync();
 
+            var hideMentorAndJudge = team.Status == TeamStatus.Rejected || 
+                                     team.Status == TeamStatus.Eliminated || 
+                                     team.Status == TeamStatus.Withdrawn;
+
             return ServiceResult.Ok(new
             {
                 team.TeamId,
@@ -282,14 +314,14 @@ namespace SEAL.NET.Services.Implementations
                     m.User.StudentCode,
                     m.Role
                 }),
-                mentor = activeMentor == null ? null : new
+                mentor = (hideMentorAndJudge || activeMentor == null) ? null : new
                 {
                     id = activeMentor.Id,
                     fullName = activeMentor.FullName,
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
                 },
-                judge = assignedJudge == null ? null : new
+                judge = (hideMentorAndJudge || assignedJudge == null) ? null : new
                 {
                     id = assignedJudge.Id,
                     fullName = assignedJudge.FullName,
@@ -322,21 +354,38 @@ namespace SEAL.NET.Services.Implementations
             if (validationResult != null)
                 return validationResult;
 
-            _context.TeamMembers.Add(new TeamMember
+            // Check if there is already a pending invitation
+            var existingPending = await _context.TeamInvitations
+                .AnyAsync(ti => ti.TeamId == team.TeamId && ti.InviteeUserId == user.Id && ti.Status == InvitationStatus.Pending);
+
+            if (existingPending)
+                return ServiceResult.BadRequest("You have already sent a pending invitation to this user.");
+
+            var invitation = new TeamInvitation
             {
                 TeamId = team.TeamId,
-                UserId = user.Id,
-                Role = "Member"
-            });
+                InviterUserId = currentUserId,
+                InviteeUserId = user.Id,
+                Status = InvitationStatus.Pending,
+                Message = $"Invitation to join team {team.TeamName}",
+                CreatedAt = DateTime.UtcNow
+            };
 
+            _context.TeamInvitations.Add(invitation);
             await _context.SaveChangesAsync();
-            await _notificationService.CreateAsync(
-                user.Id,
-                "Added to team",
-                $"You were added to team {team.TeamName}.",
-                "team");
 
-            return ServiceResult.OkMessage("Member added successfully.");
+            try
+            {
+                await _notificationService.CreateAsync(
+                    user.Id,
+                    "Team Invitation",
+                    $"You have been invited to join team {team.TeamName}.",
+                    "team"
+                );
+            }
+            catch { }
+
+            return ServiceResult.OkMessage("Invitation sent successfully.");
         }
 
         public async Task<ServiceResult> RemoveMemberFromMyTeamAsync(Guid currentUserId, string studentCode)
@@ -390,22 +439,28 @@ namespace SEAL.NET.Services.Implementations
             if (team == null)
                 return ServiceResult.NotFound("You have not joined any team yet.");
 
-            if (team.LeaderId == currentUserId && team.Members.Count > 1)
-                return ServiceResult.BadRequest("Team leader must transfer leadership or remove other members before leaving.");
+            if (team.LeaderId == currentUserId)
+            {
+                if (team.Members.Count > 1 &&
+                    (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion))
+                {
+                    return ServiceResult.BadRequest("Team leader must transfer leadership or remove other members before leaving.");
+                }
+
+                // Disband the team by removing all member associations.
+                // We do NOT delete the team row itself to prevent violating foreign key constraints
+                // (e.g. MentorAssignments, Submissions, Scores) and preserve history.
+                var allMembers = team.Members.ToList();
+                _context.TeamMembers.RemoveRange(allMembers);
+                await _context.SaveChangesAsync();
+                return ServiceResult.OkMessage("You have left the team and disbanded it.");
+            }
 
             var membership = team.Members.FirstOrDefault(m => m.UserId == currentUserId);
             if (membership == null)
                 return ServiceResult.NotFound("Team membership not found.");
 
-            if (team.LeaderId == currentUserId && team.Members.Count == 1)
-            {
-                _context.Teams.Remove(team);
-            }
-            else
-            {
-                _context.TeamMembers.Remove(membership);
-            }
-
+            _context.TeamMembers.Remove(membership);
             await _context.SaveChangesAsync();
 
             return ServiceResult.OkMessage("You have left the team.");
@@ -585,6 +640,10 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ja => ja.Judge)
                 .FirstOrDefaultAsync();
 
+            var hideMentorAndJudge = team.Status == TeamStatus.Rejected || 
+                                     team.Status == TeamStatus.Eliminated || 
+                                     team.Status == TeamStatus.Withdrawn;
+
             return ServiceResult.Ok(new
             {
                 team.TeamId,
@@ -622,14 +681,14 @@ namespace SEAL.NET.Services.Implementations
                     s.SubmittedAt,
                     roundName = s.Round!.RoundName
                 }),
-                mentor = activeMentor == null ? null : new
+                mentor = (hideMentorAndJudge || activeMentor == null) ? null : new
                 {
                     id = activeMentor.Id,
                     fullName = activeMentor.FullName,
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
                 },
-                judge = assignedJudge == null ? null : new
+                judge = (hideMentorAndJudge || assignedJudge == null) ? null : new
                 {
                     id = assignedJudge.Id,
                     fullName = assignedJudge.FullName,
@@ -930,6 +989,118 @@ namespace SEAL.NET.Services.Implementations
                 "team");
 
             return ServiceResult.OkMessage("Kick request rejected. Member remains in the team.");
+        }
+
+        public async Task<ServiceResult> GetRecruitingTeamsAsync(Guid currentUserId)
+        {
+            var teams = await _context.Teams
+                .Where(t => t.Status == TeamStatus.Pending)
+                .Include(t => t.Category)
+                .Include(t => t.Members)
+                    .ThenInclude(tm => tm.User)
+                .ToListAsync();
+
+            var pendingRequests = await _context.TeamInvitations
+                .Where(ti => ti.InviterUserId == currentUserId && ti.Status == InvitationStatus.Pending)
+                .Select(ti => ti.TeamId)
+                .ToListAsync();
+
+            var dtoList = new List<RecruitingTeamDto>();
+
+            foreach (var team in teams)
+            {
+                if (team.Members.Count >= 5)
+                    continue;
+
+                if (team.Members.Any(m => m.UserId == currentUserId))
+                    continue;
+
+                var leader = team.Members.FirstOrDefault(m => m.UserId == team.LeaderId)?.User;
+
+                dtoList.Add(new RecruitingTeamDto
+                {
+                    TeamId = team.TeamId,
+                    TeamName = team.TeamName,
+                    CategoryName = team.Category?.CategoryName ?? string.Empty,
+                    LeaderName = leader?.FullName ?? "Unknown",
+                    MemberCount = team.Members.Count,
+                    Members = team.Members.Select(m => m.User!.FullName).ToList(),
+                    HasPendingRequest = pendingRequests.Contains(team.TeamId)
+                });
+            }
+
+            return ServiceResult.Ok(dtoList);
+        }
+
+        public async Task<ServiceResult> RequestToJoinTeamAsync(Guid currentUserId, Guid teamId)
+        {
+            var team = await _context.Teams
+                .Include(t => t.Category)
+                .Include(t => t.Members)
+                .FirstOrDefaultAsync(t => t.TeamId == teamId);
+
+            if (team == null)
+                return ServiceResult.NotFound("Team not found.");
+
+            if (team.Status != TeamStatus.Pending)
+                return ServiceResult.BadRequest("This team is already approved and closed to changes.");
+
+            if (team.Members.Count >= 5)
+                return ServiceResult.BadRequest("This team is already full.");
+
+            if (team.Members.Any(m => m.UserId == currentUserId))
+                return ServiceResult.BadRequest("You are already a member of this team.");
+
+            var existingPending = await _context.TeamInvitations
+                .AnyAsync(ti => ti.TeamId == teamId && ti.InviterUserId == currentUserId && ti.Status == InvitationStatus.Pending);
+
+            if (existingPending)
+                return ServiceResult.BadRequest("You have already sent a pending join request to this team.");
+
+            var eventId = team.Category!.EventId;
+            var categoryIdsInSameEvent = await _context.Categories
+                .Where(c => c.EventId == eventId)
+                .Select(c => c.CategoryId)
+                .ToListAsync();
+
+            var alreadyJoinedEvent = await _context.TeamMembers
+                .Include(tm => tm.Team)
+                .AnyAsync(tm =>
+                    tm.UserId == currentUserId &&
+                    categoryIdsInSameEvent.Contains(tm.Team!.CategoryId));
+
+            if (alreadyJoinedEvent)
+                return ServiceResult.BadRequest("You have already joined another team in this event.");
+
+            var invitation = new TeamInvitation
+            {
+                TeamId = team.TeamId,
+                InviterUserId = currentUserId,
+                InviteeUserId = team.LeaderId,
+                Status = InvitationStatus.Pending,
+                Message = "Request to join your team.",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.TeamInvitations.Add(invitation);
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                var applicant = await _userManager.FindByIdAsync(currentUserId.ToString());
+                if (applicant != null)
+                {
+                    await _notificationService.CreateAsync(
+                        team.LeaderId,
+                        "Join Request",
+                        $"{applicant.FullName} has requested to join your team {team.TeamName}.",
+                        "team"
+                    );
+                }
+            }
+            catch { }
+
+            return ServiceResult.OkMessage("Join request sent successfully.");
         }
     }
 }

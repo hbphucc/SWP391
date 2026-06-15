@@ -52,6 +52,20 @@ type EventDto = {
   }[];
 };
 
+type InvitationResponse = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  inviterUserId: string;
+  inviterUserName: string;
+  inviteeUserId: string;
+  inviteeUserName: string;
+  inviteeUserEmail: string;
+  status: string;
+  message?: string;
+  createdAt: string;
+};
+
 function parseMemberIds(value: string) {
   return value
     .split(/[\s,;]+/)
@@ -73,6 +87,7 @@ export default function TeamsPage() {
   const [memberCodeToAdd, setMemberCodeToAdd] = useState("");
   const [draftTeamName, setDraftTeamName] = useState("");
   const [newLeaderCodeOrEmail, setNewLeaderCodeOrEmail] = useState("");
+  const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
 
   const [mentors, setMentors] = useState<{ id: string; fullName: string; email: string; schoolName?: string | null }[]>([]);
   const [showMentorModal, setShowMentorModal] = useState(false);
@@ -122,16 +137,29 @@ export default function TeamsPage() {
       setEvents(eventData);
       setCategoryId((current) => current || eventData.flatMap((event) => event.categories)[0]?.categoryId || "");
 
+      let hasTeam = false;
       try {
         const team = await apiRequest<TeamDto>("/teams/my-team");
         setMyTeam(team);
         setDraftTeamName(team.teamName);
+        hasTeam = true;
       } catch (err) {
         const text = err instanceof Error ? err.message : "";
         if (!text.toLowerCase().includes("not joined") && !text.toLowerCase().includes("not found")) {
           throw err;
         }
         setMyTeam(null);
+      }
+
+      if (!hasTeam) {
+        try {
+          const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+          setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+        } catch {
+          setReceivedInvites([]);
+        }
+      } else {
+        setReceivedInvites([]);
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load team data.");
@@ -155,11 +183,45 @@ export default function TeamsPage() {
         }
         return currentDraft;
       });
+      setReceivedInvites([]);
     } catch (err) {
       const text = err instanceof Error ? err.message : "";
       if (text.toLowerCase().includes("not joined") || text.toLowerCase().includes("not found")) {
         setMyTeam(null);
+        try {
+          const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+          setReceivedInvites((current) => {
+            const pendingOnly = invites.filter((inv) => inv.status === "Pending");
+            if (JSON.stringify(current) !== JSON.stringify(pendingOnly)) {
+              return pendingOnly;
+            }
+            return current;
+          });
+        } catch {
+          setReceivedInvites([]);
+        }
       }
+    }
+  };
+
+  const handleAcceptInvite = async (id: string, teamName: string) => {
+    try {
+      await apiRequest(`/teams/invitations/${id}/accept`, { method: "POST" });
+      message.success(`You have successfully joined team ${teamName}!`);
+      window.location.reload();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to accept invitation.");
+    }
+  };
+
+  const handleDeclineInvite = async (id: string) => {
+    try {
+      await apiRequest(`/teams/invitations/${id}/reject`, { method: "POST" });
+      message.success("Invitation declined.");
+      const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+      setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
     }
   };
 
@@ -234,11 +296,11 @@ export default function TeamsPage() {
         body: JSON.stringify({ studentCodeOrEmail: memberCodeToAdd.trim() }),
       });
 
-      message.success("Member added successfully.");
+      message.success("Invitation sent successfully.");
       setMemberCodeToAdd("");
       await loadPage();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not add member.");
+      message.error(err instanceof Error ? err.message : "Could not invite member.");
     } finally {
       setSubmitting(false);
     }
@@ -419,6 +481,65 @@ export default function TeamsPage() {
           <p className="page-subtitle">Register a team through the backend approval flow.</p>
         </div>
 
+        {/* Pending Invitations Banner */}
+        {receivedInvites.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem", maxWidth: 560, margin: "0 auto 2rem" }}>
+            {receivedInvites.map((invite) => (
+              <div
+                key={invite.id}
+                className="glass-card"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderLeft: "4px solid var(--color-primary)",
+                  padding: "1.25rem 1.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: "50%",
+                      background: "rgba(99,102,241,0.1)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--color-primary)",
+                    }}
+                  >
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "1.1rem", color: "var(--color-text-1)" }}>
+                      Team Invitation
+                    </h4>
+                    <p style={{ margin: "0.2rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                      <strong>{invite.inviterUserName}</strong> has invited you to join team <strong>{invite.teamName}</strong>.
+                      {invite.message && <span style={{ fontStyle: "italic", display: "block", marginTop: "0.25rem", color: "var(--color-text-2)" }}>&quot;{invite.message}&quot;</span>}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAcceptInvite(invite.id, invite.teamName)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleDeclineInvite(invite.id)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="glass-card" style={{ maxWidth: 560, margin: "0 auto" }}>
           <h3 style={{ fontSize: "1.2rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Crown size={18} /> Create a Team
@@ -494,6 +615,68 @@ export default function TeamsPage() {
           </button>
         </div>
       </div>
+
+      {/* Pending Received Invitations / Join Requests Banner */}
+      {receivedInvites.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
+          {receivedInvites.map((invite) => {
+            const isJoinRequest = myTeam && myTeam.teamId === invite.teamId && myTeam.leaderId === currentUser?.id;
+            return (
+              <div
+                key={invite.id}
+                className="glass-card"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderLeft: "4px solid var(--color-primary)",
+                  padding: "1.25rem 1.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: "50%",
+                      background: "rgba(99,102,241,0.1)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--color-primary)",
+                    }}
+                  >
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "1.1rem", color: "var(--color-text-1)" }}>
+                      {isJoinRequest ? "Join Request" : "Team Invitation"}
+                    </h4>
+                    <p style={{ margin: "0.2rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                      <strong>{invite.inviterUserName}</strong> {isJoinRequest ? "has requested to join your team" : `has invited you to join team ${invite.teamName}`}.
+                      {invite.message && <span style={{ fontStyle: "italic", display: "block", marginTop: "0.25rem", color: "var(--color-text-2)" }}>&quot;{invite.message}&quot;</span>}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAcceptInvite(invite.id, invite.teamName)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleDeclineInvite(invite.id)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {canModifyMembers && (
         <div className="glass-card" style={{ maxWidth: 520, marginBottom: "2rem" }}>
@@ -623,87 +806,89 @@ export default function TeamsPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
-        {/* Team Mentor Section */}
-        <div className="glass-card" style={{ marginBottom: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-            <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <GraduationCap size={18} style={{ color: "var(--color-primary)" }} />
-              Team Mentor
-            </h3>
+      {["Pending", "Approved", "Active", "Champion", "Rejected"].includes(myTeam.status) && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
+          {/* Team Mentor Section */}
+          <div className="glass-card" style={{ marginBottom: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <GraduationCap size={18} style={{ color: "var(--color-primary)" }} />
+                Team Mentor
+              </h3>
+            </div>
+
+            {myTeam.mentor ? (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                    {myTeam.mentor.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.mentor.fullName}</div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.mentor.email}</div>
+                    {myTeam.mentor.schoolName && (
+                      <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
+                        {myTeam.mentor.schoolName}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {isLeader && myTeam.status === "Pending" && (
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
+                      Change Mentor
+                    </button>
+                    <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
+                <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                  No mentor selected yet.
+                </div>
+                {isLeader && myTeam.status === "Pending" && (
+                  <button className="btn btn-primary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
+                    Choose Mentor
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          {myTeam.mentor ? (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {/* Team Judge Section */}
+          <div className="glass-card" style={{ marginBottom: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Users size={18} style={{ color: "var(--color-primary)" }} />
+                Team Judge / Manager
+              </h3>
+            </div>
+
+            {myTeam.judge ? (
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
-                  {myTeam.mentor.fullName.charAt(0)}
+                  {myTeam.judge.fullName.charAt(0)}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.mentor.fullName}</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.mentor.email}</div>
-                  {myTeam.mentor.schoolName && (
-                    <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
-                      {myTeam.mentor.schoolName}
-                    </div>
-                  )}
+                  <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>
+                    {myTeam.judge.fullName} <span style={{ color: "var(--color-text-3)", fontSize: "0.8rem", fontWeight: 400 }}>(Giám Khảo)</span>
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.judge.email}</div>
                 </div>
               </div>
-              {isLeader && myTeam.status === "Pending" && (
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
-                    Change Mentor
-                  </button>
-                  <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
-                    Remove
-                  </button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", padding: "0.5rem 0" }}>
+                <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                  No judge assigned to this team yet.
                 </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
-              <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
-                No mentor selected yet.
               </div>
-              {isLeader && myTeam.status === "Pending" && (
-                <button className="btn btn-primary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
-                  Choose Mentor
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Team Judge Section */}
-        <div className="glass-card" style={{ marginBottom: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-            <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Users size={18} style={{ color: "var(--color-primary)" }} />
-              Team Judge / Manager
-            </h3>
+            )}
           </div>
-
-          {myTeam.judge ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
-                {myTeam.judge.fullName.charAt(0)}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>
-                  {myTeam.judge.fullName} <span style={{ color: "var(--color-text-3)", fontSize: "0.8rem", fontWeight: 400 }}>(Giám Khảo)</span>
-                </div>
-                <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.judge.email}</div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", padding: "0.5rem 0" }}>
-              <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
-                No judge assigned to this team yet.
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       {canModifyMembers && (
         <div className="glass-card" style={{ maxWidth: 520, marginBottom: "2rem" }}>

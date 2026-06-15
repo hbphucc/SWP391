@@ -103,5 +103,15 @@ namespace SEAL.NET.Controllers
         [Authorize(Roles = "Member,TeamLeader")]
         public async Task<IActionResult> RemoveMentorFromMyTeam()
             => ToActionResult(await _teamService.RemoveMentorFromMyTeamAsync(GetCurrentUserId()));
+
+        [HttpGet("recruiting")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> GetRecruitingTeams()
+            => ToActionResult(await _teamService.GetRecruitingTeamsAsync(GetCurrentUserId()));
+
+        [HttpPost("{teamId}/join-request")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> RequestToJoinTeam(Guid teamId)
+            => ToActionResult(await _teamService.RequestToJoinTeamAsync(GetCurrentUserId(), teamId));
     }
 }
