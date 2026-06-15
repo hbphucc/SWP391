@@ -35,6 +35,7 @@ namespace SEAL.NET.Controllers
         };
 
         [HttpPost]
+        [Authorize(Roles = "Judge")]
         public async Task<IActionResult> SubmitScore([FromBody] CreateScoreRequest request)
             => ToActionResult(await _scoreService.SubmitScoreAsync(GetCurrentUserId(), request));
 
@@ -47,6 +48,7 @@ namespace SEAL.NET.Controllers
             => ToActionResult(await _scoreService.GetEvaluationAsync(GetCurrentUserId(), submissionId, User.IsInRole("Admin")));
 
         [HttpPost("evaluation")]
+        [Authorize(Roles = "Judge")]
         public async Task<IActionResult> SaveEvaluation([FromBody] SaveEvaluationRequest request)
             => ToActionResult(await _scoreService.SaveEvaluationAsync(GetCurrentUserId(), request, User.IsInRole("Admin")));
     }

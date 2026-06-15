@@ -211,16 +211,11 @@ namespace SEAL.NET.Services.Implementations
 
             if (!isAdmin)
             {
-                var assignments = await _context.JudgeAssignments
-                    .Where(a => a.JudgeId == userId)
-                    .ToListAsync();
-
-                var roundIds = assignments.Select(a => a.RoundId).ToList();
-                var categoryIds = assignments.Select(a => a.CategoryId).ToList();
-
-                query = query.Where(s =>
-                    roundIds.Contains(s.RoundId) &&
-                    categoryIds.Contains(s.Team!.CategoryId));
+                query = query.Where(s => _context.JudgeAssignments.Any(a =>
+                    a.JudgeId == userId &&
+                    a.RoundId == s.RoundId &&
+                    a.CategoryId == s.Team!.CategoryId &&
+                    (a.TeamId == null || a.TeamId == s.TeamId)));
             }
 
             var submissions = await query
@@ -231,9 +226,15 @@ namespace SEAL.NET.Services.Implementations
 
             var submissionIds = submissions.Select(s => s.SubmissionId).ToList();
 
-            var userScores = await _context.Scores
-                .Where(s => submissionIds.Contains(s.SubmissionId) && s.JudgeId == userId)
-                .ToListAsync();
+            var scoresQuery = _context.Scores
+                .Where(s => submissionIds.Contains(s.SubmissionId));
+
+            if (!isAdmin)
+            {
+                scoresQuery = scoresQuery.Where(s => s.JudgeId == userId);
+            }
+
+            var userScores = await scoresQuery.ToListAsync();
 
             var result = submissions.Select(s =>
             {
