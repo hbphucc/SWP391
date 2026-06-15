@@ -118,7 +118,7 @@ export default function JudgingQueuePage() {
               </span>
               <Link href={`/admin/judging/${q.submissionId}`}>
                 <button className="btn btn-sm btn-primary">
-                  {q.status === "locked" ? "View Score" : q.status === "scored" ? "Continue →" : "Score Now"} <ChevronRight size={13} />
+                  {q.status === "locked" ? "View Score" : q.status === "scored" ? "View Draft" : "View Details"} <ChevronRight size={13} />
                 </button>
               </Link>
             </div>

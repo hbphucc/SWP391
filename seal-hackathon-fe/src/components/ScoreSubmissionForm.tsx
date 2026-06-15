@@ -31,9 +31,10 @@ type EvaluationData = {
 interface ScoreSubmissionFormProps {
   submissionId: string;
   backHref: string;
+  readOnly?: boolean;
 }
 
-export default function ScoreSubmissionForm({ submissionId, backHref }: ScoreSubmissionFormProps) {
+export default function ScoreSubmissionForm({ submissionId, backHref, readOnly = false }: ScoreSubmissionFormProps) {
   const { message, modal } = App.useApp();
 
   const [data, setData] = useState<EvaluationData | null>(null);
@@ -43,6 +44,8 @@ export default function ScoreSubmissionForm({ submissionId, backHref }: ScoreSub
   const [loading, setLoading] = useState(true);
   const [savingAction, setSavingAction] = useState<null | "draft" | "final">(null);
   const saving = savingAction !== null;
+
+  const isLocked = locked || readOnly;
 
   useEffect(() => {
     let active = true;
@@ -155,7 +158,10 @@ export default function ScoreSubmissionForm({ submissionId, backHref }: ScoreSub
           </div>
           <p className="page-subtitle">{data.team?.teamName ?? "Unknown Team"} · {data.team?.category ?? ""} · {data.round?.roundName ?? ""}</p>
         </div>
-        {locked && <span className="badge badge-success" style={{ padding: "0.4rem 0.8rem" }}><Lock size={12} style={{ marginRight: 4 }} /> Scores Locked</span>}
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          {readOnly && <span className="badge badge-neutral" style={{ padding: "0.4rem 0.8rem", background: "rgba(56,189,248,0.1)", color: "#38bdf8", border: "1px solid rgba(56,189,248,0.2)" }}>Read-Only</span>}
+          {locked && <span className="badge badge-success" style={{ padding: "0.4rem 0.8rem" }}><Lock size={12} style={{ marginRight: 4 }} /> Scores Locked</span>}
+        </div>
       </div>
 
       {/* Submission Links */}
@@ -198,89 +204,105 @@ export default function ScoreSubmissionForm({ submissionId, backHref }: ScoreSub
           </div>
         </div>
 
-        {locked && (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: "var(--radius-md)", padding: "0.75rem 1rem", marginBottom: "1.25rem" }}>
-            <CheckCircle size={16} style={{ color: "#34d399" }} />
-            <span style={{ fontSize: "0.875rem", color: "#34d399" }}>Scores have been finalized and locked.</span>
+        {isLocked && (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: readOnly ? "rgba(56,189,248,0.08)" : "rgba(16,185,129,0.08)", border: readOnly ? "1px solid rgba(56,189,248,0.2)" : "1px solid rgba(16,185,129,0.2)", borderRadius: "var(--radius-md)", padding: "0.75rem 1rem", marginBottom: "1.25rem" }}>
+            {readOnly ? <AlertCircle size={16} style={{ color: "#38bdf8" }} /> : <CheckCircle size={16} style={{ color: "#34d399" }} />}
+            <span style={{ fontSize: "0.875rem", color: readOnly ? "#38bdf8" : "#34d399" }}>
+              {readOnly ? "Viewing scores (Admin Read-Only)" : "Scores have been finalized and locked."}
+            </span>
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "2rem" }}>
-          {/* Sliders */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            {data.criteria.map(c => (
-              <div key={c.criteriaId}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{c.criteriaName}</div>
-                    {c.description && <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>{c.description}</div>}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
-                    <span className="badge badge-neutral">{Number(c.weight)}%</span>
-                    <div style={{ minWidth: 52, textAlign: "center", fontSize: "1.3rem", fontWeight: 800, fontFamily: "var(--font-display)", color: getScoreColor(scores[c.criteriaId] ?? 0) }}>
-                      {scores[c.criteriaId] ?? 0}
+        {data.criteria.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 1.5rem", textAlign: "center" }}>
+            <AlertCircle size={40} style={{ color: "#f59e0b", marginBottom: "1rem" }} />
+            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text-1)", marginBottom: "0.5rem" }}>
+              No Scoring Criteria Configured
+            </div>
+            <p style={{ fontSize: "0.85rem", color: "var(--color-text-3)", maxWidth: 450, margin: 0 }}>
+              This round doesn't have any criteria defined yet. An Admin must configure criteria for this round before scoring can begin.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "2rem" }}>
+            {/* Sliders */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {data.criteria.map(c => (
+                <div key={c.criteriaId}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{c.criteriaName}</div>
+                      {c.description && <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>{c.description}</div>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+                      <span className="badge badge-neutral">{Number(c.weight)}%</span>
+                      <div style={{ minWidth: 52, textAlign: "center", fontSize: "1.3rem", fontWeight: 800, fontFamily: "var(--font-display)", color: getScoreColor(scores[c.criteriaId] ?? 0) }}>
+                        {scores[c.criteriaId] ?? 0}
+                      </div>
                     </div>
                   </div>
+                  <input
+                    type="range" min="0" max={Number(c.maxScore)} step="1"
+                    className="score-slider"
+                    aria-label={`Score for ${c.criteriaName}`}
+                    disabled={isLocked}
+                    value={scores[c.criteriaId] ?? 0}
+                    onChange={e => setScores({ ...scores, [c.criteriaId]: +e.target.value })}
+                    style={{ background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) 100%)` }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
+                    <span>0 – Poor</span><span>{Math.round(Number(c.maxScore) / 2)} – Average</span><span>{Number(c.maxScore)} – Excellent</span>
+                  </div>
                 </div>
-                <input
-                  type="range" min="0" max={Number(c.maxScore)} step="1"
-                  className="score-slider"
-                  aria-label={`Score for ${c.criteriaName}`}
-                  disabled={locked}
-                  value={scores[c.criteriaId] ?? 0}
-                  onChange={e => setScores({ ...scores, [c.criteriaId]: +e.target.value })}
-                  style={{ background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) 100%)` }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-                  <span>0 – Poor</span><span>{Math.round(Number(c.maxScore) / 2)} – Average</span><span>{Number(c.maxScore)} – Excellent</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          {/* Radar Chart */}
-          <div style={{ background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", padding: "1rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "1rem", alignSelf: "flex-start" }}>SCORE DISTRIBUTION</h4>
-            <div style={{ width: "100%", height: 250 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.criteria.map(c => ({ subject: c.criteriaName.split(" ")[0], A: scores[c.criteriaId] ?? 0, fullMark: Number(c.maxScore) }))}>
-                  <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, radarMax]} tick={false} axisLine={false} />
-                  <Radar name="Score" dataKey="A" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.4} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ marginTop: "auto", fontSize: "0.75rem", color: "var(--color-text-3)", textAlign: "center" }}>
-              Visual representation of team performance across criteria
+            {/* Radar Chart */}
+            <div style={{ background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", padding: "1rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "1rem", alignSelf: "flex-start" }}>SCORE DISTRIBUTION</h4>
+              <div style={{ width: "100%", height: 250 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.criteria.map(c => ({ subject: c.criteriaName.split(" ")[0], A: scores[c.criteriaId] ?? 0, fullMark: Number(c.maxScore) }))}>
+                    <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
+                    <PolarRadiusAxis angle={30} domain={[0, radarMax]} tick={false} axisLine={false} />
+                    <Radar name="Score" dataKey="A" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.4} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ marginTop: "auto", fontSize: "0.75rem", color: "var(--color-text-3)", textAlign: "center" }}>
+                Visual representation of team performance across criteria
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Per-criterion Comments */}
-      <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-          <MessageSquare size={16} style={{ color: "var(--color-primary)" }} />
-          <h4 style={{ fontSize: "0.95rem" }}>Feedback &amp; Comments</h4>
-        </div>
-        {data.criteria.map(c => (
-          <div key={c.criteriaId} style={{ marginBottom: "1rem" }}>
-            <label style={{ fontWeight: 600, fontSize: "0.82rem", display: "block", marginBottom: "0.35rem" }}>{c.criteriaName}</label>
-            <textarea
-              className="form-textarea"
-              rows={2}
-              placeholder={locked ? "No feedback provided." : `Feedback for ${c.criteriaName}…`}
-              disabled={locked}
-              value={comments[c.criteriaId] ?? ""}
-              onChange={e => setComments({ ...comments, [c.criteriaId]: e.target.value })}
-            />
+      {data.criteria.length > 0 && (
+        <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+            <MessageSquare size={16} style={{ color: "var(--color-primary)" }} />
+            <h4 style={{ fontSize: "0.95rem" }}>Feedback &amp; Comments</h4>
           </div>
-        ))}
-      </div>
+          {data.criteria.map(c => (
+            <div key={c.criteriaId} style={{ marginBottom: "1rem" }}>
+              <label style={{ fontWeight: 600, fontSize: "0.82rem", display: "block", marginBottom: "0.35rem" }}>{c.criteriaName}</label>
+              <textarea
+                className="form-textarea"
+                rows={2}
+                placeholder={isLocked ? "No feedback provided." : `Feedback for ${c.criteriaName}…`}
+                disabled={isLocked}
+                value={comments[c.criteriaId] ?? ""}
+                onChange={e => setComments({ ...comments, [c.criteriaId]: e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Actions */}
-      {!locked ? (
+      {data.criteria.length > 0 && (!isLocked ? (
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
           <button className="btn btn-secondary" onClick={() => handleSave(false)} disabled={saving}>
             {savingAction === "draft" ? <span className="spinner" /> : <><Send size={15} /> Save Draft</>}
@@ -292,9 +314,11 @@ export default function ScoreSubmissionForm({ submissionId, backHref }: ScoreSub
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", justifyContent: "flex-end" }}>
           <AlertCircle size={15} style={{ color: "var(--color-text-3)" }} />
-          <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>Scores are locked and cannot be changed</span>
+          <span style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>
+            {readOnly ? "Viewing scores (Admin Read-Only)" : "Scores are locked and cannot be changed"}
+          </span>
         </div>
-      )}
+      ))}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap } from "lucide-react";
+import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap, LogOut } from "lucide-react";
 import { App, Modal } from "antd";
 import { useRouter } from "next/navigation";
 import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
@@ -12,6 +12,7 @@ type TeamMember = {
   email: string;
   studentCode?: string | null;
   role?: string;
+  isKickPending?: boolean;
 };
 
 type TeamDto = {
@@ -34,6 +35,11 @@ type TeamDto = {
     email: string;
     schoolName?: string | null;
   } | null;
+  judge?: {
+    id: string;
+    fullName: string;
+    email: string;
+  } | null;
 };
 
 type EventDto = {
@@ -44,6 +50,20 @@ type EventDto = {
     categoryName: string;
     teamCount: number;
   }[];
+};
+
+type InvitationResponse = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  inviterUserId: string;
+  inviterUserName: string;
+  inviteeUserId: string;
+  inviteeUserName: string;
+  inviteeUserEmail: string;
+  status: string;
+  message?: string;
+  createdAt: string;
 };
 
 function parseMemberIds(value: string) {
@@ -67,11 +87,16 @@ export default function TeamsPage() {
   const [memberCodeToAdd, setMemberCodeToAdd] = useState("");
   const [draftTeamName, setDraftTeamName] = useState("");
   const [newLeaderCodeOrEmail, setNewLeaderCodeOrEmail] = useState("");
+  const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
 
-  // Mentor Selection states
   const [mentors, setMentors] = useState<{ id: string; fullName: string; email: string; schoolName?: string | null }[]>([]);
   const [showMentorModal, setShowMentorModal] = useState(false);
   const [loadingMentors, setLoadingMentors] = useState(false);
+
+  // Kick Request states
+  const [kickModalOpen, setKickModalOpen] = useState(false);
+  const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
+  const [kickReason, setKickReason] = useState("");
 
   const categories = useMemo(
     () =>
@@ -85,7 +110,20 @@ export default function TeamsPage() {
   );
 
   const isLeader = Boolean(myTeam && currentUser && myTeam.leaderId === currentUser.id);
-  const canModifyMembers = isLeader && myTeam?.status === "Pending";
+  const canModifyMembers = isLeader && (myTeam?.status === "Pending" || myTeam?.status === "Eliminated");
+  const canKickMembers = isLeader;
+
+  const showActions = useMemo(() => {
+    if (!myTeam || !currentUser) return false;
+    return myTeam.members.some((member) => {
+      const isMe = member.userId === currentUser.id;
+      const memberIsLeader = member.userId === myTeam.leaderId;
+      if (isMe) {
+        return !memberIsLeader || myTeam.members.length === 1;
+      }
+      return canKickMembers;
+    });
+  }, [myTeam, currentUser, canKickMembers]);
 
   const loadPage = async () => {
     setLoading(true);
@@ -99,16 +137,29 @@ export default function TeamsPage() {
       setEvents(eventData);
       setCategoryId((current) => current || eventData.flatMap((event) => event.categories)[0]?.categoryId || "");
 
+      let hasTeam = false;
       try {
         const team = await apiRequest<TeamDto>("/teams/my-team");
         setMyTeam(team);
         setDraftTeamName(team.teamName);
+        hasTeam = true;
       } catch (err) {
         const text = err instanceof Error ? err.message : "";
         if (!text.toLowerCase().includes("not joined") && !text.toLowerCase().includes("not found")) {
           throw err;
         }
         setMyTeam(null);
+      }
+
+      if (!hasTeam) {
+        try {
+          const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+          setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+        } catch {
+          setReceivedInvites([]);
+        }
+      } else {
+        setReceivedInvites([]);
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load team data.");
@@ -117,8 +168,82 @@ export default function TeamsPage() {
     }
   };
 
+  const reloadTeamOnly = async () => {
+    try {
+      const team = await apiRequest<TeamDto>("/teams/my-team");
+      setMyTeam((currentTeam) => {
+        if (JSON.stringify(currentTeam) !== JSON.stringify(team)) {
+          return team;
+        }
+        return currentTeam;
+      });
+      setDraftTeamName((currentDraft) => {
+        if (!currentDraft && team.teamName) {
+          return team.teamName;
+        }
+        return currentDraft;
+      });
+      setReceivedInvites([]);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : "";
+      if (text.toLowerCase().includes("not joined") || text.toLowerCase().includes("not found")) {
+        setMyTeam(null);
+        try {
+          const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+          setReceivedInvites((current) => {
+            const pendingOnly = invites.filter((inv) => inv.status === "Pending");
+            if (JSON.stringify(current) !== JSON.stringify(pendingOnly)) {
+              return pendingOnly;
+            }
+            return current;
+          });
+        } catch {
+          setReceivedInvites([]);
+        }
+      }
+    }
+  };
+
+  const handleAcceptInvite = async (id: string, teamName: string) => {
+    try {
+      await apiRequest(`/teams/invitations/${id}/accept`, { method: "POST" });
+      message.success(`You have successfully joined team ${teamName}!`);
+      window.location.reload();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to accept invitation.");
+    }
+  };
+
+  const handleDeclineInvite = async (id: string) => {
+    try {
+      await apiRequest(`/teams/invitations/${id}/reject`, { method: "POST" });
+      message.success("Invitation declined.");
+      const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+      setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
+    }
+  };
+
   useEffect(() => {
     loadPage();
+  }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      void reloadTeamOnly();
+    }, 3000);
+
+    const handleFocus = () => {
+      void reloadTeamOnly();
+    };
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const handleCreateTeam = async () => {
@@ -171,11 +296,11 @@ export default function TeamsPage() {
         body: JSON.stringify({ studentCodeOrEmail: memberCodeToAdd.trim() }),
       });
 
-      message.success("Member added successfully.");
+      message.success("Invitation sent successfully.");
       setMemberCodeToAdd("");
       await loadPage();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not add member.");
+      message.error(err instanceof Error ? err.message : "Could not invite member.");
     } finally {
       setSubmitting(false);
     }
@@ -184,21 +309,50 @@ export default function TeamsPage() {
   const handleRemoveMember = (member: TeamMember) => {
     if (!myTeam) return;
 
-    modal.confirm({
-      title: "Remove member",
-      content: `Remove ${member.fullName} from ${myTeam.teamName}?`,
-      okText: "Remove",
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          await apiRequest(`/teams/my-team/members/${encodeURIComponent(member.studentCode || member.email)}`, { method: "DELETE" });
-          message.success("Member removed successfully.");
-          await loadPage();
-        } catch (err) {
-          message.error(err instanceof Error ? err.message : "Could not remove member.");
-        }
-      },
-    });
+    const isApprovedTeam = ["Approved", "Active", "Champion"].includes(myTeam.status);
+
+    if (isApprovedTeam) {
+      setMemberToKick(member);
+      setKickReason("");
+      setKickModalOpen(true);
+    } else {
+      modal.confirm({
+        title: "Kick member",
+        content: `Are you sure you want to kick ${member.fullName} from the team?`,
+        okText: "Kick",
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          try {
+            await apiRequest(`/teams/my-team/members/${encodeURIComponent(member.studentCode || member.email)}`, { method: "DELETE" });
+            message.success("Member kicked successfully.");
+            await loadPage();
+          } catch (err) {
+            message.error(err instanceof Error ? err.message : "Could not kick member.");
+          }
+        },
+      });
+    }
+  };
+
+  const handleSubmitKickRequest = async () => {
+    if (!myTeam || !memberToKick || !kickReason.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/teams/my-team/members/${memberToKick.userId}/kick-request`, {
+        method: "POST",
+        body: JSON.stringify({ reason: kickReason.trim() }),
+      });
+      message.success("Kick request submitted for Judge approval.");
+      setKickModalOpen(false);
+      setMemberToKick(null);
+      setKickReason("");
+      await loadPage();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not submit kick request.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleUpdateTeam = async () => {
@@ -327,6 +481,65 @@ export default function TeamsPage() {
           <p className="page-subtitle">Register a team through the backend approval flow.</p>
         </div>
 
+        {/* Pending Invitations Banner */}
+        {receivedInvites.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem", maxWidth: 560, margin: "0 auto 2rem" }}>
+            {receivedInvites.map((invite) => (
+              <div
+                key={invite.id}
+                className="glass-card"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderLeft: "4px solid var(--color-primary)",
+                  padding: "1.25rem 1.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: "50%",
+                      background: "rgba(99,102,241,0.1)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--color-primary)",
+                    }}
+                  >
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "1.1rem", color: "var(--color-text-1)" }}>
+                      Team Invitation
+                    </h4>
+                    <p style={{ margin: "0.2rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                      <strong>{invite.inviterUserName}</strong> has invited you to join team <strong>{invite.teamName}</strong>.
+                      {invite.message && <span style={{ fontStyle: "italic", display: "block", marginTop: "0.25rem", color: "var(--color-text-2)" }}>&quot;{invite.message}&quot;</span>}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAcceptInvite(invite.id, invite.teamName)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleDeclineInvite(invite.id)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="glass-card" style={{ maxWidth: 560, margin: "0 auto" }}>
           <h3 style={{ fontSize: "1.2rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Crown size={18} /> Create a Team
@@ -403,6 +616,68 @@ export default function TeamsPage() {
         </div>
       </div>
 
+      {/* Pending Received Invitations / Join Requests Banner */}
+      {receivedInvites.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
+          {receivedInvites.map((invite) => {
+            const isJoinRequest = myTeam && myTeam.teamId === invite.teamId && myTeam.leaderId === currentUser?.id;
+            return (
+              <div
+                key={invite.id}
+                className="glass-card"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderLeft: "4px solid var(--color-primary)",
+                  padding: "1.25rem 1.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: "50%",
+                      background: "rgba(99,102,241,0.1)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--color-primary)",
+                    }}
+                  >
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "1.1rem", color: "var(--color-text-1)" }}>
+                      {isJoinRequest ? "Join Request" : "Team Invitation"}
+                    </h4>
+                    <p style={{ margin: "0.2rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                      <strong>{invite.inviterUserName}</strong> {isJoinRequest ? "has requested to join your team" : `has invited you to join team ${invite.teamName}`}.
+                      {invite.message && <span style={{ fontStyle: "italic", display: "block", marginTop: "0.25rem", color: "var(--color-text-2)" }}>&quot;{invite.message}&quot;</span>}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAcceptInvite(invite.id, invite.teamName)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleDeclineInvite(invite.id)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {canModifyMembers && (
         <div className="glass-card" style={{ maxWidth: 520, marginBottom: "2rem" }}>
           <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>Team Info</h3>
@@ -452,14 +727,20 @@ export default function TeamsPage() {
             <Users size={18} style={{ color: "var(--color-primary)" }} />
             Team Members ({myTeam.members.length}/5)
           </h3>
-          <span className={`badge ${myTeam.status === "Pending" ? "badge-warning" : "badge-success"}`}>
+          <span className={`badge ${
+            myTeam.status === "Pending"
+              ? "badge-warning"
+              : ["Approved", "Active", "Champion"].includes(myTeam.status)
+              ? "badge-success"
+              : "badge-danger"
+          }`}>
             {myTeam.status.toUpperCase()}
           </span>
         </div>
 
-        {myTeam.status !== "Pending" && (
+        {["Approved", "Active", "Champion"].includes(myTeam.status) && (
           <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            <AlertCircle size={14} style={{ color: "var(--color-warning)" }} /> Approved teams cannot be edited.
+            <AlertCircle size={14} style={{ color: "var(--color-warning)" }} /> Approved teams are locked. Adding members is blocked, and kicking requires a reason & Judge approval.
           </div>
         )}
 
@@ -470,7 +751,7 @@ export default function TeamsPage() {
                 <th>Member</th>
                 <th>Role</th>
                 <th>Email</th>
-                {canModifyMembers && <th style={{ textAlign: "right" }}>Actions</th>}
+                {showActions && <th style={{ textAlign: "right" }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -496,12 +777,24 @@ export default function TeamsPage() {
                       )}
                     </td>
                     <td><span style={{ color: "var(--color-text-2)" }}>{member.email}</span></td>
-                    {canModifyMembers && (
+                    {showActions && (
                       <td style={{ textAlign: "right" }}>
-                        {!memberIsLeader && (
-                          <button className="btn btn-ghost danger btn-sm" onClick={() => handleRemoveMember(member)} disabled={submitting}>
-                            <Trash2 size={14} /> Remove
-                          </button>
+                        {member.isKickPending ? (
+                          <span className="badge badge-warning" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "0.25rem 0.5rem" }}>
+                            <AlertCircle size={12} /> Pending Judge Approval
+                          </span>
+                        ) : member.userId === currentUser.id ? (
+                          (!memberIsLeader || myTeam.members.length === 1) && (
+                            <button className="btn btn-ghost danger btn-sm btn-kick" onClick={handleLeaveTeam} disabled={submitting}>
+                              <LogOut size={14} /> Leave
+                            </button>
+                          )
+                        ) : (
+                          !memberIsLeader && canKickMembers && (
+                            <button className="btn btn-ghost danger btn-sm btn-kick" onClick={() => handleRemoveMember(member)} disabled={submitting}>
+                              <Trash2 size={14} /> Kick
+                            </button>
+                          )
                         )}
                       </td>
                     )}
@@ -513,55 +806,89 @@ export default function TeamsPage() {
         </div>
       </div>
 
-      {/* Team Mentor Section */}
-      <div className="glass-card" style={{ marginBottom: "2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <GraduationCap size={18} style={{ color: "var(--color-primary)" }} />
-            Team Mentor
-          </h3>
-        </div>
+      {["Pending", "Approved", "Active", "Champion", "Rejected"].includes(myTeam.status) && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
+          {/* Team Mentor Section */}
+          <div className="glass-card" style={{ marginBottom: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <GraduationCap size={18} style={{ color: "var(--color-primary)" }} />
+                Team Mentor
+              </h3>
+            </div>
 
-        {myTeam.mentor ? (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
-                {myTeam.mentor.fullName.charAt(0)}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.mentor.fullName}</div>
-                <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.mentor.email}</div>
-                {myTeam.mentor.schoolName && (
-                  <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
-                    {myTeam.mentor.schoolName}
+            {myTeam.mentor ? (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                    {myTeam.mentor.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.mentor.fullName}</div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.mentor.email}</div>
+                    {myTeam.mentor.schoolName && (
+                      <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
+                        {myTeam.mentor.schoolName}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {isLeader && myTeam.status === "Pending" && (
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
+                      Change Mentor
+                    </button>
+                    <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
+                      Remove
+                    </button>
                   </div>
                 )}
               </div>
-            </div>
-            {isLeader && myTeam.status === "Pending" && (
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
-                  Change Mentor
-                </button>
-                <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
-                  Remove
-                </button>
+            ) : (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
+                <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                  No mentor selected yet.
+                </div>
+                {isLeader && myTeam.status === "Pending" && (
+                  <button className="btn btn-primary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
+                    Choose Mentor
+                  </button>
+                )}
               </div>
             )}
           </div>
-        ) : (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
-            <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
-              No mentor selected yet.
+
+          {/* Team Judge Section */}
+          <div className="glass-card" style={{ marginBottom: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Users size={18} style={{ color: "var(--color-primary)" }} />
+                Team Judge / Manager
+              </h3>
             </div>
-            {isLeader && myTeam.status === "Pending" && (
-              <button className="btn btn-primary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
-                Choose Mentor
-              </button>
+
+            {myTeam.judge ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                  {myTeam.judge.fullName.charAt(0)}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>
+                    {myTeam.judge.fullName} <span style={{ color: "var(--color-text-3)", fontSize: "0.8rem", fontWeight: 400 }}>(Giám Khảo)</span>
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.judge.email}</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", padding: "0.5rem 0" }}>
+                <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                  No judge assigned to this team yet.
+                </div>
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {canModifyMembers && (
         <div className="glass-card" style={{ maxWidth: 520, marginBottom: "2rem" }}>
@@ -645,6 +972,42 @@ export default function TeamsPage() {
             ))}
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title="Request Member Kick"
+        open={kickModalOpen}
+        onCancel={() => {
+          if (!submitting) {
+            setKickModalOpen(false);
+            setMemberToKick(null);
+            setKickReason("");
+          }
+        }}
+        onOk={handleSubmitKickRequest}
+        okText="Submit Request"
+        okButtonProps={{ danger: true, loading: submitting, disabled: !kickReason.trim() }}
+        cancelButtonProps={{ disabled: submitting }}
+        destroyOnHidden
+        centered
+      >
+        <div style={{ paddingTop: "0.5rem" }}>
+          <p style={{ marginBottom: "1rem", color: "var(--color-text-2)" }}>
+            Since your team is already approved, you cannot kick members directly. You must submit a request with a reason to the assigned Judge for approval.
+          </p>
+          <div className="form-group">
+            <label className="form-label" htmlFor="kickReasonInput">Reason for Kick</label>
+            <textarea
+              id="kickReasonInput"
+              className="form-input"
+              rows={3}
+              placeholder="Provide a clear reason for kicking this member..."
+              value={kickReason}
+              onChange={(e) => setKickReason(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -6,10 +6,6 @@ import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import FloatingThemeToggle from "../components/FloatingThemeToggle";
 import "./globals.css";
 
-// Runs in the browser BEFORE React hydrates so we can paint the correct theme
-// on the first frame. SSR can't know the user's preference, so without this
-// users who picked light mode see a dark flash. Reads saved choice, falls
-// back to the OS-level prefers-color-scheme, defaults to dark.
 const themeBootstrap = `
 (function() {
   try {
@@ -43,10 +39,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // suppressHydrationWarning: the inline themeBootstrap script may set
-    // data-theme="light" before React hydrates. Without this, React would
-    // either warn about the attribute mismatch or, worse, treat the
-    // out-of-sync attribute as a hydration error.
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
@@ -63,7 +55,7 @@ export default function RootLayout({
             <AIChatbotWrapper />
           </AuthProvider>
         </ThemeProvider>
-        
+
         {/* Google Translate container */}
         <div id="google_translate_element" style={{ opacity: 0, position: "absolute", zIndex: -1, pointerEvents: "none" }} />
 

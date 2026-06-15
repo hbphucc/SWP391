@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { App, Dropdown } from "antd";
 import Link from "next/link";
 import styles from "./TopBar.module.css";
-import { ALL_LANGUAGES } from "@/lib/languages";
 import { ThemeContext } from "./ThemeProvider";
 import { useAuth } from "./AuthProvider";
 import { apiRequest } from "@/lib/api";
+import { ALL_LANGUAGES } from "@/lib/languages";
 
 interface TopBarProps {
   onMenuToggle: () => void;
@@ -33,8 +33,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
-  // Defer the theme icon to post-mount so SSR's default-dark Sun doesn't
-  // briefly flash before the client picks Moon (when user chose light mode).
   const [themeIconMounted, setThemeIconMounted] = useState(false);
   useEffect(() => setThemeIconMounted(true), []);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -43,8 +41,8 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const [searchResults, setSearchResults] = useState<{ type: string; title: string; link: string }[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [language, setLanguage] = useState("en");
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  // Events fetched once per session for the global search; null = not loaded yet.
   const searchEventsRef = useRef<{ eventId: string; eventName: string }[] | null>(null);
   const latestQueryRef = useRef("");
 
@@ -77,10 +75,13 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     }
   };
 
-  const languageItems = ALL_LANGUAGES.map((language) => ({
-    key: language.key,
-    label: language.label,
-    onClick: () => changeLanguage(language.key),
+  const languageItems = ALL_LANGUAGES.map((item) => ({
+    key: item.key,
+    label: item.label,
+    onClick: () => {
+      setLanguage(item.key);
+      changeLanguage(item.key);
+    },
   }));
 
   const loadNotifications = useCallback(async () => {
@@ -91,8 +92,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     }
   }, []);
 
-  // Avatar is a UI-only per-email preference stored locally — it never drives
-  // identity/authz, so reading it from localStorage is fine.
   useEffect(() => {
     if (!currentUser) {
       setAvatar(null);
@@ -115,7 +114,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
 
     const intervalId = setInterval(() => {
       void loadNotifications();
-    }, 15000); // Poll every 15 seconds for notifications
+    }, 15000);
 
     return () => {
       window.clearTimeout(id);
@@ -134,7 +133,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     }
   };
 
-  // Searches real backend events (fetched once, then filtered client-side).
   const handleSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
     setSearchQuery(q);
@@ -151,7 +149,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       } catch {
         searchEventsRef.current = [];
       }
-      // The user kept typing while we fetched — only render for the latest query.
       if (latestQueryRef.current !== q) return;
     }
 
@@ -167,9 +164,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   };
 
   const handleLogout = async () => {
-    // Capture role BEFORE logout — once logout() resolves, currentUser is null.
-    // Admins land on the public landing page; non-admins go back to login so
-    // they can hop back into their dashboard quickly.
     const wasAdmin = currentUser?.roles.includes("Admin") ?? false;
     await logout();
     router.push(wasAdmin ? "/" : "/auth/login");
@@ -215,7 +209,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       </div>
 
       <div className={styles.right}>
-        <Dropdown menu={{ items: languageItems, style: { maxHeight: 400, overflowY: "auto" } }} placement="bottomRight" trigger={["click"]}>
+        <Dropdown menu={{ items: languageItems, selectedKeys: [language], style: { maxHeight: 400, overflowY: "auto" } }} placement="bottomRight" trigger={["click"]}>
           <button className={styles.iconBtn} title="Change language" aria-label="Change language">
             <Languages size={18} />
           </button>

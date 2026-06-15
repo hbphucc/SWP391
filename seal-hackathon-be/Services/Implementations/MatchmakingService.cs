@@ -56,7 +56,17 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> GetFreeAgentsAsync(Guid? eventId, Guid? categoryId, string? search, string? role)
         {
-            var query = _context.Users.Where(u => u.IsApproved);
+            var nonMemberRoles = await _context.Roles
+                .Where(r => r.Name == "Admin" || r.Name == "Judge" || r.Name == "Mentor")
+                .Select(r => r.Id)
+                .ToListAsync();
+
+            var nonMemberUserIds = await _context.UserRoles
+                .Where(ur => nonMemberRoles.Contains(ur.RoleId))
+                .Select(ur => ur.UserId)
+                .ToListAsync();
+
+            var query = _context.Users.Where(u => u.IsApproved && !nonMemberUserIds.Contains(u.Id));
 
             if (categoryId != null && categoryId != Guid.Empty)
             {
@@ -145,8 +155,18 @@ namespace SEAL.NET.Services.Implementations
         {
             var team = await GetCurrentUserTeamAsync(userId);
 
+            var nonMemberRoles = await _context.Roles
+                .Where(r => r.Name == "Admin" || r.Name == "Judge" || r.Name == "Mentor")
+                .Select(r => r.Id)
+                .ToListAsync();
+
+            var nonMemberUserIds = await _context.UserRoles
+                .Where(ur => nonMemberRoles.Contains(ur.RoleId))
+                .Select(ur => ur.UserId)
+                .ToListAsync();
+
             var membersInTeams = await _context.TeamMembers.Select(tm => tm.UserId).ToListAsync();
-            var freeAgentsQuery = _context.Users.Where(u => !membersInTeams.Contains(u.Id) && u.IsApproved);
+            var freeAgentsQuery = _context.Users.Where(u => !membersInTeams.Contains(u.Id) && !nonMemberUserIds.Contains(u.Id) && u.IsApproved);
             var freeAgents = await freeAgentsQuery.ToListAsync();
 
             if (team == null)
@@ -318,14 +338,21 @@ namespace SEAL.NET.Services.Implementations
             var currentUserId = currentUserIdRaw.Value;
             var team = await GetCurrentUserTeamAsync(currentUserId);
 
-            if (team == null)
-                return ServiceResult.Ok(new List<InvitationResponseDto>());
-
-            var sent = await _context.TeamInvitations
+            IQueryable<TeamInvitation> query = _context.TeamInvitations
                 .Include(ti => ti.Team)
                 .Include(ti => ti.InviteeUser)
-                .Include(ti => ti.InviterUser)
-                .Where(ti => ti.TeamId == team.TeamId)
+                .Include(ti => ti.InviterUser);
+
+            if (team != null)
+            {
+                query = query.Where(ti => ti.TeamId == team.TeamId);
+            }
+            else
+            {
+                query = query.Where(ti => ti.InviterUserId == currentUserId);
+            }
+
+            var sent = await query
                 .OrderByDescending(ti => ti.CreatedAt)
                 .Select(ti => new InvitationResponseDto
                 {
@@ -417,19 +444,22 @@ namespace SEAL.NET.Services.Implementations
                 .Select(c => c.CategoryId)
                 .ToListAsync();
 
+            var isJoinRequest = invitation.Team.LeaderId == invitation.InviteeUserId;
+            var targetUserId = isJoinRequest ? invitation.InviterUserId : currentUserId;
+
             var alreadyJoinedEvent = await _context.TeamMembers
                 .Include(tm => tm.Team)
                 .AnyAsync(tm =>
-                    tm.UserId == currentUserId &&
+                    tm.UserId == targetUserId &&
                     categoryIdsInSameEvent.Contains(tm.Team!.CategoryId));
 
             if (alreadyJoinedEvent)
-                return ServiceResult.BadRequest("You have already joined another team in this event.");
+                return ServiceResult.BadRequest(isJoinRequest ? "This applicant has already joined another team in this event." : "You have already joined another team in this event.");
 
             var membership = new TeamMember
             {
                 TeamId = team.TeamId,
-                UserId = currentUserId,
+                UserId = targetUserId,
                 Role = "Member"
             };
 
@@ -440,7 +470,7 @@ namespace SEAL.NET.Services.Implementations
 
             var otherPendingInEvent = await _context.TeamInvitations
                 .Include(ti => ti.Team)
-                .Where(ti => ti.InviteeUserId == currentUserId && ti.Status == InvitationStatus.Pending && ti.Id != id)
+                .Where(ti => ti.InviteeUserId == targetUserId && ti.Status == InvitationStatus.Pending && ti.Id != id)
                 .ToListAsync();
 
             foreach (var otherInvite in otherPendingInEvent)
@@ -452,20 +482,46 @@ namespace SEAL.NET.Services.Implementations
                 }
             }
 
+            var otherRequestsInEvent = await _context.TeamInvitations
+                .Include(ti => ti.Team)
+                .Where(ti => ti.InviterUserId == targetUserId && ti.Status == InvitationStatus.Pending && ti.Id != id)
+                .ToListAsync();
+
+            foreach (var otherRequest in otherRequestsInEvent)
+            {
+                if (categoryIdsInSameEvent.Contains(otherRequest.Team.CategoryId))
+                {
+                    otherRequest.Status = InvitationStatus.Rejected;
+                    otherRequest.RespondedAt = DateTime.UtcNow;
+                }
+            }
+
             await _context.SaveChangesAsync();
 
             try
             {
-                await _notificationService.CreateAsync(
-                    team.LeaderId,
-                    "Invitation Accepted",
-                    $"{invitation.InviteeUser.FullName} accepted your invitation to join {team.TeamName}.",
-                    "team"
-                );
+                if (isJoinRequest)
+                {
+                    await _notificationService.CreateAsync(
+                        invitation.InviterUserId,
+                        "Join Request Accepted",
+                        $"Your request to join team {team.TeamName} has been accepted.",
+                        "team"
+                    );
+                }
+                else
+                {
+                    await _notificationService.CreateAsync(
+                        team.LeaderId,
+                        "Invitation Accepted",
+                        $"{invitation.InviteeUser.FullName} accepted your invitation to join {team.TeamName}.",
+                        "team"
+                    );
+                }
             }
             catch { }
 
-            return ServiceResult.OkMessage("You have joined the team successfully.");
+            return ServiceResult.OkMessage(isJoinRequest ? "Join request accepted successfully." : "You have joined the team successfully.");
         }
 
         public async Task<ServiceResult> RejectInvitationAsync(Guid? currentUserIdRaw, Guid id)
@@ -487,6 +543,8 @@ namespace SEAL.NET.Services.Implementations
             if (invitation.Status != InvitationStatus.Pending)
                 return ServiceResult.BadRequest("This invitation is no longer pending.");
 
+            var isJoinRequest = invitation.Team.LeaderId == invitation.InviteeUserId;
+
             invitation.Status = InvitationStatus.Rejected;
             invitation.RespondedAt = DateTime.UtcNow;
 
@@ -494,16 +552,28 @@ namespace SEAL.NET.Services.Implementations
 
             try
             {
-                await _notificationService.CreateAsync(
-                    invitation.Team.LeaderId,
-                    "Invitation Rejected",
-                    $"{invitation.InviteeUser.FullName} rejected your invitation to join {invitation.Team.TeamName}.",
-                    "team"
-                );
+                if (isJoinRequest)
+                {
+                    await _notificationService.CreateAsync(
+                        invitation.InviterUserId,
+                        "Join Request Declined",
+                        $"Your request to join team {invitation.Team.TeamName} has been declined.",
+                        "team"
+                    );
+                }
+                else
+                {
+                    await _notificationService.CreateAsync(
+                        invitation.Team.LeaderId,
+                        "Invitation Rejected",
+                        $"{invitation.InviteeUser.FullName} rejected your invitation to join {invitation.Team.TeamName}.",
+                        "team"
+                    );
+                }
             }
             catch { }
 
-            return ServiceResult.OkMessage("Invitation rejected successfully.");
+            return ServiceResult.OkMessage(isJoinRequest ? "Join request rejected successfully." : "Invitation rejected successfully.");
         }
 
         public async Task<ServiceResult> CancelInvitationAsync(Guid? currentUserIdRaw, Guid id)
@@ -518,7 +588,7 @@ namespace SEAL.NET.Services.Implementations
             if (invitation == null)
                 return ServiceResult.NotFound("Invitation not found.");
 
-            if (invitation.Team.LeaderId != currentUserId)
+            if (invitation.InviterUserId != currentUserId && invitation.Team.LeaderId != currentUserId)
                 return ServiceResult.Forbidden();
 
             if (invitation.Status != InvitationStatus.Pending)

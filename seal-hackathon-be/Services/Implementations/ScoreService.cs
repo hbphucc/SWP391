@@ -42,7 +42,8 @@ namespace SEAL.NET.Services.Implementations
             var isAssigned = await _context.JudgeAssignments.AnyAsync(a =>
                 a.JudgeId == judgeId &&
                 a.RoundId == submission.RoundId &&
-                a.CategoryId == submission.Team!.CategoryId);
+                a.CategoryId == submission.Team!.CategoryId &&
+                (a.TeamId == null || a.TeamId == submission.TeamId));
 
             if (!isAssigned)
                 return ServiceResult.Forbidden();
@@ -80,20 +81,15 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> GetMyAssignedSubmissionsAsync(Guid judgeId)
         {
-            var assignments = await _context.JudgeAssignments
-                .Where(a => a.JudgeId == judgeId)
-                .ToListAsync();
-
-            var roundIds = assignments.Select(a => a.RoundId).ToList();
-            var categoryIds = assignments.Select(a => a.CategoryId).ToList();
-
             var submissions = await _context.Submissions
                 .Include(s => s.Team)
                     .ThenInclude(t => t.Category)
                 .Include(s => s.Round)
-                .Where(s =>
-                    roundIds.Contains(s.RoundId) &&
-                    categoryIds.Contains(s.Team!.CategoryId))
+                .Where(s => _context.JudgeAssignments.Any(a =>
+                    a.JudgeId == judgeId &&
+                    a.RoundId == s.RoundId &&
+                    a.CategoryId == s.Team!.CategoryId &&
+                    (a.TeamId == null || a.TeamId == s.TeamId)))
                 .Select(s => new
                 {
                     s.SubmissionId,
@@ -133,7 +129,8 @@ namespace SEAL.NET.Services.Implementations
                 var isAssigned = await _context.JudgeAssignments.AnyAsync(a =>
                     a.JudgeId == judgeId &&
                     a.RoundId == submission.RoundId &&
-                    a.CategoryId == submission.Team!.CategoryId);
+                    a.CategoryId == submission.Team!.CategoryId &&
+                    (a.TeamId == null || a.TeamId == submission.TeamId));
 
                 if (!isAssigned)
                     return ServiceResult.Forbidden();
@@ -143,11 +140,18 @@ namespace SEAL.NET.Services.Implementations
                 .Where(c => c.RoundId == submission.RoundId)
                 .ToListAsync();
 
-            var existingScores = await _context.Scores
-                .Where(s => s.SubmissionId == submissionId && s.JudgeId == judgeId)
-                .ToListAsync();
+            var scoresQuery = _context.Scores
+                .Include(s => s.Judge)
+                .Where(s => s.SubmissionId == submissionId);
 
-            var isLocked = existingScores.Any() && existingScores.All(s => s.IsLocked);
+            if (!isAdmin)
+            {
+                scoresQuery = scoresQuery.Where(s => s.JudgeId == judgeId);
+            }
+
+            var existingScores = await scoresQuery.ToListAsync();
+
+            var isLocked = isAdmin || (existingScores.Any() && existingScores.All(s => s.IsLocked));
 
             var response = new ScoreEvaluationResponse
             {
@@ -170,7 +174,30 @@ namespace SEAL.NET.Services.Implementations
                 },
                 Criteria = criteria.Select(c =>
                 {
-                    var existing = existingScores.FirstOrDefault(s => s.CriteriaId == c.CriteriaId);
+                    var scoresForCrit = existingScores.Where(s => s.CriteriaId == c.CriteriaId).ToList();
+                    decimal? scoreValue = null;
+                    string? comment = null;
+
+                    if (isAdmin)
+                    {
+                        if (scoresForCrit.Any())
+                        {
+                            scoreValue = Math.Round(scoresForCrit.Average(s => s.ScoreValue), 2);
+                            
+                            var comments = scoresForCrit
+                                .Where(s => !string.IsNullOrWhiteSpace(s.Comment))
+                                .Select(s => $"{(s.Judge != null ? s.Judge.FullName : "Judge")}: {s.Comment}");
+
+                            comment = comments.Any() ? string.Join("\n", comments) : null;
+                        }
+                    }
+                    else
+                    {
+                        var existing = scoresForCrit.FirstOrDefault(s => s.JudgeId == judgeId);
+                        scoreValue = existing?.ScoreValue;
+                        comment = existing?.Comment;
+                    }
+
                     return new CriterionScoreItemDto
                     {
                         CriteriaId = c.CriteriaId,
@@ -178,8 +205,8 @@ namespace SEAL.NET.Services.Implementations
                         Description = c.Description,
                         Weight = c.Weight,
                         MaxScore = c.MaxScore,
-                        ScoreValue = existing?.ScoreValue,
-                        Comment = existing?.Comment
+                        ScoreValue = scoreValue,
+                        Comment = comment
                     };
                 }).ToList()
             };
@@ -189,6 +216,9 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> SaveEvaluationAsync(Guid judgeId, SaveEvaluationRequest request, bool isAdmin)
         {
+            if (isAdmin)
+                return ServiceResult.Forbidden();
+
             var submission = await _context.Submissions
                 .Include(s => s.Team)
                     .ThenInclude(t => t!.Members)
@@ -203,7 +233,8 @@ namespace SEAL.NET.Services.Implementations
                 var isAssigned = await _context.JudgeAssignments.AnyAsync(a =>
                     a.JudgeId == judgeId &&
                     a.RoundId == submission.RoundId &&
-                    a.CategoryId == submission.Team!.CategoryId);
+                    a.CategoryId == submission.Team!.CategoryId &&
+                    (a.TeamId == null || a.TeamId == submission.TeamId));
 
                 if (!isAssigned)
                     return ServiceResult.Forbidden();
