@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using SEAL.NET.Data;
 using SEAL.NET.DTOs.User;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Services.Common;
@@ -13,6 +14,7 @@ namespace SEAL.NET.Services.Implementations
         private readonly RoleManager<IdentityRole<Guid>> _roleManager;
         private readonly INotificationService _notificationService;
         private readonly IAuditLogService _auditLogService;
+        private readonly ApplicationDbContext _db;
 
         private static readonly string[] AllowedRoles =
         {
@@ -27,12 +29,34 @@ namespace SEAL.NET.Services.Implementations
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole<Guid>> roleManager,
             INotificationService notificationService,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService,
+            ApplicationDbContext db)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _notificationService = notificationService;
             _auditLogService = auditLogService;
+            _db = db;
+        }
+
+        // Batch-fetches role names for a list of users in a SINGLE join query, avoiding
+        // the N+1 pattern of calling UserManager.GetRolesAsync per user (each call is a
+        // round-trip; with ~100ms DB latency that hit the FE's 20s timeout at ~200 users).
+        private async Task<Dictionary<Guid, List<string>>> GetRoleMapAsync(IEnumerable<Guid> userIds)
+        {
+            var ids = userIds.ToList();
+            if (ids.Count == 0) return new Dictionary<Guid, List<string>>();
+
+            var pairs = await (
+                from ur in _db.Set<IdentityUserRole<Guid>>()
+                join r in _db.Roles on ur.RoleId equals r.Id
+                where ids.Contains(ur.UserId)
+                select new { ur.UserId, r.Name }
+            ).ToListAsync();
+
+            return pairs
+                .GroupBy(p => p.UserId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.Name!).ToList());
         }
 
         public async Task<ServiceResult> GetUsersAsync()
@@ -41,25 +65,20 @@ namespace SEAL.NET.Services.Implementations
                 .OrderByDescending(u => u.CreatedAt)
                 .ToListAsync();
 
-            var result = new List<object>();
+            var roleMap = await GetRoleMapAsync(users.Select(u => u.Id));
 
-            foreach (var user in users)
+            var result = users.Select(user => (object)new
             {
-                var roles = await _userManager.GetRolesAsync(user);
-
-                result.Add(new
-                {
-                    user.Id,
-                    user.FullName,
-                    user.Email,
-                    studentType = user.StudentType == null ? null : user.StudentType.ToString(),
-                    user.StudentCode,
-                    user.SchoolName,
-                    user.IsApproved,
-                    user.CreatedAt,
-                    roles
-                });
-            }
+                user.Id,
+                user.FullName,
+                user.Email,
+                studentType = user.StudentType == null ? null : user.StudentType.ToString(),
+                user.StudentCode,
+                user.SchoolName,
+                user.IsApproved,
+                user.CreatedAt,
+                roles = roleMap.TryGetValue(user.Id, out var r) ? r : new List<string>()
+            }).ToList();
 
             return ServiceResult.Ok(result);
         }
@@ -71,24 +90,19 @@ namespace SEAL.NET.Services.Implementations
                 .OrderByDescending(u => u.CreatedAt)
                 .ToListAsync();
 
-            var result = new List<object>();
+            var roleMap = await GetRoleMapAsync(users.Select(u => u.Id));
 
-            foreach (var user in users)
+            var result = users.Select(user => (object)new
             {
-                var roles = await _userManager.GetRolesAsync(user);
-
-                result.Add(new
-                {
-                    user.Id,
-                    user.FullName,
-                    user.Email,
-                    studentType = user.StudentType == null ? null : user.StudentType.ToString(),
-                    user.StudentCode,
-                    user.SchoolName,
-                    user.CreatedAt,
-                    roles
-                });
-            }
+                user.Id,
+                user.FullName,
+                user.Email,
+                studentType = user.StudentType == null ? null : user.StudentType.ToString(),
+                user.StudentCode,
+                user.SchoolName,
+                user.CreatedAt,
+                roles = roleMap.TryGetValue(user.Id, out var r) ? r : new List<string>()
+            }).ToList();
 
             return ServiceResult.Ok(result);
         }
