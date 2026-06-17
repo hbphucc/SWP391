@@ -53,5 +53,9 @@ namespace SEAL.NET.Controllers
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)
             => this.ToActionResult(await _documentService.DeleteAsync(id, TryGetCurrentUserId(), User.IsInRole("Admin")));
+
+        [HttpGet("storage-stats")]
+        public async Task<IActionResult> GetStorageStats()
+            => this.ToActionResult(await _documentService.GetStorageStatsAsync());
     }
 }

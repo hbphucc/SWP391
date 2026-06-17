@@ -90,6 +90,7 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     title: "System",
     items: [
       { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
+      { icon: FileText, label: "Audit Logs", href: "/admin/audit-logs", roles: ["Admin"] },
       {
         icon: Bell,
         label: "System Notifications",
@@ -179,6 +180,7 @@ export default function Sidebar({
           ...section,
           items: [
             { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
+            { icon: FileText, label: "Audit Logs", href: "/admin/audit-logs", roles: ["Admin"] },
             {
               icon: Bell,
               label: "System Notifications",

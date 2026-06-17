@@ -11,5 +11,6 @@ namespace SEAL.NET.Services.Interfaces
         Task<ServiceResult> UploadAsync(Guid? uploaderId, string fileName, string? contentType, long length, Stream content);
         Task<DocumentDownload?> GetDownloadAsync(Guid id);
         Task<ServiceResult> DeleteAsync(Guid id, Guid? currentUserId, bool isAdmin);
+        Task<ServiceResult> GetStorageStatsAsync();
     }
 }
