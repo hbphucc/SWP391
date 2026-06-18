@@ -264,13 +264,13 @@ namespace SEAL.NET.Services.Implementations
                         var memberIds = item.Team.Members.Select(m => m.UserId).ToList();
                         if (memberIds.Any())
                         {
-                            var notificationMessage = matchedPrize != null
-                                ? $"Chúc mừng! Đội {item.Team.TeamName} của bạn đã đạt Top {rank} trong bảng thi {item.CategoryName}. Bạn đã nhận được giải thưởng: {matchedPrize.Title} với trị giá {matchedPrize.Amount}."
-                                : $"Đội {item.Team.TeamName} của bạn đã hoàn thành cuộc thi ở vị trí Top {rank} trong bảng thi {item.CategoryName}.";
+                          var notificationMessage = matchedPrize != null
+                            ? $"Congratulations! Your team {item.Team.TeamName} finished in the Top {rank} of the {item.CategoryName} track. You have won the prize: {matchedPrize.Title} worth {matchedPrize.Amount}."
+                            : $"Your team {item.Team.TeamName} has completed the competition in the Top {rank} of the {item.CategoryName} track.";
                             
                             await _notificationService.CreateForUsersAsync(
                                 memberIds,
-                                "Kết quả cuộc thi chung cuộc",
+                                "Final Competition Results",
                                 notificationMessage,
                                 "competition_results");
                         }
