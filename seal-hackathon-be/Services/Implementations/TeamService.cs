@@ -329,7 +329,10 @@ namespace SEAL.NET.Services.Implementations
                     id = assignedJudge.Id,
                     fullName = assignedJudge.FullName,
                     email = assignedJudge.Email
-                }
+                },
+                eventStatus = team.Category?.Event?.Status.ToString(),
+                finalRank = team.FinalRank,
+                finalPrize = team.FinalPrize
             });
         }
 
@@ -444,8 +447,11 @@ namespace SEAL.NET.Services.Implementations
 
             if (team.LeaderId == currentUserId)
             {
+                var eventIsCompleted = team.Category?.Event?.Status == EventStatus.Completed;
                 if (team.Members.Count > 1 &&
-                    (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion))
+                    (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active) &&
+                    !eventIsCompleted &&
+                    team.Status != TeamStatus.Champion)
                 {
                     return ServiceResult.BadRequest("Team leader must transfer leadership or remove other members before leaving.");
                 }
@@ -730,7 +736,10 @@ namespace SEAL.NET.Services.Implementations
                     id = assignedJudge.Id,
                     fullName = assignedJudge.FullName,
                     email = assignedJudge.Email
-                }
+                },
+                eventStatus = team.Category?.Event?.Status.ToString(),
+                finalRank = team.FinalRank,
+                finalPrize = team.FinalPrize
             });
         }
 

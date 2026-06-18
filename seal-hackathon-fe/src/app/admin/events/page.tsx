@@ -155,8 +155,11 @@ export default function AdminEventsPage() {
     }
   };
 
-  const handleAdvanceRound = async (roundId: string) => {
-    if (!window.confirm("Are you sure you want to advance this round? Teams with average score >= 40 will move to the next round, and others will be eliminated.")) {
+  const handleAdvanceRound = async (roundId: string, isFinal: boolean = false) => {
+    const confirmMessage = isFinal 
+      ? "Are you sure you want to end the competition? The system will calculate average scores, rank all teams, award prizes, and send notifications."
+      : "Are you sure you want to advance this round? Teams with average score >= 40 will move to the next round, and others will be eliminated.";
+    if (!window.confirm(confirmMessage)) {
       return;
     }
     setAdvancingId(roundId);
@@ -368,18 +371,22 @@ export default function AdminEventsPage() {
                           />
                         </div>
                       </div>
-                      {index < selectedEvent.rounds.length - 1 && (
-                        <div style={{ alignSelf: "flex-end", marginBottom: "0.2rem" }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: "0.45rem 1rem", minWidth: 120 }}
-                            onClick={() => handleAdvanceRound(round.roundId)}
-                            disabled={advancingId !== "" || loading || saving}
-                          >
-                            {advancingId === round.roundId ? <span className="spinner" /> : "Advance Round"}
-                          </button>
-                        </div>
-                      )}
+                      <div style={{ alignSelf: "flex-end", marginBottom: "0.2rem" }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: "0.45rem 1rem", minWidth: 120 }}
+                          onClick={() => handleAdvanceRound(round.roundId, index === selectedEvent.rounds.length - 1)}
+                          disabled={advancingId !== "" || loading || saving || selectedEvent.status === "Completed"}
+                        >
+                          {advancingId === round.roundId ? (
+                            <span className="spinner" />
+                          ) : index === selectedEvent.rounds.length - 1 ? (
+                            "End Competition"
+                          ) : (
+                            "Advance Round"
+                          )}
+                        </button>
+                      </div>
                     </div>
                   ))}
 

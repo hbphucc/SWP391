@@ -171,7 +171,127 @@ namespace SEAL.NET.Services.Implementations
                 .FirstOrDefaultAsync();
 
             if (nextRound == null)
-                return ServiceResult.BadRequest("This is the final round. No next round found.");
+            {
+                var finalTeams = await _context.Teams
+                    .Include(t => t.Category)
+                    .Include(t => t.Members)
+                    .Include(t => t.Submissions.Where(s => s.RoundId == roundId))
+                        .ThenInclude(s => s.Scores)
+                            .ThenInclude(sc => sc.Criteria)
+                    .Where(t =>
+                        t.CurrentRoundId == roundId &&
+                        t.Status == TeamStatus.Approved)
+                    .ToListAsync();
+
+                if (!finalTeams.Any())
+                    return ServiceResult.BadRequest("No active teams found for the final round.");
+
+                var eventPrizes = await _context.Prizes
+                    .Where(p => p.EventId == currentRound.EventId)
+                    .OrderBy(p => p.Rank)
+                    .ToListAsync();
+
+                var groupedByFinalCategory = finalTeams.GroupBy(t => t.CategoryId);
+                var finalResults = new List<object>();
+
+                foreach (var categoryGroup in groupedByFinalCategory)
+                {
+                    var rankedTeams = categoryGroup
+                        .Select(t => {
+                            var submission = t.Submissions.FirstOrDefault();
+                            decimal averageScore = 0;
+                            if (submission != null)
+                            {
+                                var judgeScores = submission.Scores
+                                    .GroupBy(sc => sc.JudgeId)
+                                    .Select(g => g.Sum(sc =>
+                                        sc.Criteria == null || sc.Criteria.MaxScore == 0
+                                            ? 0
+                                            : (sc.ScoreValue / sc.Criteria.MaxScore) * sc.Criteria.Weight))
+                                    .ToList();
+                                
+                                averageScore = judgeScores.Any() ? judgeScores.Average() : 0m;
+                            }
+
+                            return new
+                            {
+                                Team = t,
+                                TotalScore = averageScore,
+                                CategoryName = t.Category?.CategoryName ?? string.Empty
+                            };
+                        })
+                        .OrderByDescending(x => x.TotalScore)
+                        .ToList();
+
+                    for (int i = 0; i < rankedTeams.Count; i++)
+                    {
+                        var item = rankedTeams[i];
+                        int rank = i + 1;
+                        item.Team.FinalRank = rank;
+
+                        var matchedPrize = eventPrizes.FirstOrDefault(p =>
+                            p.Rank == rank &&
+                            !string.IsNullOrEmpty(p.Track) &&
+                            p.Track.Equals(item.CategoryName, StringComparison.OrdinalIgnoreCase));
+
+                        if (matchedPrize == null)
+                        {
+                            matchedPrize = eventPrizes.FirstOrDefault(p =>
+                                p.Rank == rank &&
+                                string.IsNullOrEmpty(p.Track));
+                        }
+
+                        if (matchedPrize != null)
+                        {
+                            item.Team.FinalPrize = $"{matchedPrize.Title} ({matchedPrize.Amount})";
+                        }
+
+                        if (rank == 1)
+                        {
+                            item.Team.Status = TeamStatus.Champion;
+                        }
+
+                        finalResults.Add(new
+                        {
+                            item.Team.TeamId,
+                            item.Team.TeamName,
+                            categoryName = item.CategoryName,
+                            finalRank = rank,
+                            finalPrize = item.Team.FinalPrize,
+                            totalScore = item.TotalScore
+                        });
+
+                        var memberIds = item.Team.Members.Select(m => m.UserId).ToList();
+                        if (memberIds.Any())
+                        {
+                            var notificationMessage = matchedPrize != null
+                                ? $"Chúc mừng! Đội {item.Team.TeamName} của bạn đã đạt Top {rank} trong bảng thi {item.CategoryName}. Bạn đã nhận được giải thưởng: {matchedPrize.Title} với trị giá {matchedPrize.Amount}."
+                                : $"Đội {item.Team.TeamName} của bạn đã hoàn thành cuộc thi ở vị trí Top {rank} trong bảng thi {item.CategoryName}.";
+                            
+                            await _notificationService.CreateForUsersAsync(
+                                memberIds,
+                                "Kết quả cuộc thi chung cuộc",
+                                notificationMessage,
+                                "competition_results");
+                        }
+                    }
+                }
+
+                var eventItem = await _context.Events.FindAsync(currentRound.EventId);
+                if (eventItem != null)
+                {
+                    eventItem.Status = EventStatus.Completed;
+                }
+
+                await _context.SaveChangesAsync();
+
+                return ServiceResult.Ok(new
+                {
+                    message = "Competition completed successfully. All teams have been ranked, prizes awarded, and notifications sent.",
+                    eventCompleted = true,
+                    finalResults
+                });
+            }
 
             var teams = await _context.Teams
                 .Include(t => t.Category)
