@@ -58,13 +58,23 @@ namespace SEAL.NET.Services.Implementations
             if (request.EndDate <= request.StartDate)
                 return (false, "EndDate must be greater than StartDate.");
 
+            var hasSubmissions = await _eventRepository.HasSubmissionsAsync(id);
+            if (hasSubmissions && request.StartDate != eventItem.StartDate)
+                return (false, "The start time cannot be changed after a submission has been made. Only the end time can be updated.");
+
+            if (eventItem.Rounds.Any(r => r.SubmissionDeadline < request.StartDate || r.SubmissionDeadline > request.EndDate))
+                return (false, "All round deadlines must remain within the event date range.");
+
             eventItem.EventName = request.EventName;
             eventItem.Description = request.Description;
             eventItem.StartDate = request.StartDate;
             eventItem.EndDate = request.EndDate;
             eventItem.Status = request.Status;
 
-            _eventRepository.Update(eventItem);
+            // GetEventDetailAsync returns a tracked entity. Calling Update here would
+            // mark the entire loaded Event -> Categories -> Teams/Rounds graph as
+            // modified, which can make populated events fail while empty events work.
+            // Changing the scalar properties above is enough for EF change tracking.
             await _eventRepository.SaveChangesAsync();
             return (true, "Updated successfully.");
         }
@@ -74,11 +84,7 @@ namespace SEAL.NET.Services.Implementations
             var eventItem = await _eventRepository.GetEventDetailAsync(id);
             if (eventItem == null) return (false, "Event not found.");
 
-            if (eventItem.Categories.Any() || eventItem.Rounds.Any())
-                return (false, "Cannot delete event that has categories or rounds.");
-
-            _eventRepository.Delete(eventItem);
-            await _eventRepository.SaveChangesAsync();
+            await _eventRepository.HardDeleteAsync(id);
             return (true, "Deleted successfully.");
         }
 
@@ -99,6 +105,7 @@ namespace SEAL.NET.Services.Implementations
                 StartDate = e.StartDate,
                 EndDate = e.EndDate,
                 Status = computedStatus.ToString(),
+                HasSubmissions = e.Rounds.Any(r => r.Submissions.Any()),
                 Categories = e.Categories.Select(c => new CategoryDto
                 {
                     CategoryId = c.CategoryId,
@@ -114,7 +121,8 @@ namespace SEAL.NET.Services.Implementations
                         RoundName = r.RoundName,
                         RoundOrder = r.RoundOrder,
                         MaxTeamsAdvancing = r.MaxTeamsAdvancing,
-                        SubmissionDeadline = r.SubmissionDeadline
+                        SubmissionDeadline = r.SubmissionDeadline,
+                        HasSubmissions = r.Submissions.Any()
                     }).ToList()
             };
         }
