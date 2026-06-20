@@ -7,5 +7,6 @@
         public int RoundOrder { get; set; }
         public int MaxTeamsAdvancing { get; set; }
         public DateTime? SubmissionDeadline { get; set; }
+        public bool HasSubmissions { get; set; }
     }
 }

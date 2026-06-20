@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Calendar, Clock, Save, AlertCircle, RefreshCw,
-  Plus, Trash2, GripVertical, Target, ChevronRight,
+  Plus, Trash2, GripVertical, Target, ChevronRight, Pencil,
 } from "lucide-react";
-import { App } from "antd";
+import { App, DatePicker } from "antd";
+import dayjs from "dayjs";
 import { apiRequest } from "@/lib/api";
 import { TRACKS_OPTIONS } from "@/lib/constants";
 
@@ -15,6 +16,7 @@ type RoundDto = {
   roundOrder: number;
   maxTeamsAdvancing: number;
   submissionDeadline: string | null;
+  hasSubmissions: boolean;
 };
 
 type EventDto = {
@@ -24,6 +26,7 @@ type EventDto = {
   startDate: string;
   endDate: string;
   status: string;
+  hasSubmissions: boolean;
   rounds: RoundDto[];
 };
 
@@ -52,9 +55,42 @@ function toDisplayDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+type DateTimePickerFieldProps = {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+};
+
+function DateTimePickerField({ value, onChange, disabled = false }: DateTimePickerFieldProps) {
+  const pickerValue = value && dayjs(value).isValid() ? dayjs(value) : null;
+
+  return (
+    <DatePicker
+      showTime={{ format: "hh:mm A", use12Hours: true, minuteStep: 5 }}
+      format="DD/MM/YYYY hh:mm A"
+      value={pickerValue}
+      onChange={(nextValue) => onChange(nextValue ? nextValue.format("YYYY-MM-DDTHH:mm") : "")}
+      disabled={disabled}
+      allowClear={false}
+      inputReadOnly
+      placeholder="DD/MM/YYYY hh:mm AM/PM"
+      style={{ width: "100%", minHeight: 50, paddingInline: 16 }}
+    />
+  );
+}
+
 /* ─── Create-form defaults ─── */
 const INITIAL_EVENT_FORM = { eventName: "", description: "", startDate: "", endDate: "" };
+const INITIAL_EDIT_FORM = { startDate: "", endDate: "" };
+const INITIAL_ROUND_EDIT_FORM = { roundName: "", deadline: "", roundOrder: "", maxTeamsAdvancing: "" };
 const INITIAL_ROUND = () => ({ id: Date.now(), name: "", topN: "5", deadline: "" });
+
+const EVENT_STATUS_VALUE: Record<string, number> = {
+  Upcoming: 0,
+  Ongoing: 1,
+  Completed: 2,
+  Cancelled: 3,
+};
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function AdminEventsPage() {
@@ -66,10 +102,16 @@ export default function AdminEventsPage() {
   /* ── Events list ── */
   const [events, setEvents] = useState<EventDto[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
-  const [draftDeadlines, setDraftDeadlines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [advancingId, setAdvancingId] = useState("");
+  const [editingTime, setEditingTime] = useState(false);
+  const [editForm, setEditForm] = useState(INITIAL_EDIT_FORM);
+  const [updatingEvent, setUpdatingEvent] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState(false);
+  const [editingRoundId, setEditingRoundId] = useState("");
+  const [roundEditForm, setRoundEditForm] = useState(INITIAL_ROUND_EDIT_FORM);
+  const [deletingRoundId, setDeletingRoundId] = useState("");
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
@@ -85,12 +127,8 @@ export default function AdminEventsPage() {
         const data = await apiRequest<EventDto[]>("/Events");
         if (!active.value) return;
         setEvents(data);
-        setSelectedEventId((cur) => cur || data[0]?.eventId || "");
-        setDraftDeadlines(
-          data.reduce<Record<string, string>>((acc, ev) => {
-            ev.rounds.forEach((r) => { acc[r.roundId] = toDateTimeLocal(r.submissionDeadline); });
-            return acc;
-          }, {}),
+        setSelectedEventId((cur) =>
+          data.some((event) => event.eventId === cur) ? cur : data[0]?.eventId || "",
         );
       } catch (err) {
         if (!active.value) return;
@@ -124,34 +162,157 @@ export default function AdminEventsPage() {
     [events, selectedEventId],
   );
 
-  /* ─────────────── Save deadlines ─────────────── */
-  const handleSave = async () => {
+  const beginEditTime = () => {
     if (!selectedEvent) return;
-    const changed = selectedEvent.rounds.filter(
-      (r) => draftDeadlines[r.roundId] !== toDateTimeLocal(r.submissionDeadline),
-    );
-    if (changed.length === 0) { message.info("No deadline changes to save."); return; }
-    setSaving(true);
+    setEditForm({
+      startDate: toDateTimeLocal(selectedEvent.startDate),
+      endDate: toDateTimeLocal(selectedEvent.endDate),
+    });
+    setEditingTime(true);
+  };
+
+  const handleUpdateEventTime = async () => {
+    if (!selectedEvent) return;
+    const startDate = toApiDate(editForm.startDate);
+    const endDate = toApiDate(editForm.endDate);
+
+    if (!startDate || !endDate) {
+      message.error("Start date and end date are required.");
+      return;
+    }
+    if (new Date(endDate) <= new Date(startDate)) {
+      message.error("End date must be after start date.");
+      return;
+    }
+
+    setUpdatingEvent(true);
     try {
-      await Promise.all(
-        changed.map((r) =>
-          apiRequest(`/events/${selectedEvent.eventId}/rounds/${r.roundId}`, {
-            method: "PUT",
-            body: JSON.stringify({
-              roundName: r.roundName,
-              submissionDeadline: toApiDate(draftDeadlines[r.roundId]),
-              roundOrder: r.roundOrder,
-              maxTeamsAdvancing: r.maxTeamsAdvancing,
-            }),
-          }),
-        ),
-      );
-      message.success("Round deadlines updated successfully.");
+      await apiRequest(`/Events/${selectedEvent.eventId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          eventName: selectedEvent.eventName,
+          description: selectedEvent.description ?? null,
+          startDate: selectedEvent.hasSubmissions ? selectedEvent.startDate : startDate,
+          endDate,
+          status: EVENT_STATUS_VALUE[selectedEvent.status] ?? 0,
+        }),
+      });
+      message.success("Event time updated successfully.");
+      setEditingTime(false);
       await refreshEvents();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not update round deadlines.");
+      message.error(err instanceof Error ? err.message : "Could not update event time.");
+    } finally {
+      setUpdatingEvent(false);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!selectedEvent) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete "${selectedEvent.eventName}"? All teams, submissions, scores, rounds, and related event data will also be deleted. This action cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingEvent(true);
+    try {
+      await apiRequest(`/Events/${selectedEvent.eventId}`, { method: "DELETE" });
+      message.success("Event deleted successfully.");
+      setEditingTime(false);
+      setEditingRoundId("");
+      setSelectedEventId("");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not delete event.");
+    } finally {
+      setDeletingEvent(false);
+    }
+  };
+
+  /* ─────────────── Save deadlines ─────────────── */
+  const beginEditRound = (round: RoundDto) => {
+    setRoundEditForm({
+      roundName: round.roundName,
+      deadline: toDateTimeLocal(round.submissionDeadline),
+      roundOrder: String(round.roundOrder),
+      maxTeamsAdvancing: String(round.maxTeamsAdvancing),
+    });
+    setEditingRoundId(round.roundId);
+  };
+
+  const handleUpdateRound = async (round: RoundDto) => {
+    if (!selectedEvent) return;
+    const submissionDeadline = toApiDate(roundEditForm.deadline);
+    if (!roundEditForm.roundName.trim() || !submissionDeadline) {
+      message.error("Round name and submission deadline are required.");
+      return;
+    }
+    const deadlineTime = new Date(submissionDeadline).getTime();
+    const persistedStartTime = new Date(selectedEvent.startDate).getTime();
+    const persistedEndTime = new Date(selectedEvent.endDate).getTime();
+    if (deadlineTime < persistedStartTime || deadlineTime > persistedEndTime) {
+      const draftStartTime = new Date(toApiDate(editForm.startDate) ?? "").getTime();
+      const draftEndTime = new Date(toApiDate(editForm.endDate) ?? "").getTime();
+      const fitsUnsavedEventTime = editingTime
+        && deadlineTime >= draftStartTime
+        && deadlineTime <= draftEndTime;
+
+      message.error(fitsUnsavedEventTime
+        ? "Save Event Time first, then save this round deadline."
+        : "Round deadline must be within the saved event time range.");
+      return;
+    }
+    const roundOrder = Number(roundEditForm.roundOrder);
+    const maxTeamsAdvancing = Number(roundEditForm.maxTeamsAdvancing);
+    if (!round.hasSubmissions && (!Number.isInteger(roundOrder) || roundOrder < 1)) {
+      message.error("Round order must be a positive whole number.");
+      return;
+    }
+    if (!round.hasSubmissions && (!Number.isInteger(maxTeamsAdvancing) || maxTeamsAdvancing < 0)) {
+      message.error("Top N teams must be zero or a positive whole number.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiRequest(`/events/${selectedEvent.eventId}/rounds/${round.roundId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          roundName: round.hasSubmissions ? round.roundName : roundEditForm.roundName.trim(),
+          submissionDeadline,
+          roundOrder: round.hasSubmissions ? round.roundOrder : roundOrder,
+          maxTeamsAdvancing: round.hasSubmissions
+            ? round.maxTeamsAdvancing
+            : maxTeamsAdvancing,
+        }),
+      });
+      message.success("Round updated successfully.");
+      setEditingRoundId("");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not update round.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteRound = async (round: RoundDto) => {
+    if (!selectedEvent) return;
+    const confirmed = window.confirm(
+      `Delete "${round.roundName}"? Its submissions, scores, criteria, and judge assignments will also be permanently deleted.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingRoundId(round.roundId);
+    try {
+      await apiRequest(`/events/${selectedEvent.eventId}/rounds/${round.roundId}`, { method: "DELETE" });
+      message.success("Round deleted permanently.");
+      if (editingRoundId === round.roundId) setEditingRoundId("");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not delete round.");
+    } finally {
+      setDeletingRoundId("");
     }
   };
 
@@ -310,8 +471,8 @@ export default function AdminEventsPage() {
                 <select
                   className="form-input"
                   value={selectedEventId}
-                  onChange={(e) => setSelectedEventId(e.target.value)}
-                  disabled={loading || saving}
+                  onChange={(e) => { setSelectedEventId(e.target.value); setEditingTime(false); setEditingRoundId(""); }}
+                  disabled={loading || saving || updatingEvent || deletingEvent}
                   style={{ cursor: "pointer", fontWeight: "bold" }}
                 >
                   {events.map((ev) => (
@@ -324,15 +485,58 @@ export default function AdminEventsPage() {
               {selectedEvent && (
                 <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.5rem" }}>
                   {/* Event info */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
                     <div>
                       <h4 style={{ color: "var(--color-text)", marginBottom: "0.2rem" }}>{selectedEvent.eventName}</h4>
                       <span style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>
                         {toDisplayDate(selectedEvent.startDate)} → {toDisplayDate(selectedEvent.endDate)}
                       </span>
                     </div>
-                    <span className="badge badge-primary">{selectedEvent.status}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                      <span className="badge badge-primary">{selectedEvent.status}</span>
+                      <button className="btn btn-secondary btn-sm" onClick={beginEditTime} disabled={updatingEvent || deletingEvent}>
+                        <Pencil size={14} /> Edit Time
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={handleDeleteEvent} disabled={updatingEvent || deletingEvent}>
+                        {deletingEvent ? <span className="spinner" /> : <><Trash2 size={14} /> Delete Event</>}
+                      </button>
+                    </div>
                   </div>
+
+                  {editingTime && (
+                    <div style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1rem", marginBottom: "1.25rem" }}>
+                      <h4 style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginBottom: "1rem", color: "var(--color-text)" }}>
+                        <Clock size={16} /> Edit Event Time
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+                        <div className="form-group">
+                          <label className="form-label">Start Date &amp; Time</label>
+                          <DateTimePickerField
+                            value={editForm.startDate}
+                            onChange={(value) => setEditForm((cur) => ({ ...cur, startDate: value }))}
+                            disabled={updatingEvent || selectedEvent.hasSubmissions}
+                          />
+                          {selectedEvent.hasSubmissions && (
+                            <span className="form-hint">Locked because this event already has submissions.</span>
+                          )}
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">End Date &amp; Time</label>
+                          <DateTimePickerField
+                            value={editForm.endDate}
+                            onChange={(value) => setEditForm((cur) => ({ ...cur, endDate: value }))}
+                            disabled={updatingEvent}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", marginTop: "1rem" }}>
+                        <button className="btn btn-ghost" onClick={() => setEditingTime(false)} disabled={updatingEvent}>Cancel</button>
+                        <button className="btn btn-primary" onClick={handleUpdateEventTime} disabled={updatingEvent}>
+                          {updatingEvent ? <span className="spinner" /> : <><Save size={14} /> Save Event Time</>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <h4 style={{ marginBottom: "1rem", color: "var(--color-text)" }}>Event Stages / Rounds</h4>
 
@@ -347,46 +551,73 @@ export default function AdminEventsPage() {
                     <div
                       key={round.roundId}
                       style={{
-                        display: "flex", alignItems: "center", gap: "1rem",
                         marginBottom: "1rem", background: "var(--color-surface-2)",
                         padding: "1rem", borderRadius: "var(--radius-md)",
                         border: "1px solid var(--color-border-2)",
                       }}
                     >
-                      <div style={{ flex: 1 }}>
-                        <label className="form-label" style={{ marginBottom: "0.3rem" }}>Round {index + 1} Name</label>
-                        <input className="form-input" value={round.roundName} disabled style={{ opacity: 0.8 }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="form-label" style={{ marginBottom: "0.3rem" }}>Submission Deadline</label>
-                        <div style={{ position: "relative" }}>
-                          <Clock size={16} style={{ position: "absolute", left: "0.8rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-3)" }} />
-                          <input
-                            type="datetime-local"
-                            className="form-input"
-                            style={{ paddingLeft: "2.2rem" }}
-                            value={draftDeadlines[round.roundId] ?? ""}
-                            onChange={(e) => setDraftDeadlines((cur) => ({ ...cur, [round.roundId]: e.target.value }))}
-                            disabled={saving || advancingId !== ""}
-                          />
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                        <div>
+                          <div style={{ fontWeight: 650, color: "var(--color-text)" }}>
+                            Round {index + 1}: {round.roundName}
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
+                            Deadline: {toDisplayDate(round.submissionDeadline)} · Top {round.maxTeamsAdvancing} advance
+                          </div>
+                          {round.hasSubmissions && (
+                            <span className="badge badge-neutral" style={{ marginTop: "0.5rem" }}>Has submissions · deadline only</span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => beginEditRound(round)} disabled={saving || deletingRoundId !== ""}>
+                            <Pencil size={13} /> Edit Round
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteRound(round)} disabled={saving || deletingRoundId !== ""}>
+                            {deletingRoundId === round.roundId ? <span className="spinner" /> : <><Trash2 size={13} /> Delete Round</>}
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleAdvanceRound(round.roundId, index === selectedEvent.rounds.length - 1)}
+                            disabled={advancingId !== "" || loading || saving || deletingRoundId !== "" || selectedEvent.status === "Completed"}
+                          >
+                            {advancingId === round.roundId
+                              ? <span className="spinner" />
+                              : index === selectedEvent.rounds.length - 1 ? "End Competition" : "Advance Round"}
+                          </button>
                         </div>
                       </div>
-                      <div style={{ alignSelf: "flex-end", marginBottom: "0.2rem" }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: "0.45rem 1rem", minWidth: 120 }}
-                          onClick={() => handleAdvanceRound(round.roundId, index === selectedEvent.rounds.length - 1)}
-                          disabled={advancingId !== "" || loading || saving || selectedEvent.status === "Completed"}
-                        >
-                          {advancingId === round.roundId ? (
-                            <span className="spinner" />
-                          ) : index === selectedEvent.rounds.length - 1 ? (
-                            "End Competition"
-                          ) : (
-                            "Advance Round"
+
+                      {editingRoundId === round.roundId && (
+                        <div style={{ borderTop: "1px solid var(--color-border)", marginTop: "1rem", paddingTop: "1rem" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
+                            <div className="form-group">
+                              <label className="form-label">Round Name</label>
+                              <input className="form-input" value={roundEditForm.roundName} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, roundName: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Submission Deadline</label>
+                              <DateTimePickerField value={roundEditForm.deadline} onChange={(value) => setRoundEditForm((cur) => ({ ...cur, deadline: value }))} disabled={saving} />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Round Order</label>
+                              <input type="number" min={1} className="form-input" value={roundEditForm.roundOrder} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, roundOrder: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Top N Teams</label>
+                              <input type="number" min={0} className="form-input" value={roundEditForm.maxTeamsAdvancing} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, maxTeamsAdvancing: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                            </div>
+                          </div>
+                          {round.hasSubmissions && (
+                            <p className="form-hint" style={{ marginTop: "0.75rem" }}>This round already has submissions, so only its deadline can be changed.</p>
                           )}
-                        </button>
-                      </div>
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1rem" }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setEditingRoundId("")} disabled={saving}>Cancel</button>
+                            <button className="btn btn-primary btn-sm" onClick={() => handleUpdateRound(round)} disabled={saving}>
+                              {saving ? <span className="spinner" /> : <><Save size={13} /> Save Round</>}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
 
@@ -397,14 +628,6 @@ export default function AdminEventsPage() {
                 </div>
               )}
 
-              {/* Save button */}
-              {selectedEvent && (
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button className="btn btn-primary" onClick={handleSave} disabled={saving || loading} style={{ padding: "0.7rem 2rem" }}>
-                    {saving ? <span className="spinner" /> : <><Save size={16} /> Save All Changes</>}
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -451,20 +674,16 @@ export default function AdminEventsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div className="form-group">
                     <label className="form-label">Start Date & Time *</label>
-                    <input
-                      className="form-input"
-                      type="datetime-local"
+                    <DateTimePickerField
                       value={eventForm.startDate}
-                      onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
+                      onChange={(value) => setEventForm({ ...eventForm, startDate: value })}
                     />
                   </div>
                   <div className="form-group">
                     <label className="form-label">End Date & Time *</label>
-                    <input
-                      className="form-input"
-                      type="datetime-local"
+                    <DateTimePickerField
                       value={eventForm.endDate}
-                      onChange={(e) => setEventForm({ ...eventForm, endDate: e.target.value })}
+                      onChange={(value) => setEventForm({ ...eventForm, endDate: value })}
                     />
                   </div>
                 </div>
@@ -520,11 +739,9 @@ export default function AdminEventsPage() {
                       </div>
                       <div className="form-group">
                         <label className="form-label"><Clock size={11} /> Submission Deadline *</label>
-                        <input
-                          className="form-input"
-                          type="datetime-local"
+                        <DateTimePickerField
                           value={r.deadline}
-                          onChange={(e) => setRounds(rounds.map((x) => x.id === r.id ? { ...x, deadline: e.target.value } : x))}
+                          onChange={(value) => setRounds(rounds.map((x) => x.id === r.id ? { ...x, deadline: value } : x))}
                         />
                       </div>
                     </div>

@@ -35,6 +35,7 @@ namespace SEAL.NET.Services.Implementations
                     r.SubmissionDeadline,
                     r.RoundOrder,
                     r.MaxTeamsAdvancing,
+                    HasSubmissions = r.Submissions.Any(),
                     r.EventId
                 })
                 .ToListAsync();
@@ -53,6 +54,7 @@ namespace SEAL.NET.Services.Implementations
                     r.SubmissionDeadline,
                     r.RoundOrder,
                     r.MaxTeamsAdvancing,
+                    HasSubmissions = r.Submissions.Any(),
                     r.EventId
                 })
                 .FirstOrDefaultAsync();
@@ -118,6 +120,16 @@ namespace SEAL.NET.Services.Implementations
             if (request.SubmissionDeadline < eventItem.StartDate || request.SubmissionDeadline > eventItem.EndDate)
                 return ServiceResult.BadRequest("SubmissionDeadline must be within event date range.");
 
+            var hasSubmissions = await _context.Submissions.AnyAsync(s => s.RoundId == roundId);
+            if (hasSubmissions &&
+                (request.RoundName != round.RoundName
+                    || request.RoundOrder != round.RoundOrder
+                    || request.MaxTeamsAdvancing != round.MaxTeamsAdvancing))
+            {
+                return ServiceResult.BadRequest(
+                    "After a submission has been made, only the submission deadline can be changed.");
+            }
+
             var duplicateOrder = await _context.Rounds.AnyAsync(r =>
                 r.EventId == eventId &&
                 r.RoundId != roundId &&
@@ -139,19 +151,34 @@ namespace SEAL.NET.Services.Implementations
         public async Task<ServiceResult> DeleteRoundAsync(Guid eventId, Guid roundId)
         {
             var round = await _context.Rounds
-                .Include(r => r.CriteriaList)
-                .Include(r => r.Submissions)
-                .Include(r => r.JudgeAssignments)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(r => r.EventId == eventId && r.RoundId == roundId);
 
             if (round == null)
                 return ServiceResult.NotFound("Round not found.");
 
-            if (round.CriteriaList.Any() || round.Submissions.Any() || round.JudgeAssignments.Any())
-                return ServiceResult.BadRequest("Cannot delete round because it already has criteria, submissions, or judge assignments.");
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _context.Rounds.Remove(round);
-            await _context.SaveChangesAsync();
+            await _context.Scores
+                .Where(s => s.Submission!.RoundId == roundId || s.Criteria!.RoundId == roundId)
+                .ExecuteDeleteAsync();
+            await _context.JudgeAssignments
+                .Where(j => j.RoundId == roundId)
+                .ExecuteDeleteAsync();
+            await _context.Submissions
+                .Where(s => s.RoundId == roundId)
+                .ExecuteDeleteAsync();
+            await _context.Criteria
+                .Where(c => c.RoundId == roundId)
+                .ExecuteDeleteAsync();
+            await _context.Teams
+                .Where(t => t.CurrentRoundId == roundId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.CurrentRoundId, (Guid?)null));
+            await _context.Rounds
+                .Where(r => r.RoundId == roundId)
+                .ExecuteDeleteAsync();
+
+            await transaction.CommitAsync();
 
             return ServiceResult.OkMessage("Round deleted successfully.");
         }
