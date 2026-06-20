@@ -73,6 +73,9 @@ export default function LandingPage() {
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedComp, setSelectedComp] = useState<EventDto | null>(null);
+  const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Upcoming" | "Completed">("featured");
+  const [winners, setWinners] = useState<any[]>([]);
+  const [loadingWinners, setLoadingWinners] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -88,7 +91,43 @@ export default function LandingPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!selectedComp || selectedComp.status !== "Completed") {
+      setWinners([]);
+      return;
+    }
+
+    const loadWinners = async () => {
+      setLoadingWinners(true);
+      try {
+        const sortedRounds = [...selectedComp.rounds].sort((a, b) => b.roundOrder - a.roundOrder);
+        const finalRound = sortedRounds[0];
+        if (finalRound) {
+          const rankingData = await apiRequest<any[]>(`/ranking/round/${finalRound.roundId}`);
+          setWinners(rankingData);
+        } else {
+          setWinners([]);
+        }
+      } catch {
+        setWinners([]);
+      } finally {
+        setLoadingWinners(false);
+      }
+    };
+
+    loadWinners();
+  }, [selectedComp]);
+
   const featuredEvents = getFeaturedEvents(events);
+
+  const displayedEvents = activeTab === "featured"
+    ? featuredEvents
+    : [...events]
+        .filter((event) => event.status === activeTab)
+        .sort((a, b) => {
+          const startDateDifference = new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+          return startDateDifference || b.eventId.localeCompare(a.eventId);
+        });
 
   return (
     <div className={styles.container}>
@@ -147,24 +186,48 @@ export default function LandingPage() {
 
         {/* Competitions Section */}
         <div className={styles.competitionsSection}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <h2 className={styles.sectionTitle}>
-              <Globe style={{ color: "var(--color-primary-2)" }} />
-              Featured Events
-            </h2>
-          </motion.div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "2rem" }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>
+                <Globe style={{ color: "var(--color-primary-2)" }} />
+                {activeTab === "featured" ? "Featured Events" : activeTab === "Ongoing" ? "Ongoing Events" : activeTab === "Upcoming" ? "Upcoming Events" : "Past Events"}
+              </h2>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="tabs"
+            >
+              <button className={`tab-btn ${activeTab === "featured" ? "active" : ""}`} onClick={() => setActiveTab("featured")}>
+                Featured
+              </button>
+              <button className={`tab-btn ${activeTab === "Ongoing" ? "active" : ""}`} onClick={() => setActiveTab("Ongoing")}>
+                Ongoing
+              </button>
+              <button className={`tab-btn ${activeTab === "Upcoming" ? "active" : ""}`} onClick={() => setActiveTab("Upcoming")}>
+                Upcoming
+              </button>
+              <button className={`tab-btn ${activeTab === "Completed" ? "active" : ""}`} onClick={() => setActiveTab("Completed")}>
+                Past Events
+              </button>
+            </motion.div>
+          </div>
 
           {loading ? (
             <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>Loading events…</div>
-          ) : featuredEvents.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>No events available.</div>
+          ) : displayedEvents.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>
+              No {activeTab === "featured" ? "featured" : activeTab === "Completed" ? "past" : activeTab.toLowerCase()} events available at the moment.
+            </div>
           ) : (
-            <div className={styles.featuredGrid}>
-              {featuredEvents.map((comp, index) => {
+            <div className={styles.featuredGrid} key={activeTab}>
+              {displayedEvents.map((comp, index) => {
                 const teamsCount = comp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0);
                 const statusLabel = STATUS_LABEL[comp.status] || comp.status;
                 return (
@@ -286,6 +349,75 @@ export default function LandingPage() {
                   <span className="badge badge-neutral"><Users size={12} style={{ marginRight: "4px" }} /> {selectedComp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0)} team{selectedComp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0) !== 1 ? "s" : ""}</span>
                   <span className="badge badge-neutral"><Calendar size={12} style={{ marginRight: "4px" }} /> {dateRange(selectedComp.startDate, selectedComp.endDate)}</span>
                 </div>
+
+                {selectedComp.status === "Completed" && (
+                  <div style={{ background: "rgba(245, 158, 11, 0.06)", padding: "1.25rem", borderRadius: "12px", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                    <h4 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 700, color: "var(--color-amber)", marginBottom: "1rem", fontSize: "1.05rem" }}>
+                      <Trophy size={20} /> Event Winners & Standings
+                    </h4>
+                    {loadingWinners ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                        <span className="spinner" style={{ width: 16, height: 16 }}></span> Loading results...
+                      </div>
+                    ) : winners.length === 0 ? (
+                      <p style={{ fontSize: "0.9rem", color: "var(--color-text-3)" }}>No official results published yet.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                        {winners.map((team) => {
+                          const isChampion = team.rank === 1;
+                          return (
+                            <div
+                              key={team.teamId}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "0.75rem 1rem",
+                                borderRadius: "8px",
+                                background: isChampion ? "rgba(245, 158, 11, 0.12)" : "var(--color-surface-2)",
+                                border: `1px solid ${isChampion ? "rgba(245, 158, 11, 0.35)" : "var(--color-border-2)"}`,
+                                transition: "all 0.2s"
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                                <span
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    width: "24px",
+                                    height: "24px",
+                                    borderRadius: "50%",
+                                    fontSize: "0.8rem",
+                                    fontWeight: "bold",
+                                    background: isChampion ? "var(--color-amber)" : "var(--color-surface)",
+                                    color: isChampion ? "#000" : "var(--color-text-2)",
+                                    border: isChampion ? "none" : "1px solid var(--color-border)"
+                                  }}
+                                >
+                                  {team.rank}
+                                </span>
+                                <div>
+                                  <div style={{ fontWeight: 650, color: isChampion ? "var(--color-amber)" : "var(--color-text)", fontSize: "0.95rem" }}>
+                                    {team.teamName} {isChampion && "🏆 (Champion)"}
+                                  </div>
+                                  <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>
+                                    Track: {team.categoryName}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                <div style={{ fontSize: "0.95rem", fontWeight: "bold", color: "var(--color-primary-2)" }}>
+                                  {team.totalScore.toFixed(1)} pts
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {selectedComp.rounds.length > 0 && (
                   <div style={{ background: "rgba(99, 102, 241, 0.05)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--color-border)" }}>

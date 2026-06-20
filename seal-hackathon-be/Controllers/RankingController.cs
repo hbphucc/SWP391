@@ -25,5 +25,15 @@ namespace SEAL.NET.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetCategoryRoundRanking(Guid categoryId, Guid roundId)
             => Ok(await _rankingService.GetCategoryRoundRankingAsync(categoryId, roundId));
+
+        [HttpGet("event/{eventId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetEventOverallRanking(Guid eventId)
+            => Ok(await _rankingService.GetEventOverallRankingAsync(eventId));
+
+        [HttpGet("category/{categoryId}/event/{eventId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCategoryEventOverallRanking(Guid categoryId, Guid eventId)
+            => Ok(await _rankingService.GetCategoryEventOverallRankingAsync(categoryId, eventId));
     }
 }

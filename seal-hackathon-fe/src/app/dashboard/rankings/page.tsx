@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
 import { Trophy, Medal, Award, Download, Crown, RefreshCw } from "lucide-react";
@@ -75,9 +75,13 @@ export default function RankingsPage() {
     setLoading(true);
     try {
       const path =
-        categoryId === "all"
-          ? `/ranking/round/${roundId}`
-          : `/ranking/category/${categoryId}/round/${roundId}`;
+        roundId === "overall"
+          ? (categoryId === "all"
+              ? `/ranking/event/${eventId}`
+              : `/ranking/category/${categoryId}/event/${eventId}`)
+          : (categoryId === "all"
+              ? `/ranking/round/${roundId}`
+              : `/ranking/category/${categoryId}/round/${roundId}`);
       setRankings(await apiRequest<RankingDto[]>(path));
     } catch (err) {
       setRankings([]);
@@ -137,7 +141,7 @@ export default function RankingsPage() {
         <div>
           <h1 className="page-title">Rankings & Leaderboard</h1>
           <p className="page-subtitle">
-            {selectedEvent?.eventName ?? "Select an event"} {roundId ? "- Backend ranking" : ""}
+            {selectedEvent?.eventName ?? "Select an event"} {roundId === "overall" ? "- Overall standings" : roundId ? "- Backend ranking" : ""}
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -150,6 +154,7 @@ export default function RankingsPage() {
             {selectedEvent?.rounds.map((round) => (
               <option key={round.roundId} value={round.roundId}>{round.roundName}</option>
             ))}
+            <option value="overall">Overall</option>
           </select>
           <select className="form-input" style={{ width: 180 }} value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={!selectedEvent?.categories.length}>
             <option value="all">All categories</option>

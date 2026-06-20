@@ -316,10 +316,13 @@ export default function AdminEventsPage() {
     }
   };
 
-  const handleAdvanceRound = async (roundId: string, isFinal: boolean = false) => {
+  const handleAdvanceRound = async (round: RoundDto, isFinal: boolean = false) => {
+    const roundId = round.roundId;
     const confirmMessage = isFinal 
       ? "Are you sure you want to end the competition? The system will calculate average scores, rank all teams, award prizes, and send notifications."
-      : "Are you sure you want to advance this round? Teams with average score >= 40 will move to the next round, and others will be eliminated.";
+      : round.maxTeamsAdvancing > 0
+        ? `Are you sure you want to advance this round? The top ${round.maxTeamsAdvancing} teams (by average score) will move to the next round, and others will be eliminated.`
+        : "Are you sure you want to advance this round? Teams with average score >= 40 will move to the next round, and others will be eliminated.";
     if (!window.confirm(confirmMessage)) {
       return;
     }
@@ -577,7 +580,7 @@ export default function AdminEventsPage() {
                           </button>
                           <button
                             className="btn btn-secondary btn-sm"
-                            onClick={() => handleAdvanceRound(round.roundId, index === selectedEvent.rounds.length - 1)}
+                            onClick={() => handleAdvanceRound(round, index === selectedEvent.rounds.length - 1)}
                             disabled={advancingId !== "" || loading || saving || deletingRoundId !== "" || selectedEvent.status === "Completed"}
                           >
                             {advancingId === round.roundId

@@ -199,10 +199,14 @@ namespace SEAL.NET.Services.Implementations
 
             if (nextRound == null)
             {
+                var allRounds = await _context.Rounds
+                    .Where(r => r.EventId == currentRound.EventId)
+                    .ToListAsync();
+
                 var finalTeams = await _context.Teams
                     .Include(t => t.Category)
                     .Include(t => t.Members)
-                    .Include(t => t.Submissions.Where(s => s.RoundId == roundId))
+                    .Include(t => t.Submissions)
                         .ThenInclude(s => s.Scores)
                             .ThenInclude(sc => sc.Criteria)
                     .Where(t =>
@@ -225,20 +229,26 @@ namespace SEAL.NET.Services.Implementations
                 {
                     var rankedTeams = categoryGroup
                         .Select(t => {
-                            var submission = t.Submissions.FirstOrDefault();
-                            decimal averageScore = 0;
-                            if (submission != null)
+                            decimal totalRoundsScore = 0;
+                            foreach (var round in allRounds)
                             {
-                                var judgeScores = submission.Scores
-                                    .GroupBy(sc => sc.JudgeId)
-                                    .Select(g => g.Sum(sc =>
-                                        sc.Criteria == null || sc.Criteria.MaxScore == 0
-                                            ? 0
-                                            : (sc.ScoreValue / sc.Criteria.MaxScore) * sc.Criteria.Weight))
-                                    .ToList();
-                                
-                                averageScore = judgeScores.Any() ? judgeScores.Average() : 0m;
+                                var submission = t.Submissions.FirstOrDefault(s => s.RoundId == round.RoundId);
+                                decimal roundScore = 0;
+                                if (submission != null)
+                                {
+                                    var judgeScores = submission.Scores
+                                        .GroupBy(sc => sc.JudgeId)
+                                        .Select(g => g.Sum(sc =>
+                                            sc.Criteria == null || sc.Criteria.MaxScore == 0
+                                                ? 0
+                                                : (sc.ScoreValue / sc.Criteria.MaxScore) * sc.Criteria.Weight))
+                                        .ToList();
+                                    roundScore = judgeScores.Any() ? judgeScores.Average() : 0m;
+                                }
+                                totalRoundsScore += roundScore;
                             }
+
+                            decimal averageScore = allRounds.Count > 0 ? totalRoundsScore / allRounds.Count : 0m;
 
                             return new
                             {
@@ -369,13 +379,19 @@ namespace SEAL.NET.Services.Implementations
                     .OrderByDescending(x => x.TotalScore)
                     .ToList();
 
-                var winners = rankedTeams
-                    .Where(x => x.TotalScore >= 40m)
-                    .ToList();
+                var submittedTeams = rankedTeams.Where(x => x.Submitted).ToList();
+                var unsubmittedTeams = rankedTeams.Where(x => !x.Submitted).ToList();
 
-                var losers = rankedTeams
-                    .Where(x => x.TotalScore < 40m)
-                    .ToList();
+                var passingTeams = submittedTeams.Where(x => x.TotalScore >= 40m).ToList();
+                var failingTeams = submittedTeams.Where(x => x.TotalScore < 40m).ToList();
+
+                var winners = currentRound.MaxTeamsAdvancing > 0
+                    ? passingTeams.Take(currentRound.MaxTeamsAdvancing).ToList()
+                    : passingTeams;
+
+                var losers = currentRound.MaxTeamsAdvancing > 0
+                    ? passingTeams.Skip(currentRound.MaxTeamsAdvancing).Concat(failingTeams).Concat(unsubmittedTeams).ToList()
+                    : failingTeams.Concat(unsubmittedTeams).ToList();
 
                 foreach (var item in winners)
                 {
@@ -404,9 +420,18 @@ namespace SEAL.NET.Services.Implementations
                 foreach (var item in losers)
                 {
                     item.Team.Status = TeamStatus.Eliminated;
-                    item.Team.EliminationReason = item.Submitted 
-                        ? "Eliminated because score was below 40." 
-                        : "Eliminated because no project was submitted.";
+                    if (!item.Submitted)
+                    {
+                        item.Team.EliminationReason = "Eliminated because no project was submitted.";
+                    }
+                    else if (item.TotalScore < 40m)
+                    {
+                        item.Team.EliminationReason = "Eliminated because score was below 40.";
+                    }
+                    else
+                    {
+                        item.Team.EliminationReason = $"Eliminated because team did not place in the top {currentRound.MaxTeamsAdvancing} of track.";
+                    }
                     item.Team.EliminatedAt = DateTime.UtcNow;
 
                     eliminatedTeams.Add(new
@@ -420,9 +445,11 @@ namespace SEAL.NET.Services.Implementations
                     var memberIds = item.Team.Members.Select(m => m.UserId).ToList();
                     if (memberIds.Any())
                     {
-                        var reasonMsg = item.Submitted
-                            ? $"score was {item.TotalScore:F1} (minimum required: 40)"
-                            : "no project was submitted before the deadline";
+                        var reasonMsg = !item.Submitted
+                            ? "no project was submitted before the deadline"
+                            : (item.TotalScore < 40m
+                                ? $"score was {item.TotalScore:F1} (minimum required: 40)"
+                                : $"team did not place in the top {currentRound.MaxTeamsAdvancing} based on scores (your score: {item.TotalScore:F1})");
 
                         await _notificationService.CreateForUsersAsync(
                             memberIds,
@@ -435,9 +462,13 @@ namespace SEAL.NET.Services.Implementations
 
             await _context.SaveChangesAsync();
 
+            var successMessage = currentRound.MaxTeamsAdvancing > 0
+                ? $"Round advanced successfully. Selected the top {currentRound.MaxTeamsAdvancing} teams based on scores."
+                : "Round advanced successfully based on score threshold (>= 40).";
+
             return ServiceResult.Ok(new
             {
-                message = "Round advanced successfully based on score threshold (>= 40).",
+                message = successMessage,
                 fromRound = new
                 {
                     currentRound.RoundId,

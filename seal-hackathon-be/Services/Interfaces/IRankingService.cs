@@ -9,5 +9,7 @@ namespace SEAL.NET.Services.Interfaces
     {
         Task<object> GetRoundRankingAsync(Guid roundId);
         Task<object> GetCategoryRoundRankingAsync(Guid categoryId, Guid roundId);
+        Task<object> GetEventOverallRankingAsync(Guid eventId);
+        Task<object> GetCategoryEventOverallRankingAsync(Guid categoryId, Guid eventId);
     }
 }
