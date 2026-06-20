@@ -28,6 +28,10 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> Login([FromBody] LoginRequest model)
             => this.ToActionResult(await _authService.LoginAsync(model));
 
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest model)
+            => this.ToActionResult(await _authService.GoogleLoginAsync(model));
+
         [HttpPost("logout")]
         public IActionResult Logout()
             => this.ToActionResult(_authService.Logout());

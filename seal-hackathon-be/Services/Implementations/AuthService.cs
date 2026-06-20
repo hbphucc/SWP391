@@ -12,6 +12,7 @@ using System.Net.Mail;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Google.Apis.Auth;
 
 namespace SEAL.NET.Services.Implementations
 {
@@ -143,6 +144,98 @@ namespace SEAL.NET.Services.Implementations
                     roles = userRoles
                 }
             });
+        }
+
+        public async Task<ServiceResult> GoogleLoginAsync(GoogleLoginRequest model)
+        {
+            try
+            {
+                var clientId = _configuration["Google:ClientId"];
+                if (string.IsNullOrWhiteSpace(clientId))
+                {
+                    return ServiceResult.ServerError("Google Client ID is not configured on the server.");
+                }
+
+                var settings = new GoogleJsonWebSignature.ValidationSettings
+                {
+                    Audience = new[] { clientId }
+                };
+
+                var payload = await GoogleJsonWebSignature.ValidateAsync(model.IdToken, settings);
+                if (payload == null)
+                {
+                    return ServiceResult.BadRequest("Invalid Google token.");
+                }
+
+                var email = payload.Email;
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    return ServiceResult.BadRequest("Google account does not provide an email address.");
+                }
+
+                var user = await _userManager.FindByEmailAsync(email);
+                if (user == null)
+                {
+                    var isFptEmail = email.EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase) || 
+                                     email.EndsWith("@fe.edu.vn", StringComparison.OrdinalIgnoreCase);
+
+                    user = new ApplicationUser
+                    {
+                        UserName = email,
+                        Email = email,
+                        FullName = payload.Name ?? email,
+                        IsApproved = true,
+                        StudentType = isFptEmail ? StudentType.FPT : StudentType.External,
+                        SchoolName = isFptEmail ? "FPT University" : null,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    var createResult = await _userManager.CreateAsync(user);
+                    if (!createResult.Succeeded)
+                    {
+                        return ServiceResult.BadRequestBody(createResult.Errors);
+                    }
+
+                    if (!await _roleManager.RoleExistsAsync("Member"))
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole<Guid>("Member"));
+                    }
+
+                    await _userManager.AddToRoleAsync(user, "Member");
+                }
+
+                if (await _userManager.IsLockedOutAsync(user))
+                {
+                    return ServiceResult.Unauthorized("Your account is temporarily locked. Please try again later.");
+                }
+
+                if (!user.IsApproved)
+                {
+                    return ServiceResult.Unauthorized("Your account is disabled or not allowed to access.");
+                }
+
+                var (token, userRoles) = await IssueAuthCookieAsync(user);
+
+                return ServiceResult.Ok(new
+                {
+                    expiration = token.ValidTo,
+                    user = new
+                    {
+                        id = user.Id,
+                        fullName = user.FullName,
+                        email = user.Email,
+                        roles = userRoles
+                    }
+                });
+            }
+            catch (InvalidJwtException)
+            {
+                return ServiceResult.BadRequest("Invalid Google JWT format.");
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult.ServerError($"An error occurred during Google authentication: {ex.Message}");
+            }
         }
 
         public ServiceResult Logout()
