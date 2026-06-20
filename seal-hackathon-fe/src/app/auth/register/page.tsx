@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import { App } from "antd";
 import { ArrowLeft, Building2, CheckCircle, Code2, GraduationCap, Lock, Mail, Phone, Trophy, User } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 import { PASSWORD_PATTERN, PASSWORD_RULE_MESSAGE } from "@/lib/constants";
 import { DEVELOPER_ROLES, PROGRAMMING_LANGUAGES } from "@/lib/developerProfile";
 import styles from "../auth.module.css";
@@ -31,6 +33,59 @@ export default function RegisterPage() {
     developerRole: "",
     programmingLanguages: [] as string[],
   });
+
+  const { refresh } = useAuth();
+
+  const handleGoogleLoginResponse = async (response: any) => {
+    setLoading(true);
+    try {
+      const idToken = response.credential;
+      await apiRequest("/Auth/google-login", {
+        method: "POST",
+        body: JSON.stringify({ idToken }),
+      });
+
+      const signedIn = await refresh();
+      if (!signedIn) {
+        message.error("Signed in, but the server did not return a user. Try again.");
+        return;
+      }
+
+      message.success("Logged in successfully via Google!");
+      const fallback = signedIn.roles.includes("Admin") ? "/admin" : "/dashboard";
+      router.push(fallback);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Google login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const initGoogleSignIn = () => {
+    const google = (window as any).google;
+    if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
+      google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
+        callback: handleGoogleLoginResponse,
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("google-register-btn"),
+        {
+          theme: "outline",
+          size: "large",
+          width: 340,
+          shape: "rectangular",
+        }
+      );
+    }
+  };
+
+  useEffect(() => {
+    const google = (window as any).google;
+    if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
+      initGoogleSignIn();
+    }
+  }, []);
 
   const toggleProgrammingLanguage = (language: string) => {
     setForm((current) => ({
@@ -127,6 +182,11 @@ export default function RegisterPage() {
 
   return (
     <div className={styles.authBg}>
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={initGoogleSignIn}
+      />
       <div className={styles.splitContainer}>
         <div className={styles.leftSide}>
           <div className={styles.orb1} />
@@ -310,6 +370,16 @@ export default function RegisterPage() {
                     Continue <CheckCircle size={16} />
                   </button>
                 </form>
+
+                <div className={styles.dividerRow} style={{ margin: "1.25rem 0" }}>
+                  <div className={styles.dividerLine} />
+                  <div className={styles.dividerText}>OR</div>
+                  <div className={styles.dividerLine} />
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.5rem" }}>
+                  <div id="google-register-btn" style={{ minHeight: "40px" }} />
+                </div>
 
                 <p className={styles.switchRow}>
                   Already have an account? <Link href="/auth/login" className={styles.switchLink}>Sign in</Link>

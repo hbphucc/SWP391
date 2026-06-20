@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { App } from "antd";
 import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react";
 import { apiRequest } from "@/lib/api";
@@ -36,6 +37,58 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "", remember: false });
+
+  const handleGoogleLoginResponse = async (response: any) => {
+    setLoading(true);
+    setError("");
+    try {
+      const idToken = response.credential;
+      await apiRequest("/Auth/google-login", {
+        method: "POST",
+        body: JSON.stringify({ idToken }),
+      });
+
+      const signedIn = await refresh();
+      if (!signedIn) {
+        setError("Signed in, but the server did not return a user. Try again.");
+        return;
+      }
+
+      message.success("Logged in successfully via Google!");
+      const fallback = signedIn.roles.includes("Admin") ? "/admin" : "/dashboard";
+      router.push(getSafeRedirect(redirectUrl, fallback));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const initGoogleSignIn = () => {
+    const google = (window as any).google;
+    if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
+      google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
+        callback: handleGoogleLoginResponse,
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("google-signin-btn"),
+        {
+          theme: "outline",
+          size: "large",
+          width: 340,
+          shape: "rectangular",
+        }
+      );
+    }
+  };
+
+  useEffect(() => {
+    const google = (window as any).google;
+    if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
+      initGoogleSignIn();
+    }
+  }, []);
 
   // If the user is already signed in (cookie still valid), bounce them out of
   // the login page once the AuthProvider finishes its bootstrap check.
@@ -80,6 +133,11 @@ function LoginForm() {
 
   return (
     <div className={styles.authBg}>
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={initGoogleSignIn}
+      />
       <div className={styles.splitContainer}>
         <div className={styles.leftSide}>
           <div className={styles.orb1} />
@@ -155,6 +213,16 @@ function LoginForm() {
                 {loading ? <span className="spinner" /> : <><ArrowRight size={18} /> Sign In</>}
               </button>
             </form>
+
+            <div className={styles.dividerRow} style={{ margin: "1.25rem 0" }}>
+              <div className={styles.dividerLine} />
+              <div className={styles.dividerText}>OR</div>
+              <div className={styles.dividerLine} />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.5rem" }}>
+              <div id="google-signin-btn" style={{ minHeight: "40px" }} />
+            </div>
 
             <p className={styles.switchRow}>
               Don&apos;t have an account? <Link href="/auth/register" className={styles.switchLink}>Create new account</Link>

@@ -11,6 +11,7 @@ namespace SEAL.NET.Services.Interfaces
     {
         Task<ServiceResult> RegisterAsync(RegisterRequest model);
         Task<ServiceResult> LoginAsync(LoginRequest model);
+        Task<ServiceResult> GoogleLoginAsync(GoogleLoginRequest model);
         ServiceResult Logout();
         Task<ServiceResult> GetMeAsync(string? userId);
         Task<ServiceResult> UpdateProfileAsync(string? userId, UpdateProfileRequest request);
