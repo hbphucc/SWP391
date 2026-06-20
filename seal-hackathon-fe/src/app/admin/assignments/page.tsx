@@ -52,6 +52,7 @@ type CategoryDto = {
 
 type JudgeAssignmentDto = {
   assignmentId: string;
+  isCategoryWide: boolean;
   judge: { judgeId: string; fullName: string; email: string };
   round: { roundId: string; roundName: string };
   category: { categoryId: string; categoryName: string; teams?: CategoryTeam[] };
@@ -171,10 +172,48 @@ export default function AssignmentsPage() {
     })();
   }, [selectedEventId, activeTab, message]);
 
-  // Selecting a different category invalidates the previous team picks.
+  // Synchronize Judge and Team selection with existing assignments when round, category, or judge changes
   useEffect(() => {
+    if (activeTab !== "judge" || !selectedRoundId || !selectedCategoryId) {
+      return;
+    }
+
+    // 1. Search for an assignment specifically for the currently selected judge, round, and category
+    const specificAssignment = judgeAssignments.find(
+      (a) =>
+        a.round.roundId === selectedRoundId &&
+        a.category.categoryId === selectedCategoryId &&
+        a.judge.judgeId === selectedJudgeId
+    );
+
+    if (specificAssignment) {
+      if (specificAssignment.isCategoryWide) {
+        setSelectedTeamIds([]);
+      } else {
+        setSelectedTeamIds(specificAssignment.category.teams?.map((t) => t.teamId) ?? []);
+      }
+      return;
+    }
+
+    // 2. If no assignment for this specific judge, but there is ANY assignment for this round and category,
+    // auto-select the first assigned judge to reflect the current state.
+    const anyAssignment = judgeAssignments.find(
+      (a) => a.round.roundId === selectedRoundId && a.category.categoryId === selectedCategoryId
+    );
+
+    if (anyAssignment) {
+      setSelectedJudgeId(anyAssignment.judge.judgeId);
+      if (anyAssignment.isCategoryWide) {
+        setSelectedTeamIds([]);
+      } else {
+        setSelectedTeamIds(anyAssignment.category.teams?.map((t) => t.teamId) ?? []);
+      }
+      return;
+    }
+
+    // 3. If there are no assignments for this round and category at all, reset team selections.
     setSelectedTeamIds([]);
-  }, [selectedCategoryId, selectedEventId]);
+  }, [selectedRoundId, selectedCategoryId, selectedJudgeId, judgeAssignments, activeTab]);
 
   const handleRefresh = () => {
     if (activeTab === "mentor") void loadMentorData();
@@ -478,7 +517,9 @@ export default function AssignmentsPage() {
                   <p style={{ color: "var(--color-text-3)" }}>No active judge assignments.</p>
                 ) : (
                   judgeAssignments.map((a) => {
-                    const managedTeams = a.category.teams?.map((t) => t.teamName).join(", ") || "All teams";
+                    const managedTeams = a.isCategoryWide
+                      ? "All teams"
+                      : a.category.teams?.map((t) => t.teamName).join(", ") || "All teams";
                     return (
                       <div key={a.assignmentId} style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
                         <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", flexShrink: 0 }}>

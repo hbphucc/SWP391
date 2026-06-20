@@ -44,6 +44,7 @@ namespace SEAL.NET.Services.Implementations
                     {
                         AssignmentId = first.AssignmentId,
                         AssignmentIds = g.Select(a => a.AssignmentId).ToList(),
+                        IsCategoryWide = !assignedTeams.Any(),
                         judge = new
                         {
                             first.JudgeId,

@@ -94,7 +94,7 @@ function LoginForm() {
             </div>
 
             <h1 className={styles.title}>Welcome back</h1>
-            <p className={styles.subtitle}>Sign in with your SEAL backend account</p>
+            <p className={styles.subtitle}>Sign in with your SEAL account</p>
 
             <form onSubmit={handleSubmit} className={styles.form}>
               <div className="form-group">
