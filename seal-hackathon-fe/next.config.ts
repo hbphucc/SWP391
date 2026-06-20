@@ -10,8 +10,7 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: 'bottom-left',
   },
-  // Allow external connections for Next.js dev server on the local Wi-Fi
-  allowedDevOrigins: ["172.20.10.2"],
+
 };
 
 export default nextConfig;
