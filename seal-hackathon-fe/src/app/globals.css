@@ -34,7 +34,6 @@
   --color-badge-warning-text: #fbbf24;
   --color-badge-danger-text: #fb7185;
   --color-badge-cyan-text: #22d3ee;
-  
   --bg-grid-color:     rgba(255, 255, 255, 0.02);
 
   /* Shadows */
@@ -88,7 +87,6 @@
   --color-badge-warning-text: #d97706;
   --color-badge-danger-text: #e11d48;
   --color-badge-cyan-text: #0891b2;
-  
   --bg-grid-color:     rgba(0, 0, 0, 0.05);
 
   --shadow-sm:   0 2px 8px rgba(0,0,0,0.05);
@@ -602,6 +600,14 @@ a:hover { color: var(--color-primary); }
 @media (max-width: 768px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 640px) {
+  .btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8rem;
+  }
+  h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); }
 }
 
 /* Custom Antd Table styling for Glassmorphism */

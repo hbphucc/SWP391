@@ -11,5 +11,8 @@ appsettings.json
 
 # Local run logs
 run*.log
-*.out.log
 *.err.log
+
+# Local databases
+*.db
+test.db

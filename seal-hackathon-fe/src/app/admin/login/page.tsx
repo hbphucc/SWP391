@@ -81,7 +81,7 @@ export default function AdminLogin() {
           </button>
 
           <button type="button" className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => router.push("/auth/login")}>
-            Return to User Login
+            Back to User Login
           </button>
         </form>
       </div>
