@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Target, ChevronRight, RefreshCw, ExternalLink, ShieldOff, CheckCircle, XCircle, Users, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Target, ChevronRight, RefreshCw, ExternalLink, ShieldOff, CheckCircle, XCircle, AlertCircle, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -34,15 +34,38 @@ type KickRequest = {
   requestedAt: string;
 };
 
+type EventDto = {
+  eventId: string;
+  eventName: string;
+  status: string;
+  rounds: {
+    roundId: string;
+    roundName: string;
+  }[];
+};
+
 export default function JudgingQueuePage() {
   const { message } = App.useApp();
   const { user, isLoading: authLoading } = useAuth();
+  const [events, setEvents] = useState<EventDto[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [submissions, setSubmissions] = useState<AssignedSubmission[]>([]);
   const [kickRequests, setKickRequests] = useState<KickRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const canJudge = user?.roles.some((r) => r === "Judge" || r === "Admin") ?? false;
+
+  const selectedEvent = useMemo(
+    () => events.find((event) => event.eventId === selectedEventId) ?? null,
+    [events, selectedEventId],
+  );
+
+  const eventSubmissions = useMemo(() => {
+    if (!selectedEvent) return [];
+    const roundIds = new Set(selectedEvent.rounds.map((round) => round.roundId));
+    return submissions.filter((submission) => roundIds.has(submission.round.roundId));
+  }, [selectedEvent, submissions]);
 
   const loadKickRequests = async () => {
     if (!canJudge) return;
@@ -59,8 +82,13 @@ export default function JudgingQueuePage() {
     if (!canJudge) return;
     setLoading(true);
     try {
-      const subData = await apiRequest<AssignedSubmission[]>("/judge/scores/my-assigned-submissions");
+      const [subData, eventData] = await Promise.all([
+        apiRequest<AssignedSubmission[]>("/judge/scores/my-assigned-submissions"),
+        apiRequest<EventDto[]>("/Events"),
+      ]);
       setSubmissions(subData);
+      setEvents(eventData);
+      setSelectedEventId((current) => eventData.some((event) => event.eventId === current) ? current : "");
       await loadKickRequests();
     } catch (err) {
       setSubmissions([]);
@@ -73,7 +101,6 @@ export default function JudgingQueuePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!canJudge) {
-      setLoading(false);
       return;
     }
 
@@ -81,11 +108,13 @@ export default function JudgingQueuePage() {
 
     Promise.all([
       apiRequest<AssignedSubmission[]>("/judge/scores/my-assigned-submissions"),
+      apiRequest<EventDto[]>("/Events"),
       apiRequest<KickRequest[]>("/judge/kick-requests").catch(() => [] as KickRequest[])
     ])
-      .then(([subData, kickData]) => {
+      .then(([subData, eventData, kickData]) => {
         if (active) {
           setSubmissions(subData);
+          setEvents(eventData);
           setKickRequests(kickData);
         }
       })
@@ -140,17 +169,34 @@ export default function JudgingQueuePage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">Judging Portal</h1>
-          <p className="page-subtitle">Assigned submissions and team requests</p>
+          <p className="page-subtitle">Select an event to view and score its participating teams</p>
         </div>
-        <button className="btn btn-secondary" onClick={loadQueue} disabled={loading}>
-          <RefreshCw size={15} /> Refresh
-        </button>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            className="form-input"
+            style={{ width: 280 }}
+            value={selectedEventId}
+            onChange={(event) => setSelectedEventId(event.target.value)}
+            disabled={loading || events.length === 0}
+            aria-label="Select event to score"
+          >
+            <option value="">Select an event...</option>
+            {events.map((event) => (
+              <option key={event.eventId} value={event.eventId}>
+                {event.eventName} ({event.status})
+              </option>
+            ))}
+          </select>
+          <button className="btn btn-secondary" onClick={loadQueue} disabled={loading}>
+            <RefreshCw size={15} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem" }}>
         <div className="glass-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-          <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#f59e0b" }}>{submissions.length}</div>
-          <div style={{ fontSize: "0.82rem", color: "var(--color-text-3)", fontWeight: 500 }}>Assigned Submissions</div>
+          <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#f59e0b" }}>{selectedEvent ? eventSubmissions.length : 0}</div>
+          <div style={{ fontSize: "0.82rem", color: "var(--color-text-3)", fontWeight: 500 }}>Teams in Selected Event</div>
         </div>
         <div className="glass-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
           <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: kickRequests.length > 0 ? "var(--color-warning)" : "var(--color-text-3)" }}>{kickRequests.length}</div>
@@ -214,20 +260,27 @@ export default function JudgingQueuePage() {
             </div>
           )}
 
-          {/* Assigned Submissions Queue */}
+          {/* Event submission queue */}
           <div>
             <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--color-text-1)" }}>
-              <Target size={20} style={{ color: "var(--color-primary)" }} /> Assigned Submissions
+              <Target size={20} style={{ color: "var(--color-primary)" }} />
+              {selectedEvent ? `Teams in ${selectedEvent.eventName}` : "Event Teams"}
             </h3>
-            {submissions.length === 0 ? (
+            {!selectedEvent ? (
+              <div className="empty-state">
+                <CalendarDays size={48} className="empty-icon" />
+                <div className="empty-title">Select an event</div>
+                <div className="empty-desc">Choose an event above to see the teams available for scoring.</div>
+              </div>
+            ) : eventSubmissions.length === 0 ? (
               <div className="empty-state">
                 <Target size={48} className="empty-icon" />
-                <div className="empty-title">No assigned submissions</div>
-                <div className="empty-desc">Ask an admin to create judge assignments for your round/category.</div>
+                <div className="empty-title">No teams available for scoring</div>
+                <div className="empty-desc">This event has no submitted teams assigned to you yet.</div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {submissions.map((submission) => (
+                {eventSubmissions.map((submission) => (
                   <div key={submission.submissionId} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem" }}>
                     <Target size={16} style={{ color: "var(--color-primary)" }} />
                     <div style={{ flex: 1, minWidth: 0 }}>

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2, CalendarDays } from "lucide-react";
 import { App, Table, Tag, Modal, Button, Input, InputNumber } from "antd";
 import { apiRequest } from "@/lib/api";
 
@@ -32,6 +32,8 @@ interface CriteriaRow {
 
 export default function CriteriaPage() {
   const { message } = App.useApp();
+  const [events, setEvents] = useState<EventDto[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [rows, setRows] = useState<CriteriaRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,29 +45,34 @@ export default function CriteriaPage() {
   const [savingModal, setSavingModal] = useState(false);
 
   const loadCriteriaList = useCallback(async () => {
+    setLoading(true);
     try {
-      const events = await apiRequest<EventDto[]>("/Events");
+      const eventData = await apiRequest<EventDto[]>("/Events");
+      setEvents(eventData);
+      const selectedEvent = eventData.find((event) => event.eventId === selectedEventId);
+      if (!selectedEvent) {
+        setRows([]);
+        return;
+      }
       const built = await Promise.all(
-        events.flatMap((event) =>
-          (event.rounds ?? []).map(async (round) => {
+          (selectedEvent.rounds ?? []).map(async (round) => {
             try {
               const criteria = await apiRequest<CriteriaDto[]>(`/rounds/${round.roundId}/criteria`);
               return {
                 key: round.roundId,
-                event: event.eventName,
+                event: selectedEvent.eventName,
                 round: round.roundName,
                 criteria: criteria || [],
               };
             } catch {
               return {
                 key: round.roundId,
-                event: event.eventName,
+                event: selectedEvent.eventName,
                 round: round.roundName,
                 criteria: [],
               };
             }
           })
-        )
       );
       setRows(built);
     } catch (err) {
@@ -74,10 +81,14 @@ export default function CriteriaPage() {
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message, selectedEventId]);
 
   useEffect(() => {
-    void loadCriteriaList();
+    const trigger = async () => {
+      await Promise.resolve();
+      void loadCriteriaList();
+    };
+    void trigger();
   }, [loadCriteriaList]);
 
   const openManageModal = (record: CriteriaRow) => {
@@ -238,11 +249,30 @@ export default function CriteriaPage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title"><FileText size={28} /> Scoring Criteria</h1>
-          <p className="page-subtitle">Grading rubric configured per event round</p>
+          <p className="page-subtitle">Select an event to manage its grading rubric</p>
         </div>
+        <select
+          className="form-input"
+          style={{ width: 280 }}
+          value={selectedEventId}
+          onChange={(event) => setSelectedEventId(event.target.value)}
+          disabled={loading && events.length === 0}
+          aria-label="Select event"
+        >
+          <option value="">Select an event...</option>
+          {events.map((event) => (
+            <option key={event.eventId} value={event.eventId}>{event.eventName}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="card">
+      {!selectedEventId ? (
+        <div className="empty-state">
+          <CalendarDays size={48} className="empty-icon" />
+          <div className="empty-title">Select an event</div>
+          <div className="empty-desc">Choose an event above to view and manage criteria for its rounds.</div>
+        </div>
+      ) : <div className="card">
         <Table
           className="custom-antd-table"
           dataSource={rows}
@@ -252,7 +282,7 @@ export default function CriteriaPage() {
           pagination={false}
           locale={{ emptyText: loading ? "Loading criteria…" : "No criteria configured yet." }}
         />
-      </div>
+      </div>}
 
       <Modal
         title={`Manage Criteria - ${selectedRound?.roundName} (${selectedRound?.eventName})`}
@@ -329,7 +359,7 @@ export default function CriteriaPage() {
 
             {editingCriteria.length === 0 && (
               <div style={{ textAlign: "center", padding: "2rem", color: "var(--color-text-3, #718096)", fontStyle: "italic" }}>
-                No criteria defined. Click "Add Criterion" to start.
+                No criteria defined. Click &quot;Add Criterion&quot; to start.
               </div>
             )}
           </div>
