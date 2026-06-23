@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Target, Clock, CheckCircle, AlertCircle, ChevronRight, RefreshCw } from "lucide-react";
+import { Target, Clock, CheckCircle, AlertCircle, ChevronRight, RefreshCw, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { App } from "antd";
@@ -23,6 +23,13 @@ type SubmissionQueueItem = {
   };
 };
 
+type EventDto = {
+  eventId: string;
+  eventName: string;
+  status: string;
+  rounds: { roundId: string; roundName: string }[];
+};
+
 const STATUS_ICON: Record<string, React.ReactNode> = {
   pending: <AlertCircle size={14} style={{ color: "#f59e0b" }} />,
   scored:  <Clock size={14} style={{ color: "#06b6d4" }} />,
@@ -32,14 +39,21 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 export default function JudgingQueuePage() {
   const { message } = App.useApp();
   const [filter, setFilter] = useState("all");
+  const [events, setEvents] = useState<EventDto[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [queue, setQueue] = useState<SubmissionQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiRequest<SubmissionQueueItem[]>("/submissions/scoring-queue");
-      setQueue(data);
+      const [queueData, eventData] = await Promise.all([
+        apiRequest<SubmissionQueueItem[]>("/submissions/scoring-queue"),
+        apiRequest<EventDto[]>("/Events"),
+      ]);
+      setQueue(queueData);
+      setEvents(eventData);
+      setSelectedEventId((current) => eventData.some((event) => event.eventId === current) ? current : "");
     } catch (err) {
       setQueue([]);
       message.error(err instanceof Error ? err.message : "Could not load scoring queue.");
@@ -56,25 +70,45 @@ export default function JudgingQueuePage() {
     void trigger();
   }, [loadQueue]);
 
-  const filtered = queue.filter(q => filter === "all" ? true : q.status === filter);
+  const selectedEvent = events.find((event) => event.eventId === selectedEventId);
+  const selectedRoundIds = new Set(selectedEvent?.rounds.map((round) => round.roundId) ?? []);
+  const eventQueue = selectedEvent
+    ? queue.filter((item) => selectedRoundIds.has(item.round.roundId))
+    : [];
+  const filtered = eventQueue.filter(q => filter === "all" ? true : q.status === filter);
 
   return (
     <div>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">Scoring & Evaluation</h1>
-          <p className="page-subtitle">Evaluate teams based on the SEAL criteria</p>
+          <p className="page-subtitle">Select an event to view its scoring queue</p>
         </div>
-        <button className="btn btn-secondary" onClick={loadQueue} disabled={loading}>
-          <RefreshCw size={15} style={{ marginRight: 6 }} /> Refresh
-        </button>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            className="form-input"
+            style={{ width: 280 }}
+            value={selectedEventId}
+            onChange={(event) => { setSelectedEventId(event.target.value); setFilter("all"); }}
+            disabled={loading || events.length === 0}
+            aria-label="Select event"
+          >
+            <option value="">Select an event...</option>
+            {events.map((event) => (
+              <option key={event.eventId} value={event.eventId}>{event.eventName} ({event.status})</option>
+            ))}
+          </select>
+          <button className="btn btn-secondary" onClick={loadQueue} disabled={loading}>
+            <RefreshCw size={15} style={{ marginRight: 6 }} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid-3" style={{ marginBottom: "2rem" }}>
         {[
-          { label: "Pending",  val: queue.filter(q => q.status === "pending").length, color: "#f59e0b" },
-          { label: "In Draft", val: queue.filter(q => q.status === "scored").length,  color: "#06b6d4" },
-          { label: "Locked",   val: queue.filter(q => q.status === "locked").length,  color: "#10b981" },
+          { label: "Pending",  val: eventQueue.filter(q => q.status === "pending").length, color: "#f59e0b" },
+          { label: "In Draft", val: eventQueue.filter(q => q.status === "scored").length,  color: "#06b6d4" },
+          { label: "Locked",   val: eventQueue.filter(q => q.status === "locked").length,  color: "#10b981" },
         ].map(s => (
           <div key={s.label} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
             <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>
@@ -95,6 +129,12 @@ export default function JudgingQueuePage() {
         <div className="empty-state">
           <span className="spinner" />
           <div className="empty-title">Loading scoring queue...</div>
+        </div>
+      ) : !selectedEvent ? (
+        <div className="empty-state">
+          <CalendarDays size={48} className="empty-icon" />
+          <div className="empty-title">Select an event</div>
+          <div className="empty-desc">Choose an event above to view its submissions and scoring status.</div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">

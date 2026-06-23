@@ -281,7 +281,9 @@ namespace SEAL.NET.Services.Implementations
                 .FirstOrDefaultAsync();
 
             var assignedJudge = await _context.JudgeAssignments
-                .Where(ja => ja.TeamId == team.TeamId || (ja.CategoryId == team.CategoryId && ja.TeamId == null))
+                .Where(ja => ja.RoundId == team.CurrentRoundId &&
+                    (ja.TeamId == team.TeamId ||
+                     (ja.CategoryId == team.CategoryId && ja.TeamId == null)))
                 .OrderByDescending(ja => ja.TeamId.HasValue)
                 .Include(ja => ja.Judge)
                 .Select(ja => ja.Judge)
@@ -677,7 +679,9 @@ namespace SEAL.NET.Services.Implementations
                 .FirstOrDefaultAsync();
 
             var assignedJudge = await _context.JudgeAssignments
-                .Where(ja => ja.TeamId == team.TeamId || (ja.CategoryId == team.CategoryId && ja.TeamId == null))
+                .Where(ja => ja.RoundId == team.CurrentRoundId &&
+                    (ja.TeamId == team.TeamId ||
+                     (ja.CategoryId == team.CategoryId && ja.TeamId == null)))
                 .OrderByDescending(ja => ja.TeamId.HasValue)
                 .Include(ja => ja.Judge)
                 .Select(ja => ja.Judge)
