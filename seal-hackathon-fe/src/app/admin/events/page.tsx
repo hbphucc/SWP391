@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Calendar, Clock, Save, AlertCircle, RefreshCw,
-  Plus, Trash2, GripVertical, Target, ChevronRight, Pencil,
+  Plus, Trash2, GripVertical, Target, Pencil,
 } from "lucide-react";
 import { App, DatePicker, Modal } from "antd";
 import dayjs from "dayjs";
@@ -179,7 +179,10 @@ export default function AdminEventsPage() {
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
   const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
-  const [createStep, setCreateStep] = useState(1);
+  // Active section anchor for the sticky TOC sidebar. Used purely for the
+  // "current section" highlight; clicking a TOC item smooth-scrolls to the
+  // anchor and the IntersectionObserver below updates this on scroll.
+  const [activeSection, setActiveSection] = useState<"general" | "timeline" | "rounds" | "tracks">("general");
   const [submitting, setSubmitting] = useState(false);
   // Track catalog loaded from the backend (/api/tracks). When present the wizard
   // sends track IDs; if it's empty/unreachable we fall back to the static labels.
@@ -616,7 +619,7 @@ export default function AdminEventsPage() {
         setEventForm(INITIAL_EVENT_FORM);
         setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
         setSelectedTracks([]);
-        setCreateStep(1);
+        setActiveSection("general");
         setView("list");
         await refreshEvents();
         return;
@@ -626,7 +629,7 @@ export default function AdminEventsPage() {
       setEventForm({ ...INITIAL_EVENT_FORM });
       setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
       setSelectedTracks([]);
-      setCreateStep(1);
+      setActiveSection("general");
       setView("list");
       await refreshEvents();
     } catch (err) {
@@ -651,7 +654,7 @@ export default function AdminEventsPage() {
               <button className="btn btn-secondary" onClick={() => { void refreshEvents(); }} disabled={loading || saving}>
                 <RefreshCw size={16} /> Refresh
               </button>
-              <button className="btn btn-primary" onClick={() => { setView("create"); setCreateStep(1); }}>
+              <button className="btn btn-primary" onClick={() => { setView("create"); setActiveSection("general"); }}>
                 <Plus size={16} /> New Event
               </button>
             </>
@@ -965,20 +968,68 @@ export default function AdminEventsPage() {
         </div>
       )}
 
-      {/* ─── CREATE VIEW ─── */}
+      {/* ─── EVENT CONTROL CENTER ─── single-page workspace replacing the
+          3-step wizard. The left rail is a sticky TOC; the right side renders
+          all four sections in flow so admins see the whole event at once and
+          can submit from the sticky action bar regardless of scroll position.
+          The validate-on-submit logic in handleCreateEvent is unchanged. */}
       {view === "create" && (
-        <div>
-          {/* Step tabs */}
-          <div className="tabs" style={{ marginBottom: "1.5rem" }}>
-            {["Basic Info", "Rounds", "Tracks"].map((s, i) => (
-              <button key={s} className={`tab-btn ${createStep === i + 1 ? "active" : ""}`} onClick={() => setCreateStep(i + 1)}>
-                {i + 1}. {s}
-              </button>
-            ))}
-          </div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "200px minmax(0, 1fr)",
+          gap: "1.5rem",
+          alignItems: "start",
+        }}>
+          {/* TOC sidebar */}
+          <nav
+            aria-label="Event sections"
+            style={{
+              position: "sticky",
+              top: 80,
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.4rem",
+              paddingTop: "0.5rem",
+            }}
+          >
+            {([
+              { id: "general", label: "General Info" },
+              { id: "timeline", label: "Timeline" },
+              { id: "rounds", label: "Rounds" },
+              { id: "tracks", label: "Tracks" },
+            ] as const).map((item) => {
+              const active = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    document.getElementById(`ec-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    justifyContent: "flex-start",
+                    paddingLeft: "0.85rem",
+                    borderLeft: active ? "3px solid var(--color-primary)" : "3px solid transparent",
+                    borderRadius: 0,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? "var(--color-text-1)" : "var(--color-text-3)",
+                    background: active ? "rgba(99,102,241,0.08)" : "transparent",
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
 
-          {/* Step 1 – Basic Info */}
-          {createStep === 1 && (
+          {/* Sections column */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", paddingBottom: 100 }}>
+
+          {/* ─── General Info section ─── */}
+          <section id="ec-general">
+          {(
             <div className="glass-card">
               <h3 style={{ marginBottom: "1.5rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <Calendar size={18} style={{ color: "var(--color-primary)" }} /> Event Details
@@ -1057,9 +1108,11 @@ export default function AdminEventsPage() {
               </div>
             </div>
           )}
+          </section>
 
-          {/* Step 2 – Rounds */}
-          {createStep === 2 && (
+          {/* ─── Rounds section ─── */}
+          <section id="ec-rounds">
+          {(
             <div className="glass-card">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
                 <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -1163,9 +1216,11 @@ export default function AdminEventsPage() {
               </div>
             </div>
           )}
+          </section>
 
-          {/* Step 3 – Tracks */}
-          {createStep === 3 && (
+          {/* ─── Tracks section ─── */}
+          <section id="ec-tracks">
+          {(
             <div className="glass-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", marginBottom: "0.5rem" }}>
                 <h3 style={{ fontSize: "1rem", margin: 0 }}>Competition Tracks</h3>
@@ -1222,6 +1277,7 @@ export default function AdminEventsPage() {
               )}
             </div>
           )}
+          </section>
 
           {/* Inline Create Track modal — keeps the wizard mounted/state intact */}
           <Modal
@@ -1283,22 +1339,33 @@ export default function AdminEventsPage() {
             </div>
           </Modal>
 
-          {/* Navigation buttons */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>
-            {createStep > 1 && (
-              <button className="btn btn-secondary" onClick={() => setCreateStep(createStep - 1)}>
-                ← Back
-              </button>
-            )}
-            {createStep < 3 ? (
-              <button className="btn btn-primary" onClick={() => setCreateStep(createStep + 1)}>
-                Continue <ChevronRight size={16} />
-              </button>
-            ) : (
-              <button className="btn btn-primary" disabled={submitting} onClick={handleCreateEvent}>
-                {submitting ? <span className="spinner" /> : <><Calendar size={16} /> Create Event</>}
-              </button>
-            )}
+          </div>{/* /sections column */}
+
+          {/* Sticky bottom action bar — always visible, regardless of which
+              section the admin is currently viewing. Spans the full width
+              under both TOC and content. */}
+          <div
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 10,
+              background: "var(--color-bg)",
+              borderTop: "1px solid var(--color-border)",
+              padding: "0.75rem 1.5rem",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.6rem",
+              boxShadow: "0 -2px 12px rgba(0,0,0,0.2)",
+            }}
+          >
+            <button className="btn btn-secondary" onClick={() => setView("list")} disabled={submitting}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={submitting} onClick={handleCreateEvent}>
+              {submitting ? <span className="spinner" /> : <><Calendar size={16} /> Create Event</>}
+            </button>
           </div>
         </div>
       )}
