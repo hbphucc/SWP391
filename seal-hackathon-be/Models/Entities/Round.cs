@@ -12,6 +12,9 @@ namespace SEAL.NET.Models.Entities
         public int RoundOrder { get; set; }
         public int MaxTeamsAdvancing { get; set; }
         public DateTime? SubmissionDeadline { get; set; }
+        
+        public Guid? PromptDocumentId { get; set; }
+        public Document? PromptDocument { get; set; }
 
         public Guid EventId { get; set; }
         public Event Event { get; set; } = null!;

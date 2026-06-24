@@ -27,6 +27,7 @@ namespace SEAL.NET.Services.Implementations
 
             var rounds = await _context.Rounds
                 .Where(r => r.EventId == eventId)
+                .Include(r => r.PromptDocument)
                 .OrderBy(r => r.RoundOrder)
                 .Select(r => new
                 {
@@ -36,7 +37,9 @@ namespace SEAL.NET.Services.Implementations
                     r.RoundOrder,
                     r.MaxTeamsAdvancing,
                     HasSubmissions = r.Submissions.Any(),
-                    r.EventId
+                    r.EventId,
+                    r.PromptDocumentId,
+                    PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
                 .ToListAsync();
 
@@ -47,6 +50,7 @@ namespace SEAL.NET.Services.Implementations
         {
             var round = await _context.Rounds
                 .Where(r => r.EventId == eventId && r.RoundId == roundId)
+                .Include(r => r.PromptDocument)
                 .Select(r => new
                 {
                     r.RoundId,
@@ -55,7 +59,9 @@ namespace SEAL.NET.Services.Implementations
                     r.RoundOrder,
                     r.MaxTeamsAdvancing,
                     HasSubmissions = r.Submissions.Any(),
-                    r.EventId
+                    r.EventId,
+                    r.PromptDocumentId,
+                    PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
                 .FirstOrDefaultAsync();
 
@@ -88,7 +94,8 @@ namespace SEAL.NET.Services.Implementations
                 RoundName = request.RoundName,
                 SubmissionDeadline = request.SubmissionDeadline,
                 RoundOrder = request.RoundOrder,
-                MaxTeamsAdvancing = request.MaxTeamsAdvancing
+                MaxTeamsAdvancing = request.MaxTeamsAdvancing,
+                PromptDocumentId = request.PromptDocumentId
             };
 
             _context.Rounds.Add(round);
@@ -142,6 +149,7 @@ namespace SEAL.NET.Services.Implementations
             round.SubmissionDeadline = request.SubmissionDeadline;
             round.RoundOrder = request.RoundOrder;
             round.MaxTeamsAdvancing = request.MaxTeamsAdvancing;
+            round.PromptDocumentId = request.PromptDocumentId;
 
             await _context.SaveChangesAsync();
 

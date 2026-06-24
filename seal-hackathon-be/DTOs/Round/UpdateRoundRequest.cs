@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace SEAL.NET.DTOs.Round
 {
@@ -14,5 +14,7 @@ namespace SEAL.NET.DTOs.Round
         public int RoundOrder { get; set; }
 
         public int MaxTeamsAdvancing { get; set; } = 0;
+
+        public Guid? PromptDocumentId { get; set; }
     }
 }

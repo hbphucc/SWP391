@@ -86,6 +86,12 @@ namespace SEAL.NET.Data
                 .Property(e => e.Status)
                 .HasConversion<int>();
 
+            builder.Entity<Round>()
+                .HasOne(r => r.PromptDocument)
+                .WithMany()
+                .HasForeignKey(r => r.PromptDocumentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             // Global track catalog: unique name, and an optional back-link from
             // Category. Deleting a track nulls the link rather than cascading, so
             // already-materialized event categories survive.

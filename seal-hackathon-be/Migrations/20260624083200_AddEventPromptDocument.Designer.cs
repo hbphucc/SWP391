@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SEAL.NET.Data;
@@ -11,9 +12,11 @@ using SEAL.NET.Data;
 namespace SEAL.NET.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260624083200_AddEventPromptDocument")]
+    partial class AddEventPromptDocument
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -409,6 +412,9 @@ namespace SEAL.NET.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<Guid?>("PromptDocumentId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("RegistrationEndDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -422,6 +428,8 @@ namespace SEAL.NET.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("EventId");
+
+                    b.HasIndex("PromptDocumentId");
 
                     b.ToTable("Events");
                 });
@@ -620,9 +628,6 @@ namespace SEAL.NET.Migrations
                     b.Property<int>("MaxTeamsAdvancing")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("PromptDocumentId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("RoundName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -637,8 +642,6 @@ namespace SEAL.NET.Migrations
                     b.HasKey("RoundId");
 
                     b.HasIndex("EventId");
-
-                    b.HasIndex("PromptDocumentId");
 
                     b.ToTable("Rounds");
                 });
@@ -980,6 +983,16 @@ namespace SEAL.NET.Migrations
                     b.Navigation("Uploader");
                 });
 
+            modelBuilder.Entity("SEAL.NET.Models.Entities.Event", b =>
+                {
+                    b.HasOne("SEAL.NET.Models.Entities.Document", "PromptDocument")
+                        .WithMany()
+                        .HasForeignKey("PromptDocumentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("PromptDocument");
+                });
+
             modelBuilder.Entity("SEAL.NET.Models.Entities.JudgeAssignment", b =>
                 {
                     b.HasOne("SEAL.NET.Models.Entities.Category", "Category")
@@ -1089,14 +1102,7 @@ namespace SEAL.NET.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SEAL.NET.Models.Entities.Document", "PromptDocument")
-                        .WithMany()
-                        .HasForeignKey("PromptDocumentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Event");
-
-                    b.Navigation("PromptDocument");
                 });
 
             modelBuilder.Entity("SEAL.NET.Models.Entities.Score", b =>

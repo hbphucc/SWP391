@@ -1,9 +1,9 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
-import { Upload, Link as LinkIcon, GitBranch, Play, FileText, CheckCircle, AlertCircle, RefreshCw, Award, MessageSquare } from "lucide-react";
+import { Upload, Download, Link as LinkIcon, GitBranch, Play, FileText, CheckCircle, AlertCircle, RefreshCw, Award, MessageSquare } from "lucide-react";
 import { App } from "antd";
-import { apiRequest, fetchCurrentUser } from "@/lib/api";
+import { apiRequest, fetchCurrentUser, apiDownload } from "@/lib/api";
 
 type TeamDto = {
   teamId: string;
@@ -20,6 +20,9 @@ type TeamDto = {
     roundName: string;
     submissionDeadline?: string | null;
   } | null;
+  promptDocumentId?: string | null;
+  promptFileName?: string | null;
+  eventStatus?: string | null;
 };
 
 type CriterionFeedbackDto = {
@@ -72,6 +75,8 @@ export default function SubmissionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState("");
 
+  const isApproved = team?.status === "Approved" || team?.status === "Active" || team?.status === "Champion";
+
   const loadSubmissionContext = async () => {
     setLoading(true);
     setLoadError("");
@@ -114,6 +119,23 @@ export default function SubmissionsPage() {
   useEffect(() => {
     void loadSubmissionContext();
   }, []);
+
+  const handleDownloadPrompt = async () => {
+    if (!team?.promptDocumentId) return;
+    try {
+      const blob = await apiDownload(`/Documents/${team.promptDocumentId}/download`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = team.promptFileName || "prompt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Download failed.");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,6 +309,60 @@ export default function SubmissionsPage() {
           </div>
         )}
 
+        {isApproved && team?.promptFileName && (
+          <div
+            style={{
+              background: "var(--color-surface-2)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-md)",
+              padding: "1.25rem",
+              marginBottom: "1.5rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <FileText size={24} style={{ color: "var(--color-primary)" }} />
+              <div>
+                <span style={{ fontSize: "0.75rem", color: "var(--color-text-3)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>
+                  Event Prompt / Task Description
+                </span>
+                <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text-1)", marginTop: "0.25rem" }}>
+                  {team.promptFileName}
+                </div>
+              </div>
+            </div>
+            <div>
+              {team.eventStatus === "Ongoing" ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleDownloadPrompt}
+                  style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                >
+                  <Download size={16} /> Download Prompt
+                </button>
+              ) : (
+                <div style={{ textAlign: "right" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled
+                    style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: 0.6 }}
+                  >
+                    <Download size={16} /> Locked
+                  </button>
+                  <div style={{ fontSize: "0.75rem", color: "var(--color-warning)", marginTop: "0.25rem" }}>
+                    Available when event starts
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "var(--radius-md)", padding: "1rem", marginBottom: "1.5rem" }}>
           <AlertCircle size={20} style={{ color: "var(--color-primary)", flexShrink: 0, marginTop: 2 }} />
           <div>
@@ -297,37 +373,44 @@ export default function SubmissionsPage() {
           </div>
         </div>
 
-        {team?.status !== "Approved" && (
+        {!isApproved && (
           <div style={{ fontSize: "0.85rem", color: "var(--color-warning)", marginBottom: "1rem" }}>
-            Only approved teams can submit. Current team status: {team?.status}.
+            Only approved teams can submit. Current team status: {team?.status || "Pending"}.
+          </div>
+        )}
+
+        {team?.eventStatus !== "Ongoing" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "var(--color-warning)", marginBottom: "1.5rem", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: "var(--radius-md)", padding: "0.75rem" }}>
+            <AlertCircle size={16} />
+            <span>Submissions are locked. The event is not active (Current Status: {team?.eventStatus || "Draft"}).</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           <div className="form-group">
             <label className="form-label"><GitBranch size={14} /> GitHub Repository URL <span style={{ color: "#ef4444" }}>*</span></label>
-            <input className="form-input" type="url" placeholder="https://github.com/your-username/project-repo" required value={form.repositoryUrl} onChange={e => setForm({...form, repositoryUrl: e.target.value})} />
+            <input className="form-input" type="url" placeholder="https://github.com/your-username/project-repo" required value={form.repositoryUrl} onChange={e => setForm({...form, repositoryUrl: e.target.value})} disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"} />
           </div>
           
           <div className="form-group">
             <label className="form-label"><Play size={14} /> Live Demo URL</label>
-            <input className="form-input" type="url" placeholder="https://your-project-demo.vercel.app" value={form.demoUrl} onChange={e => setForm({...form, demoUrl: e.target.value})} />
+            <input className="form-input" type="url" placeholder="https://your-project-demo.vercel.app" value={form.demoUrl} onChange={e => setForm({...form, demoUrl: e.target.value})} disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"} />
           </div>
 
           <div className="form-group">
             <label className="form-label"><FileText size={14} /> Presentation / Report URL <span style={{ color: "#ef4444" }}>*</span></label>
-            <input className="form-input" type="url" placeholder="Google Slides, Canva, or PDF link" required value={form.slideUrl} onChange={e => setForm({...form, slideUrl: e.target.value})} />
+            <input className="form-input" type="url" placeholder="Google Slides, Canva, or PDF link" required value={form.slideUrl} onChange={e => setForm({...form, slideUrl: e.target.value})} disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"} />
           </div>
 
           <div className="form-group">
             <label className="form-label"><LinkIcon size={14} /> Demo Video URL</label>
-            <input className="form-input" type="url" placeholder="YouTube or Loom link" value={form.videoUrl} onChange={e => setForm({...form, videoUrl: e.target.value})} />
+            <input className="form-input" type="url" placeholder="YouTube or Loom link" value={form.videoUrl} onChange={e => setForm({...form, videoUrl: e.target.value})} disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"} />
             <span className="form-hint">If Live Demo URL is empty, this video URL is sent as DemoUrl.</span>
           </div>
 
           <div className="form-group">
             <label className="form-label">Brief Description / Note for Judges</label>
-            <textarea className="form-textarea" rows={4} placeholder="Not sent yet: backend does not have a matching submission description field." value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+            <textarea className="form-textarea" rows={4} placeholder="Not sent yet: backend does not have a matching submission description field." value={form.description} onChange={e => setForm({...form, description: e.target.value})} disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"} />
           </div>
 
           <div className="form-group" style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", marginTop: "0.5rem" }}>
@@ -337,6 +420,7 @@ export default function SubmissionsPage() {
               style={{ marginTop: "0.25rem", width: "16px", height: "16px", cursor: "pointer" }} 
               checked={form.consent}
               onChange={e => setForm({...form, consent: e.target.checked})}
+              disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"}
             />
             <label htmlFor="consent" style={{ fontSize: "0.9rem", color: "var(--color-text-2)", cursor: "pointer", lineHeight: 1.5 }}>
               <strong>Team Consent & Rules:</strong> I confirm that all team members have contributed to this project and we agree to the Hackathon Code of Conduct and official rules.
@@ -344,7 +428,7 @@ export default function SubmissionsPage() {
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
-            <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 2rem" }} disabled={submitting || team?.status !== "Approved"}>
+            <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 2rem" }} disabled={submitting || !isApproved || team?.eventStatus !== "Ongoing"}>
               {submitting ? <span className="spinner" /> : <><Upload size={16} /> {isSubmitted ? "Update Submission" : "Submit Project"}</>}
             </button>
           </div>

@@ -34,6 +34,7 @@ namespace SEAL.NET.Services.Implementations
                         .ThenInclude(c => c.Event)
                 .Include(tm => tm.Team!)
                     .ThenInclude(t => t.CurrentRound)
+                        .ThenInclude(r => r.PromptDocument)
                 .Include(tm => tm.Team!)
                     .ThenInclude(t => t.Members)
                         .ThenInclude(m => m.User)
@@ -361,6 +362,8 @@ namespace SEAL.NET.Services.Implementations
                     email = assignedJudge.Email
                 },
                 eventStatus = team.Category?.Event?.Status.ToString(),
+                promptDocumentId = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocumentId : null,
+                promptFileName = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocument?.FileName : null,
                 finalRank = team.FinalRank,
                 finalPrize = team.FinalPrize
             });
@@ -695,6 +698,7 @@ namespace SEAL.NET.Services.Implementations
                 .Include(t => t.Category)
                     .ThenInclude(c => c.Event)
                 .Include(t => t.CurrentRound)
+                    .ThenInclude(r => r.PromptDocument)
                 .Include(t => t.Members)
                     .ThenInclude(m => m.User)
                 .Include(t => t.Submissions)
@@ -778,6 +782,8 @@ namespace SEAL.NET.Services.Implementations
                     email = assignedJudge.Email
                 },
                 eventStatus = team.Category?.Event?.Status.ToString(),
+                promptDocumentId = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocumentId : null,
+                promptFileName = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocument?.FileName : null,
                 finalRank = team.FinalRank,
                 finalPrize = team.FinalPrize
             });

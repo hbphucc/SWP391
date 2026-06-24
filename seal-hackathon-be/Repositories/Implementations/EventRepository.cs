@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Repositories.Interfaces;
@@ -18,6 +18,8 @@ namespace SEAL.NET.Repositories.Implementations
                     .ThenInclude(c => c.Teams)
                 .Include(e => e.Rounds)
                     .ThenInclude(r => r.Submissions)
+                .Include(e => e.Rounds)
+                    .ThenInclude(r => r.PromptDocument)
                 .OrderByDescending(e => e.CreatedAt)
                 .ToListAsync();
         }
@@ -29,6 +31,8 @@ namespace SEAL.NET.Repositories.Implementations
                     .ThenInclude(c => c.Teams)
                 .Include(e => e.Rounds)
                     .ThenInclude(r => r.Submissions)
+                .Include(e => e.Rounds)
+                    .ThenInclude(r => r.PromptDocument)
                 .FirstOrDefaultAsync(e => e.EventId == eventId);
         }
 

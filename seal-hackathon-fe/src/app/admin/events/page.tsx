@@ -7,8 +7,9 @@ import {
 } from "lucide-react";
 import { App, DatePicker, Modal } from "antd";
 import dayjs from "dayjs";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, apiUpload } from "@/lib/api";
 import { TRACKS_OPTIONS } from "@/lib/constants";
+import StatusBadge from "@/components/StatusBadge";
 
 /* ─── Types ─── */
 type RoundDto = {
@@ -18,12 +19,16 @@ type RoundDto = {
   maxTeamsAdvancing: number;
   submissionDeadline: string | null;
   hasSubmissions: boolean;
+  promptDocumentId?: string | null;
+  promptFileName?: string | null;
 };
 
 type EventDto = {
   eventId: string;
   eventName: string;
   description?: string | null;
+  registrationStartDate: string;
+  registrationEndDate: string;
   startDate: string;
   endDate: string;
   status: string;
@@ -87,17 +92,12 @@ function DateTimePickerField({ value, onChange, disabled = false }: DateTimePick
 }
 
 /* ─── Create-form defaults ─── */
-const INITIAL_EVENT_FORM = { eventName: "", description: "", startDate: "", endDate: "" };
-const INITIAL_EDIT_FORM = { startDate: "", endDate: "" };
-const INITIAL_ROUND_EDIT_FORM = { roundName: "", deadline: "", roundOrder: "", maxTeamsAdvancing: "" };
-const INITIAL_ROUND = () => ({ id: Date.now(), name: "", topN: "5", deadline: "" });
+const INITIAL_EVENT_FORM = { eventName: "", description: "", registrationStartDate: "", registrationEndDate: "", startDate: "", endDate: "" };
+const INITIAL_EDIT_FORM = { registrationStartDate: "", registrationEndDate: "", startDate: "", endDate: "" };
+const INITIAL_ROUND_EDIT_FORM = { roundName: "", deadline: "", roundOrder: "", maxTeamsAdvancing: "", promptDocumentId: null as string | null, promptFileName: null as string | null };
+const INITIAL_ROUND = () => ({ id: Date.now(), name: "", topN: "5", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null });
 
-const EVENT_STATUS_VALUE: Record<string, number> = {
-  Upcoming: 0,
-  Ongoing: 1,
-  Completed: 2,
-  Cancelled: 3,
-};
+
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function AdminEventsPage() {
@@ -127,7 +127,7 @@ export default function AdminEventsPage() {
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "" }]);
+  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   const [createStep, setCreateStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -192,6 +192,8 @@ export default function AdminEventsPage() {
   const beginEditTime = () => {
     if (!selectedEvent) return;
     setEditForm({
+      registrationStartDate: toDateTimeLocal(selectedEvent.registrationStartDate),
+      registrationEndDate: toDateTimeLocal(selectedEvent.registrationEndDate),
       startDate: toDateTimeLocal(selectedEvent.startDate),
       endDate: toDateTimeLocal(selectedEvent.endDate),
     });
@@ -200,15 +202,31 @@ export default function AdminEventsPage() {
 
   const handleUpdateEventTime = async () => {
     if (!selectedEvent) return;
+    const registrationStartDate = toApiDate(editForm.registrationStartDate);
+    const registrationEndDate = toApiDate(editForm.registrationEndDate);
     const startDate = toApiDate(editForm.startDate);
     const endDate = toApiDate(editForm.endDate);
 
-    if (!startDate || !endDate) {
-      message.error("Start date and end date are required.");
+    if (!registrationStartDate || !registrationEndDate || !startDate || !endDate) {
+      message.error("All dates are required.");
       return;
     }
-    if (new Date(endDate) <= new Date(startDate)) {
-      message.error("End date must be after start date.");
+
+    const dRegStart = new Date(registrationStartDate);
+    const dRegEnd = new Date(registrationEndDate);
+    const dStart = new Date(startDate);
+    const dEnd = new Date(endDate);
+
+    if (dRegEnd <= dRegStart) {
+      message.error("Registration End Date must be after Registration Start Date.");
+      return;
+    }
+    if (dStart < dRegEnd) {
+      message.error("Event Start Date must be on or after Registration End Date.");
+      return;
+    }
+    if (dEnd <= dStart) {
+      message.error("Event End Date must be after Event Start Date.");
       return;
     }
 
@@ -219,9 +237,11 @@ export default function AdminEventsPage() {
         body: JSON.stringify({
           eventName: selectedEvent.eventName,
           description: selectedEvent.description ?? null,
+          registrationStartDate,
+          registrationEndDate,
           startDate: selectedEvent.hasSubmissions ? selectedEvent.startDate : startDate,
           endDate,
-          status: EVENT_STATUS_VALUE[selectedEvent.status] ?? 0,
+          trackIds: [],
         }),
       });
       message.success("Event time updated successfully.");
@@ -263,6 +283,8 @@ export default function AdminEventsPage() {
       deadline: toDateTimeLocal(round.submissionDeadline),
       roundOrder: String(round.roundOrder),
       maxTeamsAdvancing: String(round.maxTeamsAdvancing),
+      promptDocumentId: round.promptDocumentId || null,
+      promptFileName: round.promptFileName || null,
     });
     setEditingRoundId(round.roundId);
   };
@@ -311,6 +333,7 @@ export default function AdminEventsPage() {
           maxTeamsAdvancing: round.hasSubmissions
             ? round.maxTeamsAdvancing
             : maxTeamsAdvancing,
+          promptDocumentId: roundEditForm.promptDocumentId || null,
         }),
       });
       message.success("Round updated successfully.");
@@ -365,6 +388,66 @@ export default function AdminEventsPage() {
       message.error(err instanceof Error ? err.message : "Could not advance round.");
     } finally {
       setAdvancingId("");
+    }
+  };
+
+  const handlePublishEvent = async (id: string) => {
+    if (!window.confirm("Are you sure you want to publish this event? This will make it visible to participants.")) return;
+    setUpdatingEvent(true);
+    try {
+      await apiRequest(`/Events/${id}/publish`, { method: "POST" });
+      message.success("Event published successfully.");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not publish event.");
+    } finally {
+      setUpdatingEvent(false);
+    }
+  };
+
+  const handleStartEvent = async (id: string) => {
+    if (!window.confirm("Are you sure you want to start this event?")) return;
+    setUpdatingEvent(true);
+    try {
+      await apiRequest(`/Events/${id}/start`, { method: "POST" });
+      message.success("Event started successfully.");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not start event.");
+    } finally {
+      setUpdatingEvent(false);
+    }
+  };
+
+  const handleCompleteEvent = async (id: string) => {
+    if (!window.confirm("Are you sure you want to complete this event?")) return;
+    setUpdatingEvent(true);
+    try {
+      await apiRequest(`/Events/${id}/complete`, { method: "POST" });
+      message.success("Event completed successfully.");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not complete event.");
+    } finally {
+      setUpdatingEvent(false);
+    }
+  };
+
+  const handleCancelEvent = async (id: string) => {
+    const reason = window.prompt("Enter cancel reason (optional):");
+    if (reason === null) return;
+    setUpdatingEvent(true);
+    try {
+      await apiRequest(`/Events/${id}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() || null })
+      });
+      message.success("Event cancelled successfully.");
+      await refreshEvents();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not cancel event.");
+    } finally {
+      setUpdatingEvent(false);
     }
   };
 
@@ -425,8 +508,29 @@ export default function AdminEventsPage() {
 
   const handleCreateEvent = async () => {
     if (!eventForm.eventName.trim()) { message.error("Please enter an event name."); return; }
-    if (!eventForm.startDate || !eventForm.endDate) { message.error("Start date and end date are required."); return; }
-    if (new Date(eventForm.endDate) <= new Date(eventForm.startDate)) { message.error("End date must be after start date."); return; }
+    if (!eventForm.registrationStartDate || !eventForm.registrationEndDate || !eventForm.startDate || !eventForm.endDate) {
+      message.error("All dates are required.");
+      return;
+    }
+
+    const dRegStart = new Date(eventForm.registrationStartDate);
+    const dRegEnd = new Date(eventForm.registrationEndDate);
+    const dStart = new Date(eventForm.startDate);
+    const dEnd = new Date(eventForm.endDate);
+
+    if (dRegEnd <= dRegStart) {
+      message.error("Registration End Date must be after Registration Start Date.");
+      return;
+    }
+    if (dStart < dRegEnd) {
+      message.error("Event Start Date must be on or after Registration End Date.");
+      return;
+    }
+    if (dEnd <= dStart) {
+      message.error("Event End Date must be after Event Start Date.");
+      return;
+    }
+
     if (rounds.some((r) => !r.name.trim() || !r.deadline)) { message.error("Every round needs a name and submission deadline."); return; }
 
     setSubmitting(true);
@@ -436,10 +540,10 @@ export default function AdminEventsPage() {
         body: JSON.stringify({
           eventName: eventForm.eventName.trim(),
           description: eventForm.description.trim() || null,
+          registrationStartDate: toApiDate(eventForm.registrationStartDate),
+          registrationEndDate: toApiDate(eventForm.registrationEndDate),
           startDate: toApiDate(eventForm.startDate),
           endDate: toApiDate(eventForm.endDate),
-          // Catalog mode: tracks are attached atomically by the backend. In fallback
-          // mode `selectedTracks` holds names, handled by the per-category loop below.
           trackIds: usingCatalog ? selectedTracks : [],
         }),
       });
@@ -458,6 +562,7 @@ export default function AdminEventsPage() {
                 submissionDeadline: toApiDate(r.deadline),
                 roundOrder: i + 1,
                 maxTeamsAdvancing: Number(r.topN) || 0,
+                promptDocumentId: r.promptDocumentId || null,
               }),
             }),
           ),
@@ -483,7 +588,7 @@ export default function AdminEventsPage() {
           8,
         );
         setEventForm(INITIAL_EVENT_FORM);
-        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "" }]);
+        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
         setSelectedTracks([]);
         setCreateStep(1);
         setView("list");
@@ -577,7 +682,27 @@ export default function AdminEventsPage() {
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-                      <span className="badge badge-primary">{selectedEvent.status}</span>
+                      <StatusBadge status={selectedEvent.status} />
+                      {selectedEvent.status === "Draft" && (
+                        <button className="btn btn-primary btn-sm" onClick={() => handlePublishEvent(selectedEvent.eventId)} disabled={updatingEvent || deletingEvent}>
+                          Publish
+                        </button>
+                      )}
+                      {selectedEvent.status === "Published" && (
+                        <button className="btn btn-primary btn-sm" onClick={() => handleStartEvent(selectedEvent.eventId)} disabled={updatingEvent || deletingEvent}>
+                          Start
+                        </button>
+                      )}
+                      {selectedEvent.status === "Ongoing" && (
+                        <button className="btn btn-primary btn-sm" onClick={() => handleCompleteEvent(selectedEvent.eventId)} disabled={updatingEvent || deletingEvent}>
+                          Complete
+                        </button>
+                      )}
+                      {selectedEvent.status !== "Completed" && selectedEvent.status !== "Cancelled" && (
+                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelEvent(selectedEvent.eventId)} disabled={updatingEvent || deletingEvent}>
+                          Cancel
+                        </button>
+                      )}
                       <button className="btn btn-secondary btn-sm" onClick={beginEditTime} disabled={updatingEvent || deletingEvent}>
                         <Pencil size={14} /> Edit Time
                       </button>
@@ -594,7 +719,25 @@ export default function AdminEventsPage() {
                       </h4>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
                         <div className="form-group">
-                          <label className="form-label">Start Date &amp; Time</label>
+                          <label className="form-label">Registration Start *</label>
+                          <DateTimePickerField
+                            value={editForm.registrationStartDate}
+                            onChange={(value) => setEditForm((cur) => ({ ...cur, registrationStartDate: value }))}
+                            disabled={updatingEvent}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Registration End *</label>
+                          <DateTimePickerField
+                            value={editForm.registrationEndDate}
+                            onChange={(value) => setEditForm((cur) => ({ ...cur, registrationEndDate: value }))}
+                            disabled={updatingEvent}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginTop: "1rem" }}>
+                        <div className="form-group">
+                          <label className="form-label">Start Date &amp; Time *</label>
                           <DateTimePickerField
                             value={editForm.startDate}
                             onChange={(value) => setEditForm((cur) => ({ ...cur, startDate: value }))}
@@ -605,7 +748,7 @@ export default function AdminEventsPage() {
                           )}
                         </div>
                         <div className="form-group">
-                          <label className="form-label">End Date &amp; Time</label>
+                          <label className="form-label">End Date &amp; Time *</label>
                           <DateTimePickerField
                             value={editForm.endDate}
                             onChange={(value) => setEditForm((cur) => ({ ...cur, endDate: value }))}
@@ -647,6 +790,11 @@ export default function AdminEventsPage() {
                           </div>
                           <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
                             Deadline: {toDisplayDate(round.submissionDeadline)} · Top {round.maxTeamsAdvancing} advance
+                            {round.promptFileName && (
+                              <span style={{ marginLeft: "1rem", color: "var(--color-primary)", fontWeight: 500 }}>
+                                📄 {round.promptFileName}
+                              </span>
+                            )}
                           </div>
                           {round.hasSubmissions && (
                             <span className="badge badge-neutral" style={{ marginTop: "0.5rem" }}>Has submissions · deadline only</span>
@@ -689,6 +837,56 @@ export default function AdminEventsPage() {
                             <div className="form-group">
                               <label className="form-label">Top N Teams</label>
                               <input type="number" min={0} className="form-input" value={roundEditForm.maxTeamsAdvancing} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, maxTeamsAdvancing: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                            </div>
+                          </div>
+                          <div className="form-group" style={{ marginTop: "1rem" }}>
+                            <label className="form-label">Round Prompt Document (Optional)</label>
+                            <div style={{ display: "flex", alignItems: "center", gap: "1rem", minHeight: 40 }}>
+                              <input
+                                type="file"
+                                id={`edit-round-prompt-${round.roundId}`}
+                                style={{ display: "none" }}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    try {
+                                      const fd = new FormData();
+                                      fd.append("file", file);
+                                      const res = await apiUpload<{ documentId: string; fileName: string }>("/Documents", fd);
+                                      setRoundEditForm((cur) => ({
+                                        ...cur,
+                                        promptDocumentId: res.documentId,
+                                        promptFileName: res.fileName,
+                                      }));
+                                      message.success("Round prompt document uploaded successfully!");
+                                    } catch (err) {
+                                      message.error(err instanceof Error ? err.message : "Upload failed.");
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => document.getElementById(`edit-round-prompt-${round.roundId}`)?.click()}
+                              >
+                                Choose File
+                              </button>
+                              {roundEditForm.promptFileName ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                  <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>{roundEditForm.promptFileName}</span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger btn-icon btn-sm"
+                                    style={{ padding: "0.2rem" }}
+                                    onClick={() => setRoundEditForm((cur) => ({ ...cur, promptDocumentId: null, promptFileName: null }))}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>No prompt document uploaded</span>
+                              )}
                             </div>
                           </div>
                           {round.hasSubmissions && (
@@ -757,14 +955,30 @@ export default function AdminEventsPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div className="form-group">
-                    <label className="form-label">Start Date & Time *</label>
+                    <label className="form-label">Registration Start *</label>
+                    <DateTimePickerField
+                      value={eventForm.registrationStartDate}
+                      onChange={(value) => setEventForm({ ...eventForm, registrationStartDate: value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Registration End *</label>
+                    <DateTimePickerField
+                      value={eventForm.registrationEndDate}
+                      onChange={(value) => setEventForm({ ...eventForm, registrationEndDate: value })}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div className="form-group">
+                    <label className="form-label">Start Date &amp; Time *</label>
                     <DateTimePickerField
                       value={eventForm.startDate}
                       onChange={(value) => setEventForm({ ...eventForm, startDate: value })}
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">End Date & Time *</label>
+                    <label className="form-label">End Date &amp; Time *</label>
                     <DateTimePickerField
                       value={eventForm.endDate}
                       onChange={(value) => setEventForm({ ...eventForm, endDate: value })}
@@ -827,6 +1041,52 @@ export default function AdminEventsPage() {
                           value={r.deadline}
                           onChange={(value) => setRounds(rounds.map((x) => x.id === r.id ? { ...x, deadline: value } : x))}
                         />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: "1rem" }} className="form-group">
+                      <label className="form-label">Round Prompt Document (Optional)</label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "1rem", minHeight: 40 }}>
+                        <input
+                          type="file"
+                          id={`round-prompt-${r.id}`}
+                          style={{ display: "none" }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const fd = new FormData();
+                                fd.append("file", file);
+                                const res = await apiUpload<{ documentId: string; fileName: string }>("/Documents", fd);
+                                setRounds(rounds.map((x) => x.id === r.id ? { ...x, promptDocumentId: res.documentId, promptFileName: res.fileName } : x));
+                                message.success(`Prompt for ${r.name || `Round ${i+1}`} uploaded successfully!`);
+                              } catch (err) {
+                                message.error(err instanceof Error ? err.message : "Upload failed.");
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => document.getElementById(`round-prompt-${r.id}`)?.click()}
+                        >
+                          Choose File
+                        </button>
+                        {r.promptFileName ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>{r.promptFileName}</span>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-icon btn-sm"
+                              style={{ padding: "0.2rem" }}
+                              onClick={() => setRounds(rounds.map((x) => x.id === r.id ? { ...x, promptDocumentId: null, promptFileName: null } : x))}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>No prompt document uploaded</span>
+                        )}
                       </div>
                     </div>
                   </div>

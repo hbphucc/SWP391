@@ -273,7 +273,9 @@ namespace SEAL.NET.Services.Implementations
                         RoundOrder = r.RoundOrder,
                         MaxTeamsAdvancing = r.MaxTeamsAdvancing,
                         SubmissionDeadline = r.SubmissionDeadline,
-                        HasSubmissions = r.Submissions.Any()
+                        HasSubmissions = r.Submissions.Any(),
+                        PromptDocumentId = r.PromptDocumentId,
+                        PromptFileName = r.PromptDocument?.FileName
                     }).ToList()
             };
         }

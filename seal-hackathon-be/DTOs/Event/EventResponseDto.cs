@@ -1,4 +1,4 @@
-﻿using SEAL.NET.DTOs.Category;
+using SEAL.NET.DTOs.Category;
 using SEAL.NET.DTOs.Round;
 
 namespace SEAL.NET.DTOs.Event
@@ -16,6 +16,8 @@ namespace SEAL.NET.DTOs.Event
         public bool HasSubmissions { get; set; }
         public List<CategoryDto> Categories { get; set; } = [];
         public List<RoundDto> Rounds { get; set; } = [];
+
+
     }
 
 }

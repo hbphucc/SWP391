@@ -1,4 +1,4 @@
-﻿using SEAL.NET.Models.Enums;
+using SEAL.NET.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace SEAL.NET.DTOs.Event
@@ -23,6 +23,8 @@ namespace SEAL.NET.DTOs.Event
 
         [Required]
         public DateTime EndDate { get; set; }
+
+
 
         /// <summary>
         /// Optional catalog tracks. Additive only: tracks not already attached to the

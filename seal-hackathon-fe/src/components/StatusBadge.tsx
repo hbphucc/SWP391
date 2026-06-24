@@ -36,6 +36,7 @@ const STATUS_MAP: Record<string, StatusMeta> = {
 
   // Event / team lifecycle (shared)
   Upcoming: { label: "Upcoming", badge: "badge-primary", Icon: Clock },
+  Published: { label: "Published", badge: "badge-cyan", Icon: FileCheck2 },
   Ongoing: { label: "Ongoing", badge: "badge-success", Icon: CircleDot },
   Active: { label: "Active", badge: "badge-success", Icon: CircleDot },
   Completed: { label: "Completed", badge: "badge-neutral", Icon: CheckCircle2 },
