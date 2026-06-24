@@ -290,7 +290,48 @@ namespace SEAL.NET.Services.Implementations
                 }
             }
 
+            // Optional inline mentor assignment. Validated up front so a bad MentorId
+            // surfaces as the BadRequest the client expects instead of half-creating
+            // a team and then failing. Everything below saves in one SaveChangesAsync,
+            // so the team + invitations + mentor row commit atomically.
+            if (request.MentorId.HasValue)
+            {
+                var mentor = await _userManager.FindByIdAsync(request.MentorId.Value.ToString());
+                if (mentor == null)
+                    return ServiceResult.BadRequest("Selected mentor was not found.");
+
+                if (!mentor.IsApproved)
+                    return ServiceResult.BadRequest("Selected mentor's account is disabled.");
+
+                if (!await _userManager.IsInRoleAsync(mentor, "Mentor"))
+                    return ServiceResult.BadRequest("Selected user is not a mentor.");
+
+                _context.MentorAssignments.Add(new MentorAssignment
+                {
+                    MentorUserId = mentor.Id,
+                    TeamId = team.TeamId,
+                    AssignedByUserId = leaderId,
+                    IsActive = true,
+                    AssignedAt = DateTime.UtcNow
+                });
+            }
+
             await _context.SaveChangesAsync();
+
+            // Notify the mentor only after the row is persisted, so a notify failure
+            // can't make the caller think creation failed.
+            if (request.MentorId.HasValue)
+            {
+                try
+                {
+                    await _notificationService.CreateAsync(
+                        request.MentorId.Value,
+                        "Mentor Assignment",
+                        $"You have been selected to mentor team {team.TeamName}.",
+                        "team");
+                }
+                catch { }
+            }
 
             return ServiceResult.Ok(new
             {

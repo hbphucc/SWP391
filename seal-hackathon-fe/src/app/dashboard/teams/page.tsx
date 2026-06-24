@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap, LogOut, Search, Check } from "lucide-react";
 import { App, Modal } from "antd";
 import { useRouter } from "next/navigation";
-import { ApiError, CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
+import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
+import CreateTeamDrawer from "@/components/team/CreateTeamDrawer";
 
 type TeamMember = {
   userId: string;
@@ -81,13 +82,6 @@ type InvitationResponse = {
   createdAt: string;
 };
 
-function parseMemberIds(value: string) {
-  return value
-    .split(/[\s,;]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 export default function TeamsPage() {
   const { message, modal } = App.useApp();
   const router = useRouter();
@@ -96,9 +90,7 @@ export default function TeamsPage() {
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [teamName, setTeamName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [initialMemberCodes, setInitialMemberCodes] = useState("");
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [memberCodeToAdd, setMemberCodeToAdd] = useState("");
   const [draftTeamName, setDraftTeamName] = useState("");
   const [newLeaderCodeOrEmail, setNewLeaderCodeOrEmail] = useState("");
@@ -152,7 +144,8 @@ export default function TeamsPage() {
 
       setCurrentUser(user);
       setEvents(eventData);
-      setCategoryId((current) => current || eventData.flatMap((event) => event.categories)[0]?.categoryId || "");
+      // Category preselection moved into CreateTeamDrawer (it defaults to the
+      // first option supplied via props); the page no longer tracks it.
 
       let hasTeam = false;
       try {
@@ -263,52 +256,9 @@ export default function TeamsPage() {
     };
   }, []);
 
-  const handleCreateTeam = async () => {
-    const memberCodes = parseMemberIds(initialMemberCodes);
-
-    if (!teamName.trim()) {
-      message.error("Team name is required.");
-      return;
-    }
-
-    if (!categoryId) {
-      message.error("Select a category before creating a team.");
-      return;
-    }
-
-    if (memberCodes.length < 2 || memberCodes.length > 4) {
-      message.error("Add 2 to 4 member student codes or emails so the team has 3 to 5 members including you.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await apiRequest("/teams", {
-        method: "POST",
-        body: JSON.stringify({
-          teamName: teamName.trim(),
-          categoryId,
-          memberStudentCodesOrEmails: memberCodes,
-        }),
-      });
-
-      message.success("Team registered and waiting for approval.");
-      setTeamName("");
-      setInitialMemberCodes("");
-      await loadPage();
-    } catch (err) {
-      // Branch on the backend error code (set on ApiError by the JSON parser)
-      // so we can surface a softer warning for the "event not published yet"
-      // case instead of a generic red error toast.
-      if (err instanceof ApiError && err.code === "EventNotPublished") {
-        message.warning("This event is still a draft. Wait for the admin to publish it before registering a team.");
-      } else {
-        message.error(err instanceof Error ? err.message : "Could not create team.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // Team creation is now driven by CreateTeamDrawer, which posts to /teams with
+  // an optional MentorId and handles the EventNotPublished branching itself.
+  // We just refresh page state on success.
 
   const handleAddMember = async () => {
     if (!myTeam || !memberCodeToAdd.trim()) return;
@@ -576,55 +526,49 @@ export default function TeamsPage() {
           </div>
         )}
 
-        <div className="glass-card" style={{ maxWidth: 560, margin: "0 auto" }}>
-          <h3 style={{ fontSize: "1.2rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Crown size={18} /> Create a Team
-          </h3>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="teamName">Team Name</label>
-            <input
-              id="teamName"
-              className="form-input"
-              placeholder="Enter team name"
-              value={teamName}
-              onChange={(event) => setTeamName(event.target.value)}
-            />
+        <div
+          className="glass-card"
+          style={{
+            maxWidth: 560,
+            margin: "0 auto",
+            textAlign: "center",
+            padding: "2rem 1.5rem",
+          }}
+        >
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              background: "rgba(99,102,241,0.1)",
+              color: "var(--color-primary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 1rem",
+            }}
+          >
+            <Crown size={24} />
           </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="category">Category</label>
-            <select
-              id="category"
-              className="form-input"
-              value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
-              disabled={categories.length === 0}
-            >
-              {categories.map((category) => (
-                <option key={category.categoryId} value={category.categoryId}>
-                  {category.eventName} - {category.categoryName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="memberIds">Member Student Codes or Emails</label>
-            <textarea
-              id="memberIds"
-              className="form-input"
-              rows={4}
-              placeholder="Paste 2 to 4 approved student codes or emails, separated by commas or new lines"
-              value={initialMemberCodes}
-              onChange={(event) => setInitialMemberCodes(event.target.value)}
-            />
-          </div>
-
-          <button className="btn btn-primary btn-lg" onClick={handleCreateTeam} disabled={submitting} style={{ width: "100%", justifyContent: "center" }}>
-            {submitting ? <span className="spinner" /> : <><Plus size={18} /> Register Team</>}
+          <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Ready to compete?</h3>
+          <p style={{ color: "var(--color-text-3)", marginBottom: "1.25rem", fontSize: "0.9rem" }}>
+            Create a team in one screen: pick a category, invite members, and optionally choose a mentor.
+          </p>
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={() => setCreateDrawerOpen(true)}
+            style={{ minWidth: 200, justifyContent: "center" }}
+          >
+            <Plus size={18} /> Create a Team
           </button>
         </div>
+
+        <CreateTeamDrawer
+          open={createDrawerOpen}
+          onClose={() => setCreateDrawerOpen(false)}
+          onSuccess={loadPage}
+          categories={categories}
+        />
       </div>
     );
   }
