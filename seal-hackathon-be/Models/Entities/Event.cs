@@ -13,9 +13,11 @@ namespace SEAL.NET.Models.Entities
         [MaxLength(1000)]
         public string? Description { get; set; }
 
+        public DateTime RegistrationStartDate { get; set; }
+        public DateTime RegistrationEndDate { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public EventStatus Status { get; set; } = EventStatus.Upcoming;
+        public EventStatus Status { get; set; } = EventStatus.Draft;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public List<Category> Categories { get; set; } = [];

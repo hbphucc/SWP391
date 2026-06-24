@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Calendar, Clock, Save, AlertCircle, RefreshCw,
   Plus, Trash2, GripVertical, Target, ChevronRight, Pencil,
 } from "lucide-react";
-import { App, DatePicker } from "antd";
+import { App, DatePicker, Modal } from "antd";
 import dayjs from "dayjs";
 import { apiRequest } from "@/lib/api";
 import { TRACKS_OPTIONS } from "@/lib/constants";
@@ -28,6 +29,12 @@ type EventDto = {
   status: string;
   hasSubmissions: boolean;
   rounds: RoundDto[];
+};
+
+type TrackOption = {
+  trackId: string;
+  name: string;
+  description?: string | null;
 };
 
 /* ─── Helpers ─── */
@@ -95,9 +102,14 @@ const EVENT_STATUS_VALUE: Record<string, number> = {
 /* ════════════════════════════════════════════════════════════════ */
 export default function AdminEventsPage() {
   const { message } = App.useApp();
+  const searchParams = useSearchParams();
 
-  /* ── View toggle ── */
-  const [view, setView] = useState<"list" | "create">("list");
+  /* ── View toggle ──
+   * `?action=create` deep-links straight into Step 1 of the wizard. This is the
+   * landing target for redirects from the deprecated /dashboard/events/create route
+   * and the dashboard's "New Event" / "Create Event" quick actions. */
+  const initialView = searchParams.get("action") === "create" ? "create" : "list";
+  const [view, setView] = useState<"list" | "create">(initialView);
 
   /* ── Events list ── */
   const [events, setEvents] = useState<EventDto[]>([]);
@@ -119,6 +131,14 @@ export default function AdminEventsPage() {
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   const [createStep, setCreateStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  // Track catalog loaded from the backend (/api/tracks). When present the wizard
+  // sends track IDs; if it's empty/unreachable we fall back to the static labels.
+  const [trackCatalog, setTrackCatalog] = useState<TrackOption[]>([]);
+  const usingCatalog = trackCatalog.length > 0;
+  /* ── Inline "Create Track" modal (Step 3) ── */
+  const [trackModalOpen, setTrackModalOpen] = useState(false);
+  const [creatingTrack, setCreatingTrack] = useState(false);
+  const [trackForm, setTrackForm] = useState({ name: "", description: "", isActive: true });
 
   /* ─────────────── Load events ─────────────── */
   const loadEventsData = useCallback(
@@ -148,6 +168,13 @@ export default function AdminEventsPage() {
     // loadEventsData sets state only after an awaited fetch and respects the `active`
     // guard, so the microtask hop keeps observable behavior identical.
     void Promise.resolve().then(() => loadEventsData(active));
+
+    // Load the active track catalog for the create wizard. A failure is non-fatal:
+    // we fall back to the static TRACKS_OPTIONS labels.
+    void apiRequest<TrackOption[]>("/tracks?activeOnly=true")
+      .then((data) => { if (active.value) setTrackCatalog(data); })
+      .catch(() => { /* fall back to static labels */ });
+
     return () => { active.value = false; };
   }, [loadEventsData]);
 
@@ -347,6 +374,55 @@ export default function AdminEventsPage() {
   const toggleTrack = (t: string) =>
     setSelectedTracks((sel) => (sel.includes(t) ? sel.filter((x) => x !== t) : [...sel, t]));
 
+  const openTrackModal = () => {
+    setTrackForm({ name: "", description: "", isActive: true });
+    setTrackModalOpen(true);
+  };
+
+  // Creates a catalog track inline, then refreshes the picker and auto-selects it —
+  // all without leaving the wizard or touching the event/round/track form state.
+  const handleCreateTrack = async () => {
+    if (creatingTrack) return; // double-submit guard
+    const name = trackForm.name.trim();
+    if (!name) { message.error("Track name is required."); return; }
+
+    setCreatingTrack(true);
+    try {
+      const created = await apiRequest<{ trackId: string }>("/tracks", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          description: trackForm.description.trim() || null,
+          isActive: trackForm.isActive,
+        }),
+      });
+
+      // Refresh the catalog from the backend (authoritative) without a page reload.
+      const fresh = await apiRequest<TrackOption[]>("/tracks?activeOnly=true");
+      setTrackCatalog(fresh);
+
+      // Preserve existing valid selections; auto-select the new track if active.
+      const validIds = new Set(fresh.map((t) => t.trackId));
+      setSelectedTracks((prev) => {
+        const kept = prev.filter((id) => validIds.has(id));
+        return validIds.has(created.trackId) && !kept.includes(created.trackId)
+          ? [...kept, created.trackId]
+          : kept;
+      });
+
+      setTrackModalOpen(false);
+      message.success(
+        trackForm.isActive
+          ? `Track "${name}" created and selected.`
+          : `Track "${name}" created (inactive, not selected).`,
+      );
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not create track.");
+    } finally {
+      setCreatingTrack(false);
+    }
+  };
+
   const handleCreateEvent = async () => {
     if (!eventForm.eventName.trim()) { message.error("Please enter an event name."); return; }
     if (!eventForm.startDate || !eventForm.endDate) { message.error("Start date and end date are required."); return; }
@@ -362,6 +438,9 @@ export default function AdminEventsPage() {
           description: eventForm.description.trim() || null,
           startDate: toApiDate(eventForm.startDate),
           endDate: toApiDate(eventForm.endDate),
+          // Catalog mode: tracks are attached atomically by the backend. In fallback
+          // mode `selectedTracks` holds names, handled by the per-category loop below.
+          trackIds: usingCatalog ? selectedTracks : [],
         }),
       });
 
@@ -384,7 +463,9 @@ export default function AdminEventsPage() {
           ),
         );
 
-        if (selectedTracks.length > 0) {
+        // Fallback only: when the backend track catalog is unavailable, persist the
+        // chosen static labels as categories the legacy way.
+        if (!usingCatalog && selectedTracks.length > 0) {
           await Promise.all(
             selectedTracks.map((track) =>
               apiRequest(`/events/${eventId}/categories`, {
@@ -757,34 +838,53 @@ export default function AdminEventsPage() {
           {/* Step 3 – Tracks */}
           {createStep === 3 && (
             <div className="glass-card">
-              <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>Competition Tracks</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", marginBottom: "0.5rem" }}>
+                <h3 style={{ fontSize: "1rem", margin: 0 }}>Competition Tracks</h3>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={openTrackModal}>
+                  <Plus size={15} /> Create Track
+                </button>
+              </div>
               <p style={{ fontSize: "0.875rem", color: "var(--color-text-2)", marginBottom: "1.5rem" }}>
-                Select the tracks for this hackathon (optional)
+                Select the tracks for this hackathon (optional).{" "}
+                {usingCatalog
+                  ? "Need a new one? Use Create Track — you won't lose your progress."
+                  : "Showing default tracks (catalog unavailable)."}
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                {TRACKS_OPTIONS.map((t) => (
-                  <label
-                    key={t}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "0.75rem",
-                      padding: "0.9rem 1rem", cursor: "pointer", transition: "all 0.15s",
-                      background: selectedTracks.includes(t) ? "rgba(99,102,241,0.08)" : "var(--color-surface-2)",
-                      border: `1px solid ${selectedTracks.includes(t) ? "rgba(99,102,241,0.4)" : "var(--color-border-2)"}`,
-                      borderRadius: "var(--radius-md)",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedTracks.includes(t)}
-                      onChange={() => toggleTrack(t)}
-                      style={{ accentColor: "var(--color-primary)", width: 16, height: 16 }}
-                    />
-                    <span style={{ fontWeight: 500 }}>{t}</span>
-                    {selectedTracks.includes(t) && (
-                      <span className="badge badge-primary" style={{ marginLeft: "auto" }}>Selected</span>
-                    )}
-                  </label>
-                ))}
+                {(usingCatalog
+                  ? trackCatalog.map((t) => ({ value: t.trackId, label: t.name, description: t.description }))
+                  : TRACKS_OPTIONS.map((t) => ({ value: t, label: t, description: null as string | null }))
+                ).map((opt) => {
+                  const checked = selectedTracks.includes(opt.value);
+                  return (
+                    <label
+                      key={opt.value}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "0.75rem",
+                        padding: "0.9rem 1rem", cursor: "pointer", transition: "all 0.15s",
+                        background: checked ? "rgba(99,102,241,0.08)" : "var(--color-surface-2)",
+                        border: `1px solid ${checked ? "rgba(99,102,241,0.4)" : "var(--color-border-2)"}`,
+                        borderRadius: "var(--radius-md)",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTrack(opt.value)}
+                        style={{ accentColor: "var(--color-primary)", width: 16, height: 16 }}
+                      />
+                      <span style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 500 }}>{opt.label}</span>
+                        {opt.description && (
+                          <span style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>{opt.description}</span>
+                        )}
+                      </span>
+                      {checked && (
+                        <span className="badge badge-primary" style={{ marginLeft: "auto" }}>Selected</span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
               {selectedTracks.length > 0 && (
                 <p style={{ marginTop: "1rem", fontSize: "0.82rem", color: "var(--color-text-3)" }}>
@@ -793,6 +893,66 @@ export default function AdminEventsPage() {
               )}
             </div>
           )}
+
+          {/* Inline Create Track modal — keeps the wizard mounted/state intact */}
+          <Modal
+            title="Create Track"
+            open={trackModalOpen}
+            onCancel={() => { if (!creatingTrack) setTrackModalOpen(false); }}
+            footer={null}
+            centered
+            destroyOnHidden
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", paddingTop: "0.5rem" }}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="trackName">Track Name <span style={{ color: "var(--color-danger)" }}>*</span></label>
+                <input
+                  id="trackName"
+                  className="form-input"
+                  placeholder="e.g. Data Science"
+                  value={trackForm.name}
+                  maxLength={100}
+                  disabled={creatingTrack}
+                  onChange={(e) => setTrackForm((f) => ({ ...f, name: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateTrack(); }}
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="trackDesc">Description</label>
+                <textarea
+                  id="trackDesc"
+                  className="form-input"
+                  rows={3}
+                  placeholder="Optional short description"
+                  value={trackForm.description}
+                  maxLength={1000}
+                  disabled={creatingTrack}
+                  onChange={(e) => setTrackForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.9rem" }}>
+                <input
+                  type="checkbox"
+                  checked={trackForm.isActive}
+                  disabled={creatingTrack}
+                  onChange={(e) => setTrackForm((f) => ({ ...f, isActive: e.target.checked }))}
+                  style={{ accentColor: "var(--color-primary)", width: 16, height: 16 }}
+                />
+                Active (available for selection)
+              </label>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
+                <button className="btn btn-secondary" onClick={() => setTrackModalOpen(false)} disabled={creatingTrack}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={handleCreateTrack} disabled={creatingTrack || !trackForm.name.trim()}>
+                  {creatingTrack
+                    ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Creating</>
+                    : <><Plus size={15} /> Create Track</>}
+                </button>
+              </div>
+            </div>
+          </Modal>
 
           {/* Navigation buttons */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>
