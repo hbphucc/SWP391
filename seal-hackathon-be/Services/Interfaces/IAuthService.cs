@@ -18,5 +18,6 @@ namespace SEAL.NET.Services.Interfaces
         Task<ServiceResult> ChangePasswordAsync(string? userId, ChangePasswordRequest request);
         Task<ServiceResult> ForgotPasswordAsync(ForgotPasswordRequest model);
         Task<ServiceResult> ResetPasswordAsync(ResetPasswordRequest model);
+        Task<ServiceResult> RequestRoleAsync(string? userId, string role);
     }
 }

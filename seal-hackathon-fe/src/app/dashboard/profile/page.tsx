@@ -97,6 +97,21 @@ export default function ProfilePage() {
     reader.readAsDataURL(file);
   };
 
+  const handleRegisterRole = async (targetRole: "Mentor" | "Judge") => {
+    setSaving(true);
+    try {
+      const endpoint = targetRole === "Mentor" ? "/Auth/request-mentor" : "/Auth/request-judge";
+      await apiRequest(endpoint, { method: "POST" });
+      message.success(`Successfully submitted request to become a ${targetRole}. Pending admin approval.`);
+      const refreshed = await refresh();
+      if (refreshed) setUser(refreshed);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : `Could not submit request for ${targetRole}.`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -166,6 +181,41 @@ export default function ProfilePage() {
             <Upload size={14} /> Change Avatar
             <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarUpload} />
           </label>
+
+          {user.role === "Member" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", marginTop: "1rem" }}>
+              {user.requestedRole ? (
+                <div style={{ padding: "0.75rem", borderRadius: "var(--radius-sm)", border: "1px dashed var(--color-primary)", background: "rgba(255, 107, 0, 0.05)", fontSize: "0.85rem", color: "var(--color-text-2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2, margin: 0 }} />
+                    <span style={{ fontWeight: 500, color: "var(--color-warning, #f59e0b)" }}>Pending Admin Approval</span>
+                  </div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>Requested: {user.requestedRole}</span>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleRegisterRole("Mentor")}
+                    disabled={saving}
+                    style={{ width: "100%" }}
+                  >
+                    Register as Mentor
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleRegisterRole("Judge")}
+                    disabled={saving}
+                    style={{ width: "100%" }}
+                  >
+                    Register as Judge
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="glass-card" style={{ flex: "2 1 420px" }}>

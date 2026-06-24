@@ -19,6 +19,7 @@ export type CurrentUser = {
   studentType?: string | null;
   developerRole?: string | null;
   programmingLanguages?: string[];
+  requestedRole?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,7 +33,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `status` is 0 for client-side failures (timeout/abort).
  */
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) {
+  // `code` mirrors the backend's structured error code (e.g. "RegistrationClosed",
+  // "EventNotPublished") so UI catch blocks can branch on identity rather than
+  // string-matching the human message. Undefined when the response had no code.
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -58,6 +66,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
+    let code: string | undefined;
 
     if (Array.isArray(data)) {
       const descriptions = data
@@ -74,9 +83,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
       } else if (typeof data.title === "string") {
         message = data.title;
       }
+      if (typeof data.code === "string") {
+        code = data.code;
+      }
     }
 
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, code);
   }
 
   return data as T;
@@ -157,6 +169,7 @@ export function toCurrentUser(user: {
   studentType?: string | null;
   developerRole?: string | null;
   programmingLanguages?: string[];
+  requestedRole?: string | null;
 }): CurrentUser {
   const roles = user.roles?.length ? user.roles : [user.role ?? "Member"];
   const fullName = user.fullName ?? user.name ?? user.email;
@@ -174,6 +187,7 @@ export function toCurrentUser(user: {
     studentType: user.studentType,
     developerRole: user.developerRole,
     programmingLanguages: user.programmingLanguages ?? [],
+    requestedRole: user.requestedRole,
   };
 }
 
@@ -194,6 +208,7 @@ export async function fetchCurrentUser() {
     studentType?: string | null;
     developerRole?: string | null;
     programmingLanguages?: string[];
+    requestedRole?: string | null;
   }>("/Auth/me");
 
   return toCurrentUser(user);

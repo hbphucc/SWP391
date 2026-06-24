@@ -29,5 +29,6 @@ namespace SEAL.NET.Services.Interfaces
         Task<ServiceResult> RejectKickRequestAsync(Guid judgeUserId, Guid kickRequestId);
         Task<ServiceResult> GetRecruitingTeamsAsync(Guid currentUserId);
         Task<ServiceResult> RequestToJoinTeamAsync(Guid currentUserId, Guid teamId);
+        Task<ServiceResult> SearchMemberEmailsAsync(Guid currentUserId, string query, Guid categoryId);
     }
 }

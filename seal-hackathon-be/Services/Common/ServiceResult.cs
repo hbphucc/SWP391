@@ -8,6 +8,7 @@ namespace SEAL.NET.Services.Common
         Unauthorized,
         NotFound,
         Forbidden,
+        Conflict,
         ServerError
     }
 
@@ -64,6 +65,10 @@ namespace SEAL.NET.Services.Common
 
         /// <summary>403 (no body, mirrors <c>Forbid()</c>).</summary>
         public static ServiceResult Forbidden() => new(ServiceOutcome.Forbidden, null);
+
+        /// <summary>409 with a structured <c>{ code, message }</c> body for client-side branching.</summary>
+        public static ServiceResult Conflict(string code, string message) =>
+            new(ServiceOutcome.Conflict, new { code, message });
 
         /// <summary>500 with a <c>{ message }</c> body.</summary>
         public static ServiceResult ServerError(string message) => new(ServiceOutcome.ServerError, new { message });

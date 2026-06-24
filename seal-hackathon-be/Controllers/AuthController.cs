@@ -58,5 +58,15 @@ namespace SEAL.NET.Controllers
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest model)
             => this.ToActionResult(await _authService.ResetPasswordAsync(model));
+
+        [HttpPost("request-mentor")]
+        [Authorize]
+        public async Task<IActionResult> RequestMentor()
+            => this.ToActionResult(await _authService.RequestRoleAsync(CurrentUserId(), "Mentor"));
+
+        [HttpPost("request-judge")]
+        [Authorize]
+        public async Task<IActionResult> RequestJudge()
+            => this.ToActionResult(await _authService.RequestRoleAsync(CurrentUserId(), "Judge"));
     }
 }

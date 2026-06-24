@@ -34,6 +34,7 @@ namespace SEAL.NET.Controllers
             ServiceOutcome.BadRequest => BadRequest(result.Body),
             ServiceOutcome.NotFound => NotFound(result.Body),
             ServiceOutcome.Forbidden => Forbid(),
+            ServiceOutcome.Conflict => Conflict(result.Body),
             _ => StatusCode(500)
         };
 
@@ -113,5 +114,10 @@ namespace SEAL.NET.Controllers
         [Authorize(Roles = "Member,TeamLeader")]
         public async Task<IActionResult> RequestToJoinTeam(Guid teamId)
             => ToActionResult(await _teamService.RequestToJoinTeamAsync(GetCurrentUserId(), teamId));
+
+        [HttpGet("members/search")]
+        [Authorize(Roles = "Member,TeamLeader")]
+        public async Task<IActionResult> SearchMembers([FromQuery] string query, [FromQuery] Guid categoryId)
+            => ToActionResult(await _teamService.SearchMemberEmailsAsync(GetCurrentUserId(), query, categoryId));
     }
 }

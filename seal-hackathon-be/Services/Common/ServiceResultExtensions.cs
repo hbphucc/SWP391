@@ -19,6 +19,7 @@ namespace SEAL.NET.Services.Common
                 ServiceOutcome.Unauthorized => controller.Unauthorized(result.Body),
                 ServiceOutcome.NotFound => controller.NotFound(result.Body),
                 ServiceOutcome.Forbidden => controller.Forbid(),
+                ServiceOutcome.Conflict => controller.Conflict(result.Body),
                 ServiceOutcome.ServerError => controller.StatusCode(500, result.Body),
                 _ => controller.StatusCode(500)
             };

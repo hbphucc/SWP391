@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { Users, UserPlus, CheckCircle, XCircle, Mail, Shield, Building2 } from "lucide-react";
-import { App, Table, Tag, Button, Modal, Form, Input } from "antd";
+import { App, Table, Tag, Button, Modal, Form, Input, Select } from "antd";
 import { apiRequest, fetchCurrentUser } from "@/lib/api";
 
 interface UserItem {
@@ -9,7 +9,17 @@ interface UserItem {
   name: string;
   email: string;
   type: string;
+  role: string;
   status: string;
+  uni: string;
+}
+
+interface RoleRequestItem {
+  id: string;
+  name: string;
+  email: string;
+  currentRole: string;
+  requestedRole: string;
   uni: string;
 }
 
@@ -40,10 +50,11 @@ export default function UsersPage() {
   const { message, modal } = App.useApp();
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState("approved");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [roleRequests, setRoleRequests] = useState<RoleRequestItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Per-row action guard (`approve-<id>` / `reject-<id>`) against double-clicks.
@@ -54,20 +65,86 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const data = await apiRequest<BackendUser[]>("/admin/users");
-      setUsers(data.map((user) => ({
-        id: user.id,
-        name: user.fullName,
-        email: user.email,
-        type: user.studentType ?? user.roles?.join(", ") ?? "Member",
-        status: user.isApproved ? "Approved" : "Pending",
-        uni: user.schoolName ?? "-",
-      })));
+      setUsers(data.map((user) => {
+        const mappedRole = user.roles?.includes("Admin") ? "Admin" 
+            : user.roles?.includes("Mentor") ? "Mentor"
+            : user.roles?.includes("Judge") ? "Judge"
+            : "Member";
+        return {
+          id: user.id,
+          name: user.fullName,
+          email: user.email,
+          type: user.studentType ?? user.roles?.join(", ") ?? "Member",
+          role: mappedRole,
+          status: user.isApproved ? "Approved" : "Pending",
+          uni: user.schoolName ?? "-",
+        };
+      }));
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load users.");
     } finally {
       setLoading(false);
     }
   }, [message]);
+
+  const loadRoleRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest<any[]>("/admin/users/role-requests");
+      setRoleRequests(data.map((user) => {
+        const currentRole = user.roles?.includes("Admin") ? "Admin" 
+            : user.roles?.includes("Mentor") ? "Mentor"
+            : user.roles?.includes("Judge") ? "Judge"
+            : "Member";
+        return {
+          id: user.id,
+          name: user.fullName,
+          email: user.email,
+          currentRole,
+          requestedRole: user.requestedRole ?? "",
+          uni: user.schoolName ?? "-",
+        };
+      }));
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not load role requests.");
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  const handleRoleRequest = async (userId: string, approve: boolean, requestedRole: string) => {
+    const actionKey = `${approve ? "approve" : "reject"}-role-${userId}`;
+    if (busyAction) return;
+    setBusyAction(actionKey);
+    try {
+      await apiRequest(`/admin/users/${userId}/role-request/handle?approve=${approve}`, {
+        method: "PUT",
+      });
+      message.success(`Successfully ${approve ? "approved" : "declined"} request for ${requestedRole} role.`);
+      await loadRoleRequests();
+      await loadUsers();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : `Could not process role request.`);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    setBusyAction(`role-${userId}`);
+    try {
+      await apiRequest(`/admin/users/${userId}/role`, {
+        method: "PUT",
+        body: JSON.stringify({ role: newRole }),
+      });
+      message.success("User role updated successfully.");
+      await loadUsers();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not update user role.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
 
   useEffect(() => {
     fetchCurrentUser()
@@ -81,10 +158,11 @@ export default function UsersPage() {
       const trigger = async () => {
         await Promise.resolve();
         void loadUsers();
+        void loadRoleRequests();
       };
       void trigger();
     }
-  }, [isAdmin, loadUsers]);
+  }, [isAdmin, loadUsers, loadRoleRequests]);
 
   const handleApprove = async (id: string) => {
     if (busyAction) return;
@@ -177,7 +255,59 @@ export default function UsersPage() {
               Reject
             </Button>
           </div>
-        ) : <span style={{ color: "var(--color-text-3)" }}>No actions</span>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>Role:</span>
+            <Select
+              size="small"
+              value={record.role}
+              style={{ width: 110 }}
+              onChange={(value) => handleUpdateRole(record.id, value)}
+              disabled={busyAction !== null}
+              loading={busyAction === `role-${record.id}`}
+              options={[
+                { value: "Member", label: "Member" },
+                { value: "Mentor", label: "Mentor" },
+                { value: "Judge", label: "Judge" },
+                { value: "Admin", label: "Admin" },
+              ]}
+            />
+          </div>
+        )
+      )
+    }
+  ];
+
+  const roleRequestColumns = [
+    { title: 'Name', dataIndex: 'name', key: 'name', render: (t: string) => <b>{t}</b> },
+    { title: 'Email', dataIndex: 'email', key: 'email' },
+    { title: 'Current Role', dataIndex: 'currentRole', key: 'currentRole', render: (t: string) => <Tag color="blue">{t}</Tag> },
+    { title: 'Requested Role', dataIndex: 'requestedRole', key: 'requestedRole', render: (t: string) => <Tag color="purple">{t}</Tag> },
+    { title: 'University', dataIndex: 'uni', key: 'uni' },
+    {
+      title: 'Action', key: 'action', render: (_: unknown, record: RoleRequestItem) => (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button
+            size="small"
+            type="primary"
+            loading={busyAction === `approve-role-${record.id}`}
+            disabled={busyAction !== null && busyAction !== `approve-role-${record.id}`}
+            onClick={() => handleRoleRequest(record.id, true, record.requestedRole)}
+            icon={<CheckCircle size={14} />}
+          >
+            Approve
+          </Button>
+          <Button
+            size="small"
+            danger
+            loading={busyAction === `reject-role-${record.id}`}
+            disabled={busyAction !== null && busyAction !== `reject-role-${record.id}`}
+            onClick={() => handleRoleRequest(record.id, false, record.requestedRole)}
+            icon={<XCircle size={14} />}
+          >
+            Reject
+          </Button>
+        </div>
       )
     }
   ];
@@ -214,23 +344,34 @@ export default function UsersPage() {
       </div>
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
-        <button className={`btn ${activeTab === "pending" ? "btn-primary" : "btn-secondary"}`} onClick={() => setActiveTab("pending")}>
-          Pending Approvals
-        </button>
         <button className={`btn ${activeTab === "approved" ? "btn-primary" : "btn-secondary"}`} onClick={() => setActiveTab("approved")}>
           Approved Users
+        </button>
+        <button className={`btn ${activeTab === "requests" ? "btn-primary" : "btn-secondary"}`} onClick={() => setActiveTab("requests")}>
+          Role Requests
         </button>
       </div>
 
       <div className="card">
-        <Table 
-          className="custom-antd-table"
-          dataSource={activeTab === "pending" ? users.filter(u => u.status === "Pending") : users.filter(u => u.status === "Approved")} 
-          columns={columns} 
-          rowKey="id" 
-          loading={loading}
-          pagination={false}
-        />
+        {activeTab === "requests" ? (
+          <Table 
+            className="custom-antd-table"
+            dataSource={roleRequests} 
+            columns={roleRequestColumns} 
+            rowKey="id" 
+            loading={loading}
+            pagination={false}
+          />
+        ) : (
+          <Table 
+            className="custom-antd-table"
+            dataSource={activeTab === "pending" ? users.filter(u => u.status === "Pending") : users.filter(u => u.status === "Approved")} 
+            columns={columns} 
+            rowKey="id" 
+            loading={loading}
+            pagination={false}
+          />
+        )}
       </div>
 
       <Modal 

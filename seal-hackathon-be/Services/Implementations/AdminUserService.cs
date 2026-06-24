@@ -277,5 +277,107 @@ namespace SEAL.NET.Services.Implementations
                 password = tempPassword
             });
         }
+
+        public async Task<ServiceResult> GetRoleRequestsAsync()
+        {
+            var users = await _userManager.Users
+                .Where(u => u.RequestedRole != null)
+                .OrderByDescending(u => u.CreatedAt)
+                .ToListAsync();
+
+            var roleMap = await GetRoleMapAsync(users.Select(u => u.Id));
+
+            var result = users.Select(user => (object)new
+            {
+                user.Id,
+                user.FullName,
+                user.Email,
+                studentType = user.StudentType == null ? null : user.StudentType.ToString(),
+                user.StudentCode,
+                user.SchoolName,
+                user.CreatedAt,
+                requestedRole = user.RequestedRole,
+                roles = roleMap.TryGetValue(user.Id, out var r) ? r : new List<string>()
+            }).ToList();
+
+            return ServiceResult.Ok(result);
+        }
+
+        public async Task<ServiceResult> HandleRoleRequestAsync(Guid? actorUserId, Guid userId, bool approve)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+                return ServiceResult.NotFound("User not found.");
+
+            if (string.IsNullOrEmpty(user.RequestedRole))
+                return ServiceResult.BadRequest("User has no pending role request.");
+
+            var requestedRole = user.RequestedRole;
+
+            if (approve)
+            {
+                if (requestedRole != "Mentor" && requestedRole != "Judge")
+                    return ServiceResult.BadRequest("Invalid requested role.");
+
+                if (!await _roleManager.RoleExistsAsync(requestedRole))
+                    await _roleManager.CreateAsync(new IdentityRole<Guid>(requestedRole));
+
+                var currentRoles = await _userManager.GetRolesAsync(user);
+                if (currentRoles.Any())
+                {
+                    var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+                    if (!removeResult.Succeeded)
+                        return ServiceResult.BadRequestBody(removeResult.Errors);
+                }
+
+                var addResult = await _userManager.AddToRoleAsync(user, requestedRole);
+                if (!addResult.Succeeded)
+                    return ServiceResult.BadRequestBody(addResult.Errors);
+
+                user.RequestedRole = null;
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                    return ServiceResult.BadRequestBody(updateResult.Errors);
+
+                await _userManager.UpdateSecurityStampAsync(user);
+
+                await _notificationService.CreateAsync(
+                    user.Id,
+                    "Role Request Approved",
+                    $"Your request to become a {requestedRole} has been approved.",
+                    "role_request");
+
+                await _auditLogService.LogAsync(
+                    actorUserId,
+                    "approve_role_request",
+                    "User",
+                    user.Id.ToString(),
+                    $"Approved user {user.Email} request to become a {requestedRole}.");
+
+                return ServiceResult.OkMessage($"User role request for {requestedRole} approved successfully.");
+            }
+            else
+            {
+                user.RequestedRole = null;
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                    return ServiceResult.BadRequestBody(updateResult.Errors);
+
+                await _notificationService.CreateAsync(
+                    user.Id,
+                    "Role Request Declined",
+                    $"Your request to become a {requestedRole} has been declined.",
+                    "role_request");
+
+                await _auditLogService.LogAsync(
+                    actorUserId,
+                    "reject_role_request",
+                    "User",
+                    user.Id.ToString(),
+                    $"Declined user {user.Email} request to become a {requestedRole}.");
+
+                return ServiceResult.OkMessage($"User role request for {requestedRole} declined successfully.");
+            }
+        }
     }
 }

@@ -52,5 +52,13 @@ namespace SEAL.NET.Controllers
         [HttpPost("create-judge")]
         public async Task<IActionResult> CreateGuestJudge([FromBody] CreateGuestJudgeRequest request)
             => this.ToActionResult(await _adminUserService.CreateGuestJudgeAsync(GetActorUserId(), request));
+
+        [HttpGet("role-requests")]
+        public async Task<IActionResult> GetRoleRequests()
+            => this.ToActionResult(await _adminUserService.GetRoleRequestsAsync());
+
+        [HttpPut("{userId}/role-request/handle")]
+        public async Task<IActionResult> HandleRoleRequest(Guid userId, [FromQuery] bool approve)
+            => this.ToActionResult(await _adminUserService.HandleRoleRequestAsync(GetActorUserId(), userId, approve));
     }
 }

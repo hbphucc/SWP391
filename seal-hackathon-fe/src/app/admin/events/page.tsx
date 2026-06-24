@@ -3,13 +3,14 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Calendar, Clock, Save, AlertCircle, RefreshCw,
-  Plus, Trash2, GripVertical, Target, ChevronRight, Pencil,
+  Plus, Trash2, GripVertical, Target, Pencil,
 } from "lucide-react";
 import { App, DatePicker, Modal } from "antd";
 import dayjs from "dayjs";
 import { apiRequest, apiUpload } from "@/lib/api";
 import { TRACKS_OPTIONS } from "@/lib/constants";
 import StatusBadge from "@/components/StatusBadge";
+import { getRegistrationLabel } from "@/lib/format";
 
 /* ─── Types ─── */
 type RoundDto = {
@@ -92,11 +93,60 @@ function DateTimePickerField({ value, onChange, disabled = false }: DateTimePick
 }
 
 /* ─── Create-form defaults ─── */
-const INITIAL_EVENT_FORM = { eventName: "", description: "", registrationStartDate: "", registrationEndDate: "", startDate: "", endDate: "" };
-const INITIAL_EDIT_FORM = { registrationStartDate: "", registrationEndDate: "", startDate: "", endDate: "" };
-const INITIAL_ROUND_EDIT_FORM = { roundName: "", deadline: "", roundOrder: "", maxTeamsAdvancing: "", promptDocumentId: null as string | null, promptFileName: null as string | null };
-const INITIAL_ROUND = () => ({ id: Date.now(), name: "", topN: "5", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null });
+const INITIAL_EVENT_FORM = {
+  eventName: "",
+  description: "",
+  registrationStartDate: "",
+  registrationEndDate: "",
+  startDate: "",
+  endDate: "",
+};
+const INITIAL_EDIT_FORM = {
+  registrationStartDate: "",
+  registrationEndDate: "",
+  startDate: "",
+  endDate: "",
+};
+const INITIAL_ROUND_EDIT_FORM = {
+  roundName: "",
+  deadline: "",
+  roundOrder: "",
+  maxTeamsAdvancing: "",
+  promptDocumentId: null as string | null,
+  promptFileName: null as string | null,
+};
+const INITIAL_ROUND = () => ({
+  id: Date.now(),
+  name: "",
+  topN: "5",
+  deadline: "",
+  promptDocumentId: null as string | null,
+  promptFileName: null as string | null,
+});
 
+/**
+ * Mirrors the backend's HasValidDateChain: regStart < regEnd <= start < end.
+ * Returns a human-readable error or null. All values are local datetime strings
+ * (YYYY-MM-DDTHH:mm) coming from the picker; the caller converts to UTC ISO.
+ */
+function validateDateChain(form: {
+  registrationStartDate: string;
+  registrationEndDate: string;
+  startDate: string;
+  endDate: string;
+}): string | null {
+  const rs = new Date(form.registrationStartDate).getTime();
+  const re = new Date(form.registrationEndDate).getTime();
+  const s = new Date(form.startDate).getTime();
+  const e = new Date(form.endDate).getTime();
+  if (Number.isNaN(rs) || Number.isNaN(re) || Number.isNaN(s) || Number.isNaN(e)) {
+    return "All four dates (registration + event runtime) are required.";
+  }
+  if (!(rs < re)) return "Registration start must be before registration end.";
+  if (!(re <= s)) return "Registration must end on or before the event start date.";
+  if (!(s < e)) return "Event start must be before event end.";
+  return null;
+}
 
 
 /* ════════════════════════════════════════════════════════════════ */
@@ -129,7 +179,10 @@ export default function AdminEventsPage() {
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
   const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
-  const [createStep, setCreateStep] = useState(1);
+  // Active section anchor for the sticky TOC sidebar. Used purely for the
+  // "current section" highlight; clicking a TOC item smooth-scrolls to the
+  // anchor and the IntersectionObserver below updates this on scroll.
+  const [activeSection, setActiveSection] = useState<"general" | "timeline" | "rounds" | "tracks">("general");
   const [submitting, setSubmitting] = useState(false);
   // Track catalog loaded from the backend (/api/tracks). When present the wizard
   // sends track IDs; if it's empty/unreachable we fall back to the static labels.
@@ -200,35 +253,28 @@ export default function AdminEventsPage() {
     setEditingTime(true);
   };
 
+  // Once the event StartDate has passed the backend rejects any change to
+  // RegistrationEndDate; surface that here so admins see it before submitting.
+  const eventHasStarted = selectedEvent
+    ? selectedEvent.status === "Ongoing" || selectedEvent.status === "Completed"
+    : false;
+
   const handleUpdateEventTime = async () => {
     if (!selectedEvent) return;
-    const registrationStartDate = toApiDate(editForm.registrationStartDate);
-    const registrationEndDate = toApiDate(editForm.registrationEndDate);
-    const startDate = toApiDate(editForm.startDate);
-    const endDate = toApiDate(editForm.endDate);
 
-    if (!registrationStartDate || !registrationEndDate || !startDate || !endDate) {
-      message.error("All dates are required.");
-      return;
-    }
+    const chainError = validateDateChain(editForm);
+    if (chainError) { message.error(chainError); return; }
 
-    const dRegStart = new Date(registrationStartDate);
-    const dRegEnd = new Date(registrationEndDate);
-    const dStart = new Date(startDate);
-    const dEnd = new Date(endDate);
-
-    if (dRegEnd <= dRegStart) {
-      message.error("Registration End Date must be after Registration Start Date.");
-      return;
-    }
-    if (dStart < dRegEnd) {
-      message.error("Event Start Date must be on or after Registration End Date.");
-      return;
-    }
-    if (dEnd <= dStart) {
-      message.error("Event End Date must be after Event Start Date.");
-      return;
-    }
+    // Honors the post-submission lock: once submissions exist we keep the
+    // persisted StartDate. The backend rejects mismatches anyway, but this
+    // produces a clearer message and avoids an unnecessary round-trip.
+    const startDate = selectedEvent.hasSubmissions ? selectedEvent.startDate : toApiDate(editForm.startDate)!;
+    const endDate = toApiDate(editForm.endDate)!;
+    const registrationStartDate = toApiDate(editForm.registrationStartDate)!;
+    const eventHasStartedAtSubmit = Date.parse(selectedEvent.startDate) <= Date.now();
+    const registrationEndDate = eventHasStartedAtSubmit
+      ? selectedEvent.registrationEndDate
+      : toApiDate(editForm.registrationEndDate)!;
 
     setUpdatingEvent(true);
     try {
@@ -239,7 +285,7 @@ export default function AdminEventsPage() {
           description: selectedEvent.description ?? null,
           registrationStartDate,
           registrationEndDate,
-          startDate: selectedEvent.hasSubmissions ? selectedEvent.startDate : startDate,
+          startDate,
           endDate,
           trackIds: [],
         }),
@@ -508,28 +554,9 @@ export default function AdminEventsPage() {
 
   const handleCreateEvent = async () => {
     if (!eventForm.eventName.trim()) { message.error("Please enter an event name."); return; }
-    if (!eventForm.registrationStartDate || !eventForm.registrationEndDate || !eventForm.startDate || !eventForm.endDate) {
-      message.error("All dates are required.");
-      return;
-    }
 
-    const dRegStart = new Date(eventForm.registrationStartDate);
-    const dRegEnd = new Date(eventForm.registrationEndDate);
-    const dStart = new Date(eventForm.startDate);
-    const dEnd = new Date(eventForm.endDate);
-
-    if (dRegEnd <= dRegStart) {
-      message.error("Registration End Date must be after Registration Start Date.");
-      return;
-    }
-    if (dStart < dRegEnd) {
-      message.error("Event Start Date must be on or after Registration End Date.");
-      return;
-    }
-    if (dEnd <= dStart) {
-      message.error("Event End Date must be after Event Start Date.");
-      return;
-    }
+    const chainError = validateDateChain(eventForm);
+    if (chainError) { message.error(chainError); return; }
 
     if (rounds.some((r) => !r.name.trim() || !r.deadline)) { message.error("Every round needs a name and submission deadline."); return; }
 
@@ -540,6 +567,8 @@ export default function AdminEventsPage() {
         body: JSON.stringify({
           eventName: eventForm.eventName.trim(),
           description: eventForm.description.trim() || null,
+          // toApiDate() emits UTC ISO 8601 via Date.toISOString(), so the server
+          // never has to guess the browser's local offset.
           registrationStartDate: toApiDate(eventForm.registrationStartDate),
           registrationEndDate: toApiDate(eventForm.registrationEndDate),
           startDate: toApiDate(eventForm.startDate),
@@ -590,17 +619,17 @@ export default function AdminEventsPage() {
         setEventForm(INITIAL_EVENT_FORM);
         setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
         setSelectedTracks([]);
-        setCreateStep(1);
+        setActiveSection("general");
         setView("list");
         await refreshEvents();
         return;
       }
 
       message.success("Event created successfully.");
-      setEventForm(INITIAL_EVENT_FORM);
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "" }]);
+      setEventForm({ ...INITIAL_EVENT_FORM });
+      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
       setSelectedTracks([]);
-      setCreateStep(1);
+      setActiveSection("general");
       setView("list");
       await refreshEvents();
     } catch (err) {
@@ -625,7 +654,7 @@ export default function AdminEventsPage() {
               <button className="btn btn-secondary" onClick={() => { void refreshEvents(); }} disabled={loading || saving}>
                 <RefreshCw size={16} /> Refresh
               </button>
-              <button className="btn btn-primary" onClick={() => { setView("create"); setCreateStep(1); }}>
+              <button className="btn btn-primary" onClick={() => { setView("create"); setActiveSection("general"); }}>
                 <Plus size={16} /> New Event
               </button>
             </>
@@ -683,6 +712,9 @@ export default function AdminEventsPage() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
                       <StatusBadge status={selectedEvent.status} />
+                      {selectedEvent.status !== "Draft" && (
+                        <span className="badge badge-neutral">{getRegistrationLabel(selectedEvent)}</span>
+                      )}
                       {selectedEvent.status === "Draft" && (
                         <button className="btn btn-primary btn-sm" onClick={() => handlePublishEvent(selectedEvent.eventId)} disabled={updatingEvent || deletingEvent}>
                           Publish
@@ -717,43 +749,64 @@ export default function AdminEventsPage() {
                       <h4 style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginBottom: "1rem", color: "var(--color-text)" }}>
                         <Clock size={16} /> Edit Event Time
                       </h4>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-                        <div className="form-group">
-                          <label className="form-label">Registration Start *</label>
-                          <DateTimePickerField
-                            value={editForm.registrationStartDate}
-                            onChange={(value) => setEditForm((cur) => ({ ...cur, registrationStartDate: value }))}
-                            disabled={updatingEvent}
-                          />
+
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "0.25rem" }}>
+                          Registration Window
                         </div>
-                        <div className="form-group">
-                          <label className="form-label">Registration End *</label>
-                          <DateTimePickerField
-                            value={editForm.registrationEndDate}
-                            onChange={(value) => setEditForm((cur) => ({ ...cur, registrationEndDate: value }))}
-                            disabled={updatingEvent}
-                          />
+                        <p className="form-hint" style={{ marginBottom: "0.75rem" }}>
+                          Teams can only register during this window.
+                        </p>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+                          <div className="form-group">
+                            <label className="form-label">Registration Opens</label>
+                            <DateTimePickerField
+                              value={editForm.registrationStartDate}
+                              onChange={(value) => setEditForm((cur) => ({ ...cur, registrationStartDate: value }))}
+                              disabled={updatingEvent}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Registration Closes</label>
+                            <DateTimePickerField
+                              value={editForm.registrationEndDate}
+                              onChange={(value) => setEditForm((cur) => ({ ...cur, registrationEndDate: value }))}
+                              disabled={updatingEvent || eventHasStarted}
+                            />
+                            {eventHasStarted && (
+                              <span className="form-hint">Locked: the event has already started.</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginTop: "1rem" }}>
-                        <div className="form-group">
-                          <label className="form-label">Start Date &amp; Time *</label>
-                          <DateTimePickerField
-                            value={editForm.startDate}
-                            onChange={(value) => setEditForm((cur) => ({ ...cur, startDate: value }))}
-                            disabled={updatingEvent || selectedEvent.hasSubmissions}
-                          />
-                          {selectedEvent.hasSubmissions && (
-                            <span className="form-hint">Locked because this event already has submissions.</span>
-                          )}
+
+                      <div style={{ marginTop: "1rem" }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "0.25rem" }}>
+                          Event Runtime
                         </div>
-                        <div className="form-group">
-                          <label className="form-label">End Date &amp; Time *</label>
-                          <DateTimePickerField
-                            value={editForm.endDate}
-                            onChange={(value) => setEditForm((cur) => ({ ...cur, endDate: value }))}
-                            disabled={updatingEvent}
-                          />
+                        <p className="form-hint" style={{ marginBottom: "0.75rem" }}>
+                          Rounds and submission deadlines must stay inside this range.
+                        </p>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+                          <div className="form-group">
+                            <label className="form-label">Event Starts</label>
+                            <DateTimePickerField
+                              value={editForm.startDate}
+                              onChange={(value) => setEditForm((cur) => ({ ...cur, startDate: value }))}
+                              disabled={updatingEvent || selectedEvent.hasSubmissions}
+                            />
+                            {selectedEvent.hasSubmissions && (
+                              <span className="form-hint">Locked because this event already has submissions.</span>
+                            )}
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Event Ends</label>
+                            <DateTimePickerField
+                              value={editForm.endDate}
+                              onChange={(value) => setEditForm((cur) => ({ ...cur, endDate: value }))}
+                              disabled={updatingEvent}
+                            />
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", marginTop: "1rem" }}>
@@ -915,20 +968,68 @@ export default function AdminEventsPage() {
         </div>
       )}
 
-      {/* ─── CREATE VIEW ─── */}
+      {/* ─── EVENT CONTROL CENTER ─── single-page workspace replacing the
+          3-step wizard. The left rail is a sticky TOC; the right side renders
+          all four sections in flow so admins see the whole event at once and
+          can submit from the sticky action bar regardless of scroll position.
+          The validate-on-submit logic in handleCreateEvent is unchanged. */}
       {view === "create" && (
-        <div>
-          {/* Step tabs */}
-          <div className="tabs" style={{ marginBottom: "1.5rem" }}>
-            {["Basic Info", "Rounds", "Tracks"].map((s, i) => (
-              <button key={s} className={`tab-btn ${createStep === i + 1 ? "active" : ""}`} onClick={() => setCreateStep(i + 1)}>
-                {i + 1}. {s}
-              </button>
-            ))}
-          </div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "200px minmax(0, 1fr)",
+          gap: "1.5rem",
+          alignItems: "start",
+        }}>
+          {/* TOC sidebar */}
+          <nav
+            aria-label="Event sections"
+            style={{
+              position: "sticky",
+              top: 80,
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.4rem",
+              paddingTop: "0.5rem",
+            }}
+          >
+            {([
+              { id: "general", label: "General Info" },
+              { id: "timeline", label: "Timeline" },
+              { id: "rounds", label: "Rounds" },
+              { id: "tracks", label: "Tracks" },
+            ] as const).map((item) => {
+              const active = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    document.getElementById(`ec-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    justifyContent: "flex-start",
+                    paddingLeft: "0.85rem",
+                    borderLeft: active ? "3px solid var(--color-primary)" : "3px solid transparent",
+                    borderRadius: 0,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? "var(--color-text-1)" : "var(--color-text-3)",
+                    background: active ? "rgba(99,102,241,0.08)" : "transparent",
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
 
-          {/* Step 1 – Basic Info */}
-          {createStep === 1 && (
+          {/* Sections column */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", paddingBottom: 100 }}>
+
+          {/* ─── General Info section ─── */}
+          <section id="ec-general">
+          {(
             <div className="glass-card">
               <h3 style={{ marginBottom: "1.5rem", fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <Calendar size={18} style={{ color: "var(--color-primary)" }} /> Event Details
@@ -953,44 +1054,65 @@ export default function AdminEventsPage() {
                     onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
                   />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                  <div className="form-group">
-                    <label className="form-label">Registration Start *</label>
-                    <DateTimePickerField
-                      value={eventForm.registrationStartDate}
-                      onChange={(value) => setEventForm({ ...eventForm, registrationStartDate: value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Registration End *</label>
-                    <DateTimePickerField
-                      value={eventForm.registrationEndDate}
-                      onChange={(value) => setEventForm({ ...eventForm, registrationEndDate: value })}
-                    />
+                {/* Registration Window — when teams may join */}
+                <div style={{ border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1rem" }}>
+                  <h4 style={{ display: "flex", alignItems: "center", gap: "0.45rem", margin: "0 0 0.25rem 0" }}>
+                    <Clock size={15} style={{ color: "var(--color-primary)" }} /> Registration Window
+                  </h4>
+                  <p className="form-hint" style={{ marginBottom: "0.9rem" }}>
+                    Teams can only register during this window.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div className="form-group">
+                      <label className="form-label">Registration Opens *</label>
+                      <DateTimePickerField
+                        value={eventForm.registrationStartDate}
+                        onChange={(value) => setEventForm({ ...eventForm, registrationStartDate: value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Registration Closes *</label>
+                      <DateTimePickerField
+                        value={eventForm.registrationEndDate}
+                        onChange={(value) => setEventForm({ ...eventForm, registrationEndDate: value })}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                  <div className="form-group">
-                    <label className="form-label">Start Date &amp; Time *</label>
-                    <DateTimePickerField
-                      value={eventForm.startDate}
-                      onChange={(value) => setEventForm({ ...eventForm, startDate: value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">End Date &amp; Time *</label>
-                    <DateTimePickerField
-                      value={eventForm.endDate}
-                      onChange={(value) => setEventForm({ ...eventForm, endDate: value })}
-                    />
+
+                {/* Event Runtime — when the competition actually runs */}
+                <div style={{ border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1rem" }}>
+                  <h4 style={{ display: "flex", alignItems: "center", gap: "0.45rem", margin: "0 0 0.25rem 0" }}>
+                    <Calendar size={15} style={{ color: "var(--color-primary)" }} /> Event Runtime
+                  </h4>
+                  <p className="form-hint" style={{ marginBottom: "0.9rem" }}>
+                    Rounds and submission deadlines must stay inside this range.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div className="form-group">
+                      <label className="form-label">Event Starts *</label>
+                      <DateTimePickerField
+                        value={eventForm.startDate}
+                        onChange={(value) => setEventForm({ ...eventForm, startDate: value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Event Ends *</label>
+                      <DateTimePickerField
+                        value={eventForm.endDate}
+                        onChange={(value) => setEventForm({ ...eventForm, endDate: value })}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
+          </section>
 
-          {/* Step 2 – Rounds */}
-          {createStep === 2 && (
+          {/* ─── Rounds section ─── */}
+          <section id="ec-rounds">
+          {(
             <div className="glass-card">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
                 <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -1094,9 +1216,11 @@ export default function AdminEventsPage() {
               </div>
             </div>
           )}
+          </section>
 
-          {/* Step 3 – Tracks */}
-          {createStep === 3 && (
+          {/* ─── Tracks section ─── */}
+          <section id="ec-tracks">
+          {(
             <div className="glass-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", marginBottom: "0.5rem" }}>
                 <h3 style={{ fontSize: "1rem", margin: 0 }}>Competition Tracks</h3>
@@ -1153,6 +1277,7 @@ export default function AdminEventsPage() {
               )}
             </div>
           )}
+          </section>
 
           {/* Inline Create Track modal — keeps the wizard mounted/state intact */}
           <Modal
@@ -1214,22 +1339,33 @@ export default function AdminEventsPage() {
             </div>
           </Modal>
 
-          {/* Navigation buttons */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>
-            {createStep > 1 && (
-              <button className="btn btn-secondary" onClick={() => setCreateStep(createStep - 1)}>
-                ← Back
-              </button>
-            )}
-            {createStep < 3 ? (
-              <button className="btn btn-primary" onClick={() => setCreateStep(createStep + 1)}>
-                Continue <ChevronRight size={16} />
-              </button>
-            ) : (
-              <button className="btn btn-primary" disabled={submitting} onClick={handleCreateEvent}>
-                {submitting ? <span className="spinner" /> : <><Calendar size={16} /> Create Event</>}
-              </button>
-            )}
+          </div>{/* /sections column */}
+
+          {/* Sticky bottom action bar — always visible, regardless of which
+              section the admin is currently viewing. Spans the full width
+              under both TOC and content. */}
+          <div
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 10,
+              background: "var(--color-bg)",
+              borderTop: "1px solid var(--color-border)",
+              padding: "0.75rem 1.5rem",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.6rem",
+              boxShadow: "0 -2px 12px rgba(0,0,0,0.2)",
+            }}
+          >
+            <button className="btn btn-secondary" onClick={() => setView("list")} disabled={submitting}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={submitting} onClick={handleCreateEvent}>
+              {submitting ? <span className="spinner" /> : <><Calendar size={16} /> Create Event</>}
+            </button>
           </div>
         </div>
       )}

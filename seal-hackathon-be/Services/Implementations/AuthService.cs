@@ -434,6 +434,7 @@ namespace SEAL.NET.Services.Implementations
             studentType = user.StudentType == null ? null : user.StudentType.ToString(),
             developerRole = user.DeveloperRole == null ? null : user.DeveloperRole.ToString(),
             programmingLanguages = DeveloperProfileOptions.ParseLanguages(user.ProgrammingLanguages),
+            requestedRole = user.RequestedRole,
             roles
         };
 
@@ -517,6 +518,26 @@ namespace SEAL.NET.Services.Implementations
                 user,
                 PasswordResetLoginProvider,
                 PasswordResetOtpExpiryName);
+        }
+
+        public async Task<ServiceResult> RequestRoleAsync(string? userId, string role)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return ServiceResult.Unauthorized("Invalid authentication token.");
+
+            if (role != "Mentor" && role != "Judge")
+                return ServiceResult.BadRequest("Can only request Mentor or Judge role.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return ServiceResult.Unauthorized("User not found.");
+
+            user.RequestedRole = role;
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return ServiceResult.BadRequestBody(result.Errors);
+
+            return ServiceResult.OkMessage($"Role request for {role} submitted successfully.");
         }
     }
 }
