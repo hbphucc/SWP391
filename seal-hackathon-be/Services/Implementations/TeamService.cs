@@ -58,6 +58,30 @@ namespace SEAL.NET.Services.Implementations
             return matches.FirstOrDefault();
         }
 
+        private async Task<ServiceResult?> ValidateRegistrationOpenAsync(Guid categoryId)
+        {
+            var eventItem = await _context.Categories
+                .Where(c => c.CategoryId == categoryId)
+                .Select(c => c.Event)
+                .FirstOrDefaultAsync();
+
+            if (eventItem == null)
+                return ServiceResult.NotFound("Category not found.");
+
+            var registrationStatusOpen =
+                eventItem.Status == EventStatus.Published ||
+                eventItem.Status == EventStatus.Ongoing;
+            var now = DateTime.UtcNow;
+            var registrationWindowOpen =
+                now >= eventItem.RegistrationStartDate &&
+                now <= eventItem.RegistrationEndDate;
+
+            if (!registrationStatusOpen || !registrationWindowOpen)
+                return ServiceResult.BadRequest("Registration is not open for this event.");
+
+            return null;
+        }
+
         /// <summary>Returns a failing <see cref="ServiceResult"/>, or <c>null</c> when the member can be added.</summary>
         private async Task<ServiceResult?> ValidateCanAddMemberAsync(Team team, Guid currentUserId, ApplicationUser user)
         {
@@ -114,6 +138,10 @@ namespace SEAL.NET.Services.Implementations
 
             if (category == null)
                 return ServiceResult.NotFound("Category not found.");
+
+            var registrationValidation = await ValidateRegistrationOpenAsync(request.CategoryId);
+            if (registrationValidation != null)
+                return registrationValidation;
 
             var eventId = category.EventId;
 
@@ -344,6 +372,10 @@ namespace SEAL.NET.Services.Implementations
 
             if (team == null)
                 return ServiceResult.NotFound("You have not joined any team yet.");
+
+            var registrationValidation = await ValidateRegistrationOpenAsync(team.CategoryId);
+            if (registrationValidation != null)
+                return registrationValidation;
 
             ApplicationUser? user;
             try
@@ -595,6 +627,10 @@ namespace SEAL.NET.Services.Implementations
             if (team == null)
                 return ServiceResult.NotFound("Team not found.");
 
+            var registrationValidation = await ValidateRegistrationOpenAsync(team.CategoryId);
+            if (registrationValidation != null)
+                return registrationValidation;
+
             var user = await _userManager.FindByIdAsync(request.UserId.ToString());
             if (user == null)
                 return ServiceResult.NotFound("User not found.");
@@ -747,6 +783,11 @@ namespace SEAL.NET.Services.Implementations
             });
         }
 
+        // Soft cap used purely to surface an "availability" hint to teams choosing a
+        // mentor. It does NOT block assignment (no business rule limits mentor load),
+        // so this stays a display concern only.
+        private const int MentorSoftCapacity = 5;
+
         public async Task<ServiceResult> GetMentorsAsync()
         {
             var mentorRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Mentor");
@@ -758,18 +799,48 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ur => ur.UserId)
                 .ToListAsync();
 
+            // Active mentee counts in one grouped query (avoids N+1 per mentor).
+            var menteeCounts = await _context.MentorAssignments
+                .Where(ma => ma.IsActive && mentorUserIds.Contains(ma.MentorUserId))
+                .GroupBy(ma => ma.MentorUserId)
+                .Select(g => new { MentorId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.MentorId, x => x.Count);
+
             var mentors = await _context.Users
                 .Where(u => mentorUserIds.Contains(u.Id) && u.IsApproved)
                 .Select(u => new
                 {
-                    id = u.Id,
-                    fullName = u.FullName,
-                    email = u.Email,
-                    schoolName = u.SchoolName
+                    u.Id,
+                    u.FullName,
+                    u.Email,
+                    u.SchoolName,
+                    u.DeveloperRole,
+                    u.ProgrammingLanguages
                 })
                 .ToListAsync();
 
-            return ServiceResult.Ok(mentors);
+            var result = mentors
+                .Select(u =>
+                {
+                    var teamsMentored = menteeCounts.TryGetValue(u.Id, out var c) ? c : 0;
+                    return new
+                    {
+                        id = u.Id,
+                        fullName = u.FullName,
+                        email = u.Email,
+                        schoolName = u.SchoolName,
+                        developerRole = u.DeveloperRole?.ToString(),
+                        skills = Helpers.DeveloperProfileOptions.ParseLanguages(u.ProgrammingLanguages),
+                        teamsMentored,
+                        // "Available" while under the soft cap, otherwise "Busy".
+                        availability = teamsMentored >= MentorSoftCapacity ? "Busy" : "Available"
+                    };
+                })
+                .OrderBy(m => m.teamsMentored)
+                .ThenBy(m => m.fullName)
+                .ToList();
+
+            return ServiceResult.Ok(result);
         }
 
         public async Task<ServiceResult> AssignMentorToMyTeamAsync(Guid currentUserId, ChooseMentorRequest request)
@@ -1091,6 +1162,10 @@ namespace SEAL.NET.Services.Implementations
 
             if (team == null)
                 return ServiceResult.NotFound("Team not found.");
+
+            var registrationValidation = await ValidateRegistrationOpenAsync(team.CategoryId);
+            if (registrationValidation != null)
+                return registrationValidation;
 
             if (team.Status != TeamStatus.Pending)
                 return ServiceResult.BadRequest("This team is already approved and closed to changes.");
