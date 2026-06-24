@@ -283,7 +283,7 @@ export default function DashboardPage() {
         </div>
         {isAdmin && (
           <div style={{ display: "flex", gap: "0.75rem" }}>
-            <Link href="/dashboard/events/create">
+            <Link href="/admin/events?action=create">
               <button className="btn btn-primary"><Calendar size={16} /> New Event</button>
             </Link>
           </div>
@@ -464,7 +464,7 @@ export default function DashboardPage() {
             </div>
             <div className={styles.quickActions}>
               {[
-                ...(isAdmin ? [{ label: "Create Event", href: "/dashboard/events/create", icon: Calendar, color: "#6366f1" }] : []),
+                ...(isAdmin ? [{ label: "Create Event", href: "/admin/events?action=create", icon: Calendar, color: "#6366f1" }] : []),
                 { label: "Register Team",   href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
                 // Scoring is only accessible to Judges/Admins — don't tease it to Members.
                 ...(canJudge ? [{ label: "Score Submissions", href: "/dashboard/judging", icon: Target, color: "#06b6d4" }] : []),

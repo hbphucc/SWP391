@@ -57,6 +57,33 @@ namespace SEAL.NET.Data
                 }
             }
 
+            // Seed the default competition-track catalog (the names the UI previously
+            // hard-coded). Idempotent: only inserts tracks whose name is absent.
+            string[] defaultTracks =
+            {
+                "AI & Machine Learning",
+                "Web Development",
+                "Mobile App",
+                "Cybersecurity",
+                "Open Innovation"
+            };
+
+            var existingTrackNames = await context.Tracks
+                .Select(t => t.Name)
+                .ToListAsync();
+            var existingSet = new HashSet<string>(existingTrackNames, StringComparer.OrdinalIgnoreCase);
+
+            var newTracks = defaultTracks
+                .Where(name => !existingSet.Contains(name))
+                .Select(name => new Track { Name = name, IsActive = true })
+                .ToList();
+
+            if (newTracks.Count > 0)
+            {
+                context.Tracks.AddRange(newTracks);
+                await context.SaveChangesAsync();
+            }
+
             if (!configuration.GetValue<bool>("AdminBootstrap:Enabled"))
                 return;
 

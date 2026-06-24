@@ -13,6 +13,7 @@ namespace SEAL.NET.Data
         }
 
         public DbSet<Event> Events { get; set; }
+        public DbSet<Track> Tracks { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<Round> Rounds { get; set; }
         public DbSet<Team> Teams { get; set; }
@@ -84,6 +85,19 @@ namespace SEAL.NET.Data
             builder.Entity<Event>()
                 .Property(e => e.Status)
                 .HasConversion<int>();
+
+            // Global track catalog: unique name, and an optional back-link from
+            // Category. Deleting a track nulls the link rather than cascading, so
+            // already-materialized event categories survive.
+            builder.Entity<Track>()
+                .HasIndex(t => t.Name)
+                .IsUnique();
+
+            builder.Entity<Category>()
+                .HasOne(c => c.Track)
+                .WithMany(t => t.Categories)
+                .HasForeignKey(c => c.TrackId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<Team>()
                 .Property(t => t.Status)

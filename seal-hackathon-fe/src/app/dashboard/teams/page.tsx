@@ -1,10 +1,11 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap, LogOut } from "lucide-react";
+import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap, LogOut, Search, Check } from "lucide-react";
 import { App, Modal } from "antd";
 import { useRouter } from "next/navigation";
 import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
+import StatusBadge from "@/components/StatusBadge";
 
 type TeamMember = {
   userId: string;
@@ -43,6 +44,17 @@ type TeamDto = {
     fullName: string;
     email: string;
   } | null;
+};
+
+type MentorOption = {
+  id: string;
+  fullName: string;
+  email: string;
+  schoolName?: string | null;
+  developerRole?: string | null;
+  skills: string[];
+  teamsMentored: number;
+  availability: string;
 };
 
 type EventDto = {
@@ -92,9 +104,11 @@ export default function TeamsPage() {
   const [newLeaderCodeOrEmail, setNewLeaderCodeOrEmail] = useState("");
   const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
 
-  const [mentors, setMentors] = useState<{ id: string; fullName: string; email: string; schoolName?: string | null }[]>([]);
+  const [mentors, setMentors] = useState<MentorOption[]>([]);
   const [showMentorModal, setShowMentorModal] = useState(false);
   const [loadingMentors, setLoadingMentors] = useState(false);
+  const [mentorSearch, setMentorSearch] = useState("");
+  const [assigningMentorId, setAssigningMentorId] = useState<string | null>(null);
 
   // Kick Request states
   const [kickModalOpen, setKickModalOpen] = useState(false);
@@ -421,7 +435,7 @@ export default function TeamsPage() {
   const loadMentors = async () => {
     setLoadingMentors(true);
     try {
-      const data = await apiRequest<{ id: string; fullName: string; email: string; schoolName?: string | null }[]>("/teams/mentors");
+      const data = await apiRequest<MentorOption[]>("/teams/mentors");
       setMentors(data);
     } catch {
       message.error("Could not load mentors list.");
@@ -431,6 +445,13 @@ export default function TeamsPage() {
   };
 
   const handleAssignMentor = async (mentorId: string) => {
+    // Guard against double-submit: ignore clicks while any assignment is in-flight.
+    if (assigningMentorId) return;
+    if (mentorId === myTeam?.mentor?.id) {
+      message.info("This mentor is already selected for your team.");
+      return;
+    }
+    setAssigningMentorId(mentorId);
     setSubmitting(true);
     try {
       await apiRequest("/teams/my-team/mentor", {
@@ -439,11 +460,13 @@ export default function TeamsPage() {
       });
       message.success("Mentor assigned successfully.");
       setShowMentorModal(false);
+      setMentorSearch("");
       await loadPage();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not assign mentor.");
     } finally {
       setSubmitting(false);
+      setAssigningMentorId(null);
     }
   };
 
@@ -989,62 +1012,111 @@ export default function TeamsPage() {
       <Modal
         title="Select Team Mentor"
         open={showMentorModal}
-        onCancel={() => setShowMentorModal(false)}
+        onCancel={() => { if (!assigningMentorId) { setShowMentorModal(false); setMentorSearch(""); } }}
         footer={null}
-        width={550}
+        width={600}
         centered
-        styles={{
-          body: {
-            maxHeight: "400px",
-            overflowY: "auto",
-            paddingTop: "1rem"
-          }
-        }}
+        styles={{ body: { paddingTop: "1rem" } }}
       >
-        {loadingMentors ? (
-          <div style={{ textAlign: "center", padding: "2rem" }}>
-            <span className="spinner" />
-            <div style={{ marginTop: "0.5rem", color: "var(--color-text-3)" }}>Loading mentors...</div>
-          </div>
-        ) : mentors.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "2rem", color: "var(--color-text-3)" }}>
-            No approved mentors found in the system.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {mentors.map((mentor) => (
-              <div
-                key={mentor.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "1rem",
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)"
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, color: "var(--color-text-1)" }}>{mentor.fullName}</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{mentor.email}</div>
-                  {mentor.schoolName && (
-                    <div style={{ fontSize: "0.8rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
-                      {mentor.schoolName}
-                    </div>
-                  )}
-                </div>
-                <button
-                  className="btn btn-primary btn-sm"
-                  disabled={submitting}
-                  onClick={() => handleAssignMentor(mentor.id)}
-                >
-                  Select
-                </button>
+        <div style={{ position: "relative", marginBottom: "1rem" }}>
+          <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-3)" }} />
+          <input
+            className="form-input"
+            style={{ paddingLeft: 32, width: "100%" }}
+            placeholder="Search by name or email..."
+            value={mentorSearch}
+            onChange={(e) => setMentorSearch(e.target.value)}
+            aria-label="Search mentors"
+          />
+        </div>
+
+        {(() => {
+          const q = mentorSearch.trim().toLowerCase();
+          const filtered = q
+            ? mentors.filter((m) => m.fullName.toLowerCase().includes(q) || (m.email ?? "").toLowerCase().includes(q))
+            : mentors;
+
+          if (loadingMentors) {
+            return (
+              <div style={{ textAlign: "center", padding: "2rem" }}>
+                <span className="spinner" />
+                <div style={{ marginTop: "0.5rem", color: "var(--color-text-3)" }}>Loading mentors...</div>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          }
+          if (mentors.length === 0) {
+            return (
+              <div className="empty-state" style={{ padding: "2rem" }}>
+                <GraduationCap size={40} className="empty-icon" />
+                <div className="empty-title">No mentors available</div>
+                <div className="empty-desc">There are no approved mentors in the system yet.</div>
+              </div>
+            );
+          }
+          if (filtered.length === 0) {
+            return (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--color-text-3)" }}>
+                No mentors match “{mentorSearch}”.
+              </div>
+            );
+          }
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
+              {filtered.map((mentor) => {
+                const isCurrent = mentor.id === myTeam?.mentor?.id;
+                return (
+                  <div
+                    key={mentor.id}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem",
+                      padding: "1rem",
+                      background: isCurrent ? "rgba(99,102,241,0.06)" : "rgba(255,255,255,0.02)",
+                      border: `1px solid ${isCurrent ? "var(--color-primary)" : "var(--color-border)"}`,
+                      borderRadius: "var(--radius-md)",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: "0.75rem", minWidth: 0 }}>
+                      <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", flexShrink: 0, background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                        {mentor.fullName.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 600, color: "var(--color-text-1)" }}>{mentor.fullName}</span>
+                          <StatusBadge status={mentor.availability} />
+                        </div>
+                        <div style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>{mentor.email}</div>
+                        {mentor.schoolName && (
+                          <div style={{ fontSize: "0.78rem", color: "var(--color-text-2)", marginTop: "0.15rem" }}>{mentor.schoolName}</div>
+                        )}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: "0.4rem" }}>
+                          {mentor.developerRole && <span className="badge badge-cyan" style={{ fontSize: "0.68rem" }}>{mentor.developerRole}</span>}
+                          {mentor.skills.slice(0, 5).map((s) => (
+                            <span key={s} className="badge badge-neutral" style={{ fontSize: "0.68rem" }}>{s}</span>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: "0.74rem", color: "var(--color-text-3)", marginTop: "0.4rem" }}>
+                          Mentoring {mentor.teamsMentored} team{mentor.teamsMentored === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className={`btn btn-sm ${isCurrent ? "btn-secondary" : "btn-primary"}`}
+                      disabled={submitting || isCurrent}
+                      onClick={() => handleAssignMentor(mentor.id)}
+                      style={{ flexShrink: 0 }}
+                    >
+                      {assigningMentorId === mentor.id
+                        ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> Selecting</>
+                        : isCurrent
+                          ? <><Check size={13} /> Selected</>
+                          : "Select"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </Modal>
 
       <Modal

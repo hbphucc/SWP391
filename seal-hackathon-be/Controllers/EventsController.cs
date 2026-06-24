@@ -84,5 +84,78 @@ namespace SEAL.NET.Controllers
                 $"Deleted event {id}.");
             return Ok(new { message = result.Message });
         }
+
+        [HttpPost("{id:guid}/publish")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> PublishEvent(Guid id)
+        {
+            var actorId = GetActorUserId();
+            var result = await _eventService.PublishEventAsync(id, actorId ?? Guid.Empty);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            await _auditLogService.LogAsync(
+                actorId,
+                "publish_event",
+                "Event",
+                id.ToString(),
+                $"Published event {id}.");
+            return Ok(new { message = result.Message });
+        }
+
+        [HttpPost("{id:guid}/start")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> StartEvent(Guid id)
+        {
+            var actorId = GetActorUserId();
+            var result = await _eventService.StartEventAsync(id, actorId ?? Guid.Empty);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            await _auditLogService.LogAsync(
+                actorId,
+                "start_event",
+                "Event",
+                id.ToString(),
+                $"Started event {id}.");
+            return Ok(new { message = result.Message });
+        }
+
+        [HttpPost("{id:guid}/complete")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CompleteEvent(Guid id)
+        {
+            var actorId = GetActorUserId();
+            var result = await _eventService.CompleteEventAsync(id, actorId ?? Guid.Empty);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            await _auditLogService.LogAsync(
+                actorId,
+                "complete_event",
+                "Event",
+                id.ToString(),
+                $"Completed event {id}.");
+            return Ok(new { message = result.Message });
+        }
+
+        [HttpPost("{id:guid}/cancel")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CancelEvent(Guid id, [FromBody] CancelEventRequest? request)
+        {
+            var actorId = GetActorUserId();
+            var result = await _eventService.CancelEventAsync(id, actorId ?? Guid.Empty, request?.Reason);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            await _auditLogService.LogAsync(
+                actorId,
+                "cancel_event",
+                "Event",
+                id.ToString(),
+                $"Cancelled event {id}. Reason: {request?.Reason ?? "No reason provided"}.");
+            return Ok(new { message = result.Message });
+        }
+    }
+
+    public class CancelEventRequest
+    {
+        public string? Reason { get; set; }
     }
 }
