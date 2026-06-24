@@ -69,16 +69,21 @@ namespace SEAL.NET.Services.Implementations
             if (eventItem == null)
                 return ServiceResult.NotFound("Category not found.");
 
-            var registrationStatusOpen =
-                eventItem.Status == EventStatus.Published ||
-                eventItem.Status == EventStatus.Ongoing;
-            var now = DateTime.UtcNow;
-            var registrationWindowOpen =
-                now >= eventItem.RegistrationStartDate &&
-                now <= eventItem.RegistrationEndDate;
+            // Priority order matters: status gates come first so a Draft/Cancelled
+            // event doesn't accidentally surface a date-window error and mislead
+            // the client about why registration is closed.
+            if (eventItem.Status == EventStatus.Draft)
+                return ServiceResult.Conflict("EventNotPublished", "This event has not been published yet.");
 
-            if (!registrationStatusOpen || !registrationWindowOpen)
-                return ServiceResult.BadRequest("Registration is not open for this event.");
+            if (eventItem.Status == EventStatus.Cancelled || eventItem.Status == EventStatus.Completed)
+                return ServiceResult.Conflict("EventEnded", "This event is no longer accepting registrations.");
+
+            var now = DateTime.UtcNow;
+            if (now < eventItem.RegistrationStartDate)
+                return ServiceResult.Conflict("RegistrationNotStarted", "Registration for this event has not started yet.");
+
+            if (now > eventItem.RegistrationEndDate)
+                return ServiceResult.Conflict("RegistrationClosed", "Registration for this event has closed.");
 
             return null;
         }

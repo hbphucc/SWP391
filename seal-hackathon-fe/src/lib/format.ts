@@ -48,6 +48,47 @@ export function daysUntil(value: string | null | undefined): number | null {
   return Math.ceil((d - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Lifecycle label for an event based on its registration window, runtime, and
+ * status. Mirrors the backend semantics so admins and teams see the same state.
+ * Status overrides time (Completed/Cancelled wins regardless of the clock).
+ */
+export type RegistrationLabel =
+  | "Draft"
+  | "Registration opening soon"
+  | "Registration open"
+  | "Registration closed"
+  | "Event in progress"
+  | "Completed"
+  | "Cancelled";
+
+export function getRegistrationLabel(event: {
+  registrationStartDate?: string | null;
+  registrationEndDate?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  status?: string | null;
+}): RegistrationLabel {
+  // Status gates win over time. A Draft event whose registration window happens
+  // to span "now" is still not actually open for teams, so don't mislead admins
+  // with "Registration open" before they publish.
+  if (event.status === "Draft") return "Draft";
+  if (event.status === "Completed") return "Completed";
+  if (event.status === "Cancelled") return "Cancelled";
+
+  const now = Date.now();
+  const regStart = event.registrationStartDate ? new Date(event.registrationStartDate).getTime() : NaN;
+  const regEnd = event.registrationEndDate ? new Date(event.registrationEndDate).getTime() : NaN;
+  const start = event.startDate ? new Date(event.startDate).getTime() : NaN;
+  const end = event.endDate ? new Date(event.endDate).getTime() : NaN;
+
+  if (!Number.isNaN(end) && now > end) return "Completed";
+  if (!Number.isNaN(start) && now >= start) return "Event in progress";
+  if (!Number.isNaN(regEnd) && now > regEnd) return "Registration closed";
+  if (!Number.isNaN(regStart) && now >= regStart) return "Registration open";
+  return "Registration opening soon";
+}
+
 /** Format a numeric score safely, never "NaN". */
 export function formatScore(value: number | null | undefined, fallback = "—"): string {
   if (value === null || value === undefined || Number.isNaN(value)) return fallback;

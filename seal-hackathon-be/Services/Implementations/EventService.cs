@@ -138,6 +138,14 @@ namespace SEAL.NET.Services.Implementations
                 return (false, "RegistrationEndDate cannot be moved into the past after teams have registered.");
             }
 
+            // Once the event has actually started, the registration window is frozen — admins
+            // cannot extend (or shorten) it. Lets ongoing events stay predictable for teams.
+            if (request.RegistrationEndDate != eventItem.RegistrationEndDate &&
+                eventItem.StartDate <= DateTime.UtcNow)
+            {
+                return (false, "RegistrationEndDate cannot be changed after the event has started.");
+            }
+
             if (eventItem.Rounds.Any(r => r.SubmissionDeadline < request.StartDate || r.SubmissionDeadline > request.EndDate))
                 return (false, "All round deadlines must remain within the event date range.");
 

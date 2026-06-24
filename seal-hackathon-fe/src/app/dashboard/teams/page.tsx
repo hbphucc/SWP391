@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap, LogOut, Search, Check } from "lucide-react";
 import { App, Modal } from "antd";
 import { useRouter } from "next/navigation";
-import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
+import { ApiError, CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 
 type TeamMember = {
@@ -297,7 +297,14 @@ export default function TeamsPage() {
       setInitialMemberCodes("");
       await loadPage();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not create team.");
+      // Branch on the backend error code (set on ApiError by the JSON parser)
+      // so we can surface a softer warning for the "event not published yet"
+      // case instead of a generic red error toast.
+      if (err instanceof ApiError && err.code === "EventNotPublished") {
+        message.warning("This event is still a draft. Wait for the admin to publish it before registering a team.");
+      } else {
+        message.error(err instanceof Error ? err.message : "Could not create team.");
+      }
     } finally {
       setSubmitting(false);
     }

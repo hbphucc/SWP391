@@ -34,6 +34,7 @@ namespace SEAL.NET.Controllers
             ServiceOutcome.BadRequest => BadRequest(result.Body),
             ServiceOutcome.NotFound => NotFound(result.Body),
             ServiceOutcome.Forbidden => Forbid(),
+            ServiceOutcome.Conflict => Conflict(result.Body),
             _ => StatusCode(500)
         };
 
