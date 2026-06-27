@@ -327,7 +327,13 @@ export default function DashboardPage() {
                       {isJoinRequest ? "Join Request" : "Team Invitation"}
                     </h4>
                     <p style={{ margin: "0.2rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
-                      <strong>{invite.inviterUserName}</strong> {isJoinRequest ? "has requested to join your team" : `has invited you to join team ${invite.teamName}`}.
+                      <strong style={{ color: "var(--color-primary-2)", fontWeight: 800 }}>{invite.inviterUserName}</strong>{" "}
+                      {isJoinRequest ? (
+                        "has requested to join your team"
+                      ) : (
+                        <>has invited you to join team <strong style={{ color: "var(--color-primary-2)", fontWeight: 800 }}>{invite.teamName}</strong></>
+                      )}
+                      .
                       {invite.message && <span style={{ fontStyle: "italic", display: "block", marginTop: "0.25rem", color: "var(--color-text-2)" }}>&quot;{invite.message}&quot;</span>}
                     </p>
                   </div>

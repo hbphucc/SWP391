@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target } from "lucide-react";
+import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare } from "lucide-react";
 import styles from "./page.module.css";
 import { apiRequest } from "@/lib/api";
 
@@ -29,6 +29,14 @@ interface EventDto {
   status: string;
   categories: CategoryDto[];
   rounds: RoundDto[];
+}
+
+interface WinnerDto {
+  teamId: string;
+  teamName: string;
+  categoryName: string;
+  rank: number;
+  totalScore: number;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -74,7 +82,7 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(true);
   const [selectedComp, setSelectedComp] = useState<EventDto | null>(null);
   const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Upcoming" | "Completed">("featured");
-  const [winners, setWinners] = useState<any[]>([]);
+  const [winners, setWinners] = useState<WinnerDto[]>([]);
   const [loadingWinners, setLoadingWinners] = useState(false);
 
   useEffect(() => {
@@ -93,7 +101,6 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (!selectedComp || selectedComp.status !== "Completed") {
-      setWinners([]);
       return;
     }
 
@@ -103,7 +110,7 @@ export default function LandingPage() {
         const sortedRounds = [...selectedComp.rounds].sort((a, b) => b.roundOrder - a.roundOrder);
         const finalRound = sortedRounds[0];
         if (finalRound) {
-          const rankingData = await apiRequest<any[]>(`/ranking/round/${finalRound.roundId}`);
+          const rankingData = await apiRequest<WinnerDto[]>(`/ranking/round/${finalRound.roundId}`);
           setWinners(rankingData);
         } else {
           setWinners([]);
@@ -290,8 +297,7 @@ export default function LandingPage() {
                           <Calendar size={12} /> Dates
                         </div>
                         <div className={`${styles.statValue} ${styles.dateValue}`} title={dateRange(comp.startDate, comp.endDate)}>
-                          <span>{formatDate(comp.startDate)}</span>
-                          <span>— {formatDate(comp.endDate)}</span>
+                          {formatDate(comp.startDate)} — {formatDate(comp.endDate)}
                         </div>
                       </div>
                     </div>
@@ -309,7 +315,180 @@ export default function LandingPage() {
             </div>
           )}
         </div>
+
+        <motion.section
+          initial={{ y: 30, opacity: 0 }}
+          whileInView={{ y: 0, opacity: 1 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.5 }}
+          className={styles.valueSection}
+        >
+          <div className={styles.sectionIntro}>
+            <span className={styles.sectionKicker}>One platform for every hackathon role</span>
+            <h2>Everything you need to run and join events</h2>
+            <p>
+              SEAL brings participants, organizers, mentors, and judges into one clear workflow — from registration to final ranking.
+            </p>
+          </div>
+
+          <div className={styles.valueGrid}>
+            <Link href="/auth/register" className={styles.valueCard}>
+              <div className={`${styles.valueIcon} ${styles.valueIconBlue}`}><Users size={24} /></div>
+              <h3>Team & event management</h3>
+              <p>Create teams, manage members, join tracks, and follow each round from a single participant dashboard.</p>
+              <div className={styles.valueTags}>
+                <span>Team members</span>
+                <span>Tracks</span>
+                <span>Rounds</span>
+              </div>
+            </Link>
+
+            <Link href="/auth/register" className={styles.valueCard}>
+              <div className={`${styles.valueIcon} ${styles.valueIconPurple}`}><ClipboardCheck size={24} /></div>
+              <h3>Transparent judging</h3>
+              <p>Assign judges by event and round, configure criteria, and keep scoring queues organized for fair evaluation.</p>
+              <div className={styles.valueTags}>
+                <span>Criteria</span>
+                <span>Scoring</span>
+                <span>Rankings</span>
+              </div>
+            </Link>
+
+            <Link href="/auth/register" className={`${styles.valueCard} ${styles.valueCardHighlight}`}>
+              <div className={`${styles.valueIcon} ${styles.valueIconGreen}`}><MessageSquare size={24} /></div>
+              <h3>Mentor & support flow</h3>
+              <p>Keep communication structured with mentor visibility, judge approval flows, and helpful event information.</p>
+              <div className={styles.valueTags}>
+                <span>Mentors</span>
+                <span>Support</span>
+                <span>Requests</span>
+              </div>
+            </Link>
+          </div>
+        </motion.section>
+
+        <motion.section
+          initial={{ y: 30, opacity: 0 }}
+          whileInView={{ y: 0, opacity: 1 }}
+          viewport={{ once: true, amount: 0.25 }}
+          transition={{ duration: 0.5 }}
+          className={styles.stepsSection}
+        >
+          <div className={styles.sectionIntro}>
+            <span className={styles.sectionKicker}>Start in 3 steps</span>
+            <h2>From account to submission, without the chaos</h2>
+            <p>Register, join an event, then submit your project when the round opens.</p>
+          </div>
+
+          <div className={styles.stepsGrid}>
+            <div className={styles.stepItem}>
+              <div className={styles.stepIcon}><UserPlus size={22} /><span>1</span></div>
+              <h3>Create your account</h3>
+              <p>Sign up as a participant and get access to your personal dashboard.</p>
+            </div>
+            <div className={styles.stepLine}></div>
+            <div className={styles.stepItem}>
+              <div className={styles.stepIcon}><Users size={22} /><span>2</span></div>
+              <h3>Join or build a team</h3>
+              <p>Pick an event track, invite members, and prepare for each competition round.</p>
+            </div>
+            <div className={styles.stepLine}></div>
+            <div className={styles.stepItem}>
+              <div className={styles.stepIcon}><UploadCloud size={22} /><span>3</span></div>
+              <h3>Submit and compete</h3>
+              <p>Upload your project, receive judging, and follow rankings after scores are published.</p>
+            </div>
+          </div>
+        </motion.section>
+
+        <motion.section
+          initial={{ y: 30, opacity: 0 }}
+          whileInView={{ y: 0, opacity: 1 }}
+          viewport={{ once: true, amount: 0.25 }}
+          transition={{ duration: 0.5 }}
+          className={styles.ctaSection}
+        >
+          <div className={styles.ctaContent}>
+            <div className={styles.ctaBadge}>
+              <Sparkles size={16} />
+              Ready for the next round?
+            </div>
+            <h2 className={styles.ctaTitle}>Build your team. Submit your idea. Compete with confidence.</h2>
+            <p className={styles.ctaDesc}>
+              Create an account to register for events, form a team, submit your project, and follow judging results in one place.
+            </p>
+            <div className={styles.ctaStats}>
+              <span><Trophy size={15} /> Live events</span>
+              <span><ShieldCheck size={15} /> Fair scoring</span>
+              <span><Users size={15} /> Team workflow</span>
+            </div>
+          </div>
+          <div className={styles.ctaActions}>
+            <Link href="/auth/register" className="btn btn-primary">
+              Register Now <ArrowRight size={16} />
+            </Link>
+            <Link href="/auth/login" className="btn btn-secondary">
+              Sign In
+            </Link>
+          </div>
+        </motion.section>
       </main>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerGrid}>
+          <div className={styles.footerBrand}>
+            <div className={styles.footerLogoRow}>
+              <div className={styles.logoIcon}>
+                <Zap style={{ color: "#fff" }} size={18} />
+              </div>
+              <div>
+                <div className={styles.footerTitle}>SEAL Hackathons</div>
+                <p className={styles.footerText}>Software Engineering Hackathon Hub</p>
+              </div>
+            </div>
+
+            <p className={styles.footerIntro}>
+              Connect students, teams, mentors, judges, and organizers in one modern competition platform.
+            </p>
+
+            <div className={styles.footerContactList}>
+              <a href="mailto:admin@seal.com"><Mail size={16} /> admin@seal.com</a>
+              <a href="mailto:foxmiinaaa@gmail.com"><Mail size={16} /> foxmiinaaa@gmail.com</a>
+              <a href="tel:0395105358"><Phone size={16} /> 0395105358</a>
+              <span><MapPin size={16} /> SEAL Hackathon Hub</span>
+            </div>
+          </div>
+
+          <div className={styles.footerColumn}>
+            <h3>Explore</h3>
+            <Link href="/">Featured Events</Link>
+            <Link href="/auth/register">Register an Account</Link>
+            <Link href="/auth/login">Sign In</Link>
+            <Link href="/dashboard/events">Browse Events</Link>
+          </div>
+
+          <div className={styles.footerColumn}>
+            <h3>For Participants</h3>
+            <span>Build your team</span>
+            <span>Submit project work</span>
+            <span>Follow rankings</span>
+            <span>Join active rounds</span>
+          </div>
+
+          <div className={styles.footerColumn}>
+            <h3>Support</h3>
+            <a href="mailto:admin@seal.com">Admin Support</a>
+            <a href="mailto:foxmiinaaa@gmail.com">Technical Contact</a>
+            <a href="tel:0395105358">Call Organizer</a>
+            <span><ShieldCheck size={14} /> Fair judging policy</span>
+          </div>
+        </div>
+
+        <div className={styles.footerBottom}>
+          <span>© 2026 SEAL Hackathons. All rights reserved.</span>
+          <span>Built for transparent scoring, team management, and event operations.</span>
+        </div>
+      </footer>
 
       {/* Details Modal */}
       <AnimatePresence>

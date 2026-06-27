@@ -197,11 +197,11 @@
 }
 
 .dateValue {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.8rem;
+  display: block;
+  font-size: clamp(0.72rem, 0.85vw, 0.8rem);
   line-height: 1.35;
   white-space: nowrap;
+  overflow: visible;
 }
 
 .cardAction {
@@ -265,6 +265,402 @@
   width: 8px;
 }
 
+.valueSection,
+.stepsSection {
+  width: 100%;
+  margin-top: 5rem;
+}
+
+.sectionIntro {
+  max-width: 760px;
+  margin: 0 auto 2.5rem;
+  text-align: center;
+}
+
+.sectionKicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+  color: var(--color-primary-2);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sectionIntro h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.12;
+  margin-bottom: 0.9rem;
+}
+
+.sectionIntro p {
+  color: var(--color-text-2);
+  line-height: 1.65;
+  font-size: 1rem;
+}
+
+.valueGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.valueCard {
+  min-height: 300px;
+  padding: 2rem;
+  display: block;
+  border: 1px solid var(--color-border);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(99, 102, 241, 0.12), transparent 30%),
+    rgba(15, 23, 42, 0.74);
+  box-shadow: var(--shadow-md);
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.valueCard:hover {
+  transform: translateY(-6px);
+  border-color: rgba(129, 140, 248, 0.42);
+  box-shadow: var(--shadow-lg);
+}
+
+.valueCard:focus-visible {
+  outline: 3px solid rgba(129, 140, 248, 0.45);
+  outline-offset: 4px;
+}
+
+.valueCardHighlight {
+  background:
+    radial-gradient(circle at 88% 10%, rgba(16, 185, 129, 0.17), transparent 34%),
+    radial-gradient(circle at 10% 100%, rgba(34, 211, 238, 0.11), transparent 28%),
+    rgba(15, 23, 42, 0.8);
+}
+
+.valueIcon {
+  width: 3.4rem;
+  height: 3.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.valueIconBlue {
+  color: var(--color-cyan);
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.valueIconPurple {
+  color: var(--color-primary-2);
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.valueIconGreen {
+  color: var(--color-emerald);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.valueCard h3 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.valueCard p {
+  color: var(--color-text-2);
+  line-height: 1.65;
+  margin-bottom: 1.5rem;
+}
+
+.valueTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.valueTags span {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+  color: var(--color-text-2);
+  background: rgba(15, 23, 42, 0.52);
+  font-size: 0.78rem;
+}
+
+.stepsSection {
+  padding: 4rem 2rem;
+  border-radius: 32px;
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.24)),
+    rgba(15, 23, 42, 0.42);
+  border: 1px solid rgba(129, 140, 248, 0.14);
+}
+
+.stepsGrid {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr 80px 1fr;
+  align-items: start;
+  gap: 1rem;
+}
+
+.stepItem {
+  text-align: center;
+}
+
+.stepIcon {
+  width: 4.2rem;
+  height: 4.2rem;
+  margin: 0 auto 1.2rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  color: var(--color-amber);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2);
+}
+
+.stepIcon span {
+  position: absolute;
+  top: -0.65rem;
+  right: -0.65rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: white;
+  background: linear-gradient(135deg, #f97316, #f59e0b);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.stepItem h3 {
+  margin-bottom: 0.65rem;
+  font-size: 1.05rem;
+}
+
+.stepItem p {
+  max-width: 280px;
+  margin: 0 auto;
+  color: var(--color-text-2);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.stepLine {
+  height: 1px;
+  margin-top: 2.1rem;
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.5), transparent);
+}
+
+.ctaSection {
+  width: 100%;
+  margin-top: 4rem;
+  padding: 3.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(245, 158, 11, 0.27), transparent 32%),
+    radial-gradient(circle at 86% 76%, rgba(99, 102, 241, 0.25), transparent 34%),
+    linear-gradient(135deg, rgba(88, 28, 135, 0.96), rgba(15, 23, 42, 0.9) 48%, rgba(8, 47, 73, 0.88));
+  box-shadow: var(--shadow-lg);
+}
+
+.ctaSection::after {
+  content: "";
+  position: absolute;
+  inset: auto -8rem -12rem auto;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 50%;
+  background: rgba(34, 211, 238, 0.12);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.ctaContent {
+  max-width: 720px;
+  position: relative;
+  z-index: 1;
+}
+
+.ctaBadge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  margin-bottom: 1rem;
+  border-radius: 999px;
+  color: var(--color-primary-2);
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.ctaTitle {
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+}
+
+.ctaDesc {
+  max-width: 640px;
+  color: var(--color-text-2);
+  line-height: 1.6;
+}
+
+.ctaStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.25rem;
+}
+
+.ctaStats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.ctaActions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.footer {
+  width: min(1320px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 3rem 0 2rem;
+  display: block;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  position: relative;
+  z-index: 10;
+}
+
+.footerGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.25fr) repeat(3, minmax(160px, 0.75fr));
+  gap: 2.5rem;
+}
+
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.footerLogoRow {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.footerTitle {
+  color: var(--color-text);
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+
+.footerText {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  color: var(--color-text-3);
+}
+
+.footerIntro {
+  max-width: 360px;
+  color: var(--color-text-2);
+  line-height: 1.6;
+}
+
+.footerContactList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.footerContactList a,
+.footerContactList span,
+.footerColumn a,
+.footerColumn span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-text-2);
+  transition: color var(--transition-fast);
+}
+
+.footerContactList a:hover,
+.footerColumn a:hover {
+  color: var(--color-primary-2);
+}
+
+.footerColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding-left: 1.25rem;
+  border-left: 1px solid rgba(148, 163, 184, 0.14);
+  font-size: 0.93rem;
+}
+
+.footerColumn h3 {
+  margin-bottom: 0.2rem;
+  color: var(--color-cyan);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.footerBottom {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--color-text-3);
+  font-size: 0.85rem;
+}
+
 @keyframes ping {
   75%, 100% {
     transform: scale(2);
@@ -275,6 +671,37 @@
 @media (max-width: 960px) {
   .featuredGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .valueGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .stepsGrid {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+
+  .stepLine {
+    width: 1px;
+    height: 2rem;
+    margin: -0.5rem auto;
+    background: linear-gradient(180deg, transparent, rgba(245, 158, 11, 0.5), transparent);
+  }
+
+  .ctaSection,
+  .footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .footerGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ctaActions,
+  .footerBottom {
+    justify-content: flex-start;
   }
 }
 
@@ -301,5 +728,55 @@
 
   .eventCard {
     padding: 1.4rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .valueSection,
+  .stepsSection {
+    margin-top: 3.5rem;
+  }
+
+  .valueCard {
+    min-height: auto;
+    padding: 1.4rem;
+    border-radius: 22px;
+  }
+
+  .stepsSection {
+    padding: 2.5rem 1.2rem;
+    border-radius: 24px;
+  }
+
+  .ctaSection {
+    padding: 1.4rem;
+    border-radius: 22px;
+  }
+
+  .ctaActions {
+    width: 100%;
+  }
+
+  .ctaActions a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .footer {
+    width: calc(100% - 2rem);
+  }
+
+  .footerGrid {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+
+  .footerColumn {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
   }
 }
