@@ -124,6 +124,7 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
   const [myTeam, setMyTeam] = useState<TeamDto | null>(null);
+  const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
   const userRoles = user?.roles ?? [];
   const isAdmin = userRoles.includes("Admin");
   const canJudge = isAdmin || userRoles.includes("Judge");
@@ -221,11 +222,23 @@ export default function DashboardPage() {
       }
     };
 
+    const loadRegistrations = async () => {
+      if (userRoles.includes("Mentor") || userRoles.includes("Judge")) {
+        try {
+          const regs = await apiRequest<string[]>("/Events/my-registrations");
+          setMyRegistrations(regs);
+        } catch {
+          setMyRegistrations([]);
+        }
+      }
+    };
+
     loadDashboard();
     loadActivity();
     loadInvitations();
     loadMyTeam();
-  }, [message]);
+    loadRegistrations();
+  }, [message, userRoles]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(e =>
@@ -251,6 +264,16 @@ export default function DashboardPage() {
       setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
+    }
+  };
+
+  const handleRegisterEvent = async (eventId: string, role: string) => {
+    try {
+      await apiRequest(`/Events/${eventId}/register?role=${role}`, { method: "POST" });
+      message.success(`Successfully registered as ${role}!`);
+      setMyRegistrations(prev => [...prev, eventId]);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to register for event.");
     }
   };
 
@@ -425,6 +448,28 @@ export default function DashboardPage() {
                       <span><Target size={12} /> {ev.tracksCount || 0} tracks</span>
                       <span><Clock size={12} /> {new Date(ev.endDate).toLocaleDateString()}</span>
                     </div>
+                    {(ev.status === "Published" || ev.status === "Ongoing" || ev.status === "Upcoming" || ev.status === "Active") && !myRegistrations.includes(ev.id) && (
+                      <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
+                        {userRoles.includes("Mentor") && (
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{ flex: 1 }}
+                            onClick={(e) => { e.preventDefault(); handleRegisterEvent(ev.id, 'Mentor'); }}
+                          >
+                            Register as Mentor
+                          </button>
+                        )}
+                        {userRoles.includes("Judge") && (
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{ flex: 1 }}
+                            onClick={(e) => { e.preventDefault(); handleRegisterEvent(ev.id, 'Judge'); }}
+                          >
+                            Register as Judge
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </Link>
               ))}

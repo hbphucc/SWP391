@@ -24,5 +24,7 @@ namespace SEAL.NET.Models.Entities
 
         public List<Category> Categories { get; set; } = [];
         public List<Round> Rounds { get; set; } = [];
+        public List<ApplicationUser> RegisteredMentors { get; set; } = [];
+        public List<ApplicationUser> RegisteredJudges { get; set; } = [];
     }
 }

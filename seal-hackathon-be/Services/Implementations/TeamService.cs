@@ -415,6 +415,121 @@ namespace SEAL.NET.Services.Implementations
             });
         }
 
+        public async Task<ServiceResult> GetMentoringTeamsAsync(Guid currentUserId)
+        {
+            var mentoredTeams = await _context.MentorAssignments
+                .Where(ma => ma.MentorUserId == currentUserId && ma.IsActive)
+                .Select(ma => ma.Team)
+                .Include(t => t.Category)
+                    .ThenInclude(c => c.Event)
+                .Include(t => t.CurrentRound)
+                .Include(t => t.Members)
+                    .ThenInclude(m => m.User)
+                .Include(t => t.CurrentRound)
+                    .ThenInclude(r => r.PromptDocument)
+                .ToListAsync();
+
+            var result = mentoredTeams.Select(team =>
+            {
+                var hideMentorAndJudge = team.Status == TeamStatus.Rejected ||
+                                         team.Status == TeamStatus.Eliminated ||
+                                         team.Status == TeamStatus.Withdrawn;
+
+                return new
+                {
+                    team.TeamId,
+                    team.TeamName,
+                    status = team.Status.ToString(),
+                    leaderId = team.LeaderId,
+                    category = new
+                    {
+                        team.Category!.CategoryId,
+                        team.Category.CategoryName,
+                        eventName = team.Category.Event?.EventName
+                    },
+                    currentRound = team.CurrentRound == null ? null : new
+                    {
+                        team.CurrentRound.RoundId,
+                        team.CurrentRound.RoundName,
+                        team.CurrentRound.SubmissionDeadline
+                    },
+                    members = team.Members.Select(m => new
+                    {
+                        m.UserId,
+                        m.User!.FullName,
+                        m.User.Email,
+                        m.User.StudentCode,
+                        m.Role
+                    }),
+                    eventStatus = team.Category?.Event?.Status.ToString(),
+                    promptDocumentId = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocumentId : null,
+                    promptFileName = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocument?.FileName : null,
+                    finalRank = team.FinalRank,
+                    finalPrize = team.FinalPrize
+                };
+            }).ToList();
+
+            return ServiceResult.Ok(result);
+        }
+
+        public async Task<ServiceResult> GetJudgingTeamsAsync(Guid currentUserId)
+        {
+            var judgingTeams = await _context.Teams
+                .Where(t => _context.JudgeAssignments.Any(ja => 
+                    ja.JudgeId == currentUserId && 
+                    (ja.TeamId == t.TeamId || (ja.TeamId == null && ja.CategoryId == t.CategoryId && ja.RoundId == t.CurrentRoundId))))
+                .Include(t => t.Category)
+                    .ThenInclude(c => c.Event)
+                .Include(t => t.CurrentRound)
+                .Include(t => t.Members)
+                    .ThenInclude(m => m.User)
+                .Include(t => t.CurrentRound)
+                    .ThenInclude(r => r.PromptDocument)
+                .ToListAsync();
+
+            var result = judgingTeams.Select(team =>
+            {
+                var hideMentorAndJudge = team.Status == TeamStatus.Rejected ||
+                                         team.Status == TeamStatus.Eliminated ||
+                                         team.Status == TeamStatus.Withdrawn;
+
+                return new
+                {
+                    team.TeamId,
+                    team.TeamName,
+                    status = team.Status.ToString(),
+                    leaderId = team.LeaderId,
+                    category = new
+                    {
+                        team.Category!.CategoryId,
+                        team.Category.CategoryName,
+                        eventName = team.Category.Event?.EventName
+                    },
+                    currentRound = team.CurrentRound == null ? null : new
+                    {
+                        team.CurrentRound.RoundId,
+                        team.CurrentRound.RoundName,
+                        team.CurrentRound.SubmissionDeadline
+                    },
+                    members = team.Members.Select(m => new
+                    {
+                        m.UserId,
+                        m.User!.FullName,
+                        m.User.Email,
+                        m.User.StudentCode,
+                        m.Role
+                    }),
+                    eventStatus = team.Category?.Event?.Status.ToString(),
+                    promptDocumentId = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocumentId : null,
+                    promptFileName = (team.Status == TeamStatus.Approved || team.Status == TeamStatus.Active || team.Status == TeamStatus.Champion) ? team.CurrentRound?.PromptDocument?.FileName : null,
+                    finalRank = team.FinalRank,
+                    finalPrize = team.FinalPrize
+                };
+            }).ToList();
+
+            return ServiceResult.Ok(result);
+        }
+
         public async Task<ServiceResult> AddMemberToMyTeamAsync(Guid currentUserId, AddTeamMemberByStudentCodeRequest request)
         {
             var team = await GetCurrentUserTeamAsync(currentUserId);

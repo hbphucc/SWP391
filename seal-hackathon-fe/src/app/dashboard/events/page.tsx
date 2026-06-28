@@ -5,6 +5,8 @@ import { StarOutlined, FileOutlined, SearchOutlined, EyeOutlined } from "@ant-de
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 
+import { useAuth } from "@/components/AuthProvider";
+
 const { Title, Text } = Typography;
 
 type EventDto = {
@@ -19,9 +21,12 @@ type EventDto = {
 
 export default function UserEventsPage() {
   const { message } = App.useApp();
+  const { user } = useAuth();
   const [events, setEvents] = useState<EventDto[]>([]);
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
+  const userRoles = user?.roles ?? [];
 
   useEffect(() => {
     let active = true;
@@ -39,10 +44,32 @@ export default function UserEventsPage() {
         if (active) setLoading(false);
       });
 
+    if (userRoles.includes("Mentor") || userRoles.includes("Judge")) {
+      apiRequest<string[]>("/Events/my-registrations")
+        .then((data) => {
+          if (!active) return;
+          setMyRegistrations(data);
+        })
+        .catch(() => {
+          if (!active) return;
+          setMyRegistrations([]);
+        });
+    }
+
     return () => {
       active = false;
     };
-  }, [message]);
+  }, [message, userRoles]);
+
+  const handleRegisterEvent = async (eventId: string, role: string) => {
+    try {
+      await apiRequest(`/Events/${eventId}/register?role=${role}`, { method: "POST" });
+      message.success(`Successfully registered as ${role}!`);
+      setMyRegistrations(prev => [...prev, eventId]);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to register for event.");
+    }
+  };
 
   const filteredEvents = events.filter(e =>
     e.eventName?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -89,11 +116,26 @@ export default function UserEventsPage() {
     {
       title: "ACTIONS",
       key: "actions",
-      render: (_: unknown, record: EventDto) => (
-        <Link href={`/dashboard/events/${record.eventId}`}>
-          <Button type="primary" icon={<EyeOutlined />} style={{ borderRadius: "20px" }}>View & Participate</Button>
-        </Link>
-      )
+      render: (_: unknown, record: EventDto) => {
+        const canRegister = (record.status === "Published" || record.status === "Ongoing" || record.status === "Upcoming" || record.status === "Active") && !myRegistrations.includes(record.eventId);
+        return (
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <Link href={`/dashboard/events/${record.eventId}`}>
+              <Button type="primary" icon={<EyeOutlined />} style={{ borderRadius: "20px" }}>View & Participate</Button>
+            </Link>
+            {canRegister && userRoles.includes("Mentor") && (
+              <Button type="dashed" onClick={() => handleRegisterEvent(record.eventId, 'Mentor')} style={{ borderRadius: "20px" }}>
+                Register as Mentor
+              </Button>
+            )}
+            {canRegister && userRoles.includes("Judge") && (
+              <Button type="dashed" onClick={() => handleRegisterEvent(record.eventId, 'Judge')} style={{ borderRadius: "20px" }}>
+                Register as Judge
+              </Button>
+            )}
+          </div>
+        );
+      }
     }
   ];
 

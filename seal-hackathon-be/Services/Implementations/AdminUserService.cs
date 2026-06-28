@@ -379,5 +379,55 @@ namespace SEAL.NET.Services.Implementations
                 return ServiceResult.OkMessage($"User role request for {requestedRole} declined successfully.");
             }
         }
+
+        public async Task<ServiceResult> GetRegisteredMentorsAsync(Guid eventId)
+        {
+            var eventItem = await _db.Events
+                .Include(e => e.RegisteredMentors)
+                .FirstOrDefaultAsync(e => e.EventId == eventId);
+
+            if (eventItem == null) return ServiceResult.NotFound("Event not found.");
+
+            var mentors = eventItem.RegisteredMentors.Select(u => (object)new
+            {
+                u.Id,
+                u.FullName,
+                u.Email,
+                roles = new List<string> { "Mentor" },
+                u.IsApproved,
+                u.StudentCode,
+                Company = u.SchoolName,
+                studentType = u.StudentType?.ToString(),
+                developerRole = u.DeveloperRole?.ToString(),
+                u.CreatedAt
+            }).ToList();
+
+            return ServiceResult.Ok(mentors);
+        }
+
+        public async Task<ServiceResult> GetRegisteredJudgesAsync(Guid eventId)
+        {
+            var eventItem = await _db.Events
+                .Include(e => e.RegisteredJudges)
+                .FirstOrDefaultAsync(e => e.EventId == eventId);
+
+            if (eventItem == null) return ServiceResult.NotFound("Event not found.");
+
+            var judges = eventItem.RegisteredJudges.Select(u => (object)new
+            {
+                u.Id,
+                u.FullName,
+                u.Email,
+                roles = new List<string> { "Judge" },
+                u.IsApproved,
+                u.StudentCode,
+                Company = u.SchoolName,
+                studentType = u.StudentType?.ToString(),
+                developerRole = u.DeveloperRole?.ToString(),
+                u.CreatedAt
+            }).ToList();
+
+            return ServiceResult.Ok(judges);
+        }
     }
 }

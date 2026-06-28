@@ -39,7 +39,8 @@ namespace SEAL.NET.Services.Implementations
                     category = new
                     {
                         t.Category!.CategoryId,
-                        t.Category.CategoryName
+                        t.Category.CategoryName,
+                        t.Category.EventId
                     },
                     currentRound = t.CurrentRound == null ? null : new
                     {

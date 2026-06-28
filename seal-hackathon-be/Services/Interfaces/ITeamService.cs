@@ -12,6 +12,8 @@ namespace SEAL.NET.Services.Interfaces
     {
         Task<ServiceResult> CreateTeamAsync(Guid currentUserId, CreateTeamRequest request);
         Task<ServiceResult> GetMyTeamAsync(Guid currentUserId);
+        Task<ServiceResult> GetMentoringTeamsAsync(Guid currentUserId);
+        Task<ServiceResult> GetJudgingTeamsAsync(Guid currentUserId);
         Task<ServiceResult> AddMemberToMyTeamAsync(Guid currentUserId, AddTeamMemberByStudentCodeRequest request);
         Task<ServiceResult> RemoveMemberFromMyTeamAsync(Guid currentUserId, string studentCode);
         Task<ServiceResult> LeaveTeamAsync(Guid currentUserId);

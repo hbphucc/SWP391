@@ -14,5 +14,7 @@ namespace SEAL.NET.Services.Interfaces
         Task<ServiceResult> CreateGuestJudgeAsync(Guid? actorUserId, CreateGuestJudgeRequest request);
         Task<ServiceResult> GetRoleRequestsAsync();
         Task<ServiceResult> HandleRoleRequestAsync(Guid? actorUserId, Guid userId, bool approve);
+        Task<ServiceResult> GetRegisteredMentorsAsync(Guid eventId);
+        Task<ServiceResult> GetRegisteredJudgesAsync(Guid eventId);
     }
 }

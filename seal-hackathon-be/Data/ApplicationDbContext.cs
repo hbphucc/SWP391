@@ -86,6 +86,16 @@ namespace SEAL.NET.Data
                 .Property(e => e.Status)
                 .HasConversion<int>();
 
+            builder.Entity<Event>()
+                .HasMany(e => e.RegisteredMentors)
+                .WithMany()
+                .UsingEntity(j => j.ToTable("EventMentors"));
+
+            builder.Entity<Event>()
+                .HasMany(e => e.RegisteredJudges)
+                .WithMany()
+                .UsingEntity(j => j.ToTable("EventJudges"));
+
             builder.Entity<Round>()
                 .HasOne(r => r.PromptDocument)
                 .WithMany()

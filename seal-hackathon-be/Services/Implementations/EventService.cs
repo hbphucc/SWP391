@@ -252,6 +252,54 @@ namespace SEAL.NET.Services.Implementations
             return (true, "Event cancelled successfully.");
         }
 
+        public async Task<(bool Success, string Message)> RegisterForEventAsync(Guid eventId, Guid userId, string role)
+        {
+            var eventItem = await _context.Events
+                .Include(e => e.RegisteredMentors)
+                .Include(e => e.RegisteredJudges)
+                .FirstOrDefaultAsync(e => e.EventId == eventId);
+
+            if (eventItem == null) return (false, "Event not found.");
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return (false, "User not found.");
+
+            if (role == "Mentor")
+            {
+                if (eventItem.RegisteredMentors.Any(u => u.Id == userId))
+                    return (false, "You have already registered as a Mentor for this event.");
+                eventItem.RegisteredMentors.Add(user);
+            }
+            else if (role == "Judge")
+            {
+                if (eventItem.RegisteredJudges.Any(u => u.Id == userId))
+                    return (false, "You have already registered as a Judge for this event.");
+                eventItem.RegisteredJudges.Add(user);
+            }
+            else
+            {
+                return (false, "Invalid role for event registration.");
+            }
+
+            await _context.SaveChangesAsync();
+            return (true, "Registered successfully.");
+        }
+
+        public async Task<List<Guid>> GetMyRegisteredEventIdsAsync(Guid userId)
+        {
+            var mentorEvents = await _context.Events
+                .Where(e => e.RegisteredMentors.Any(u => u.Id == userId))
+                .Select(e => e.EventId)
+                .ToListAsync();
+
+            var judgeEvents = await _context.Events
+                .Where(e => e.RegisteredJudges.Any(u => u.Id == userId))
+                .Select(e => e.EventId)
+                .ToListAsync();
+
+            return mentorEvents.Union(judgeEvents).Distinct().ToList();
+        }
+
         private static EventResponseDto MapToDto(Event e)
         {
             return new EventResponseDto
