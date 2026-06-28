@@ -60,5 +60,13 @@ namespace SEAL.NET.Controllers
         [HttpPut("{userId}/role-request/handle")]
         public async Task<IActionResult> HandleRoleRequest(Guid userId, [FromQuery] bool approve)
             => this.ToActionResult(await _adminUserService.HandleRoleRequestAsync(GetActorUserId(), userId, approve));
+
+        [HttpGet("/api/admin/events/{eventId:guid}/registered-mentors")]
+        public async Task<IActionResult> GetRegisteredMentors(Guid eventId)
+            => this.ToActionResult(await _adminUserService.GetRegisteredMentorsAsync(eventId));
+
+        [HttpGet("/api/admin/events/{eventId:guid}/registered-judges")]
+        public async Task<IActionResult> GetRegisteredJudges(Guid eventId)
+            => this.ToActionResult(await _adminUserService.GetRegisteredJudgesAsync(eventId));
     }
 }

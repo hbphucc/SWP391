@@ -1,4 +1,4 @@
-﻿using SEAL.NET.DTOs.Event;
+using SEAL.NET.DTOs.Event;
 
 namespace SEAL.NET.Services.Interfaces
 {
@@ -13,5 +13,7 @@ namespace SEAL.NET.Services.Interfaces
         Task<(bool Success, string Message)> StartEventAsync(Guid id, Guid actorId);
         Task<(bool Success, string Message)> CompleteEventAsync(Guid id, Guid actorId);
         Task<(bool Success, string Message)> CancelEventAsync(Guid id, Guid actorId, string? reason);
+        Task<(bool Success, string Message)> RegisterForEventAsync(Guid eventId, Guid userId, string role);
+        Task<List<Guid>> GetMyRegisteredEventIdsAsync(Guid userId);
     }
 }

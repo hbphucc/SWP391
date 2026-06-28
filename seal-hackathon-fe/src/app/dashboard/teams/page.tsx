@@ -1,10 +1,10 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Plus, Users, Shield, UserPlus, Trash2, RefreshCw, AlertCircle, Crown, ArrowRightLeft, GraduationCap, LogOut, Search, Check } from "lucide-react";
 import { App, Modal } from "antd";
 import { useRouter } from "next/navigation";
-import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
+import { CurrentUser, apiRequest, fetchCurrentUser, ApiError } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import CreateTeamDrawer from "@/components/team/CreateTeamDrawer";
 
@@ -95,6 +95,9 @@ export default function TeamsPage() {
   const [draftTeamName, setDraftTeamName] = useState("");
   const [newLeaderCodeOrEmail, setNewLeaderCodeOrEmail] = useState("");
   const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
+  const hasTeamRef = useRef<boolean>(false);
+  const [mentoringTeams, setMentoringTeams] = useState<TeamDto[]>([]);
+  const [judgingTeams, setJudgingTeams] = useState<TeamDto[]>([]);
 
   const [mentors, setMentors] = useState<MentorOption[]>([]);
   const [showMentorModal, setShowMentorModal] = useState(false);
@@ -191,20 +194,39 @@ export default function TeamsPage() {
         setMyTeam(team);
         setDraftTeamName(team.teamName);
         hasTeam = true;
+        hasTeamRef.current = true;
       } catch (err) {
+        const isNotFound = err instanceof ApiError && err.status === 404;
         const text = err instanceof Error ? err.message : "";
-        if (!text.toLowerCase().includes("not joined") && !text.toLowerCase().includes("not found")) {
+        if (!isNotFound && !text.toLowerCase().includes("not joined") && !text.toLowerCase().includes("not found")) {
           throw err;
         }
         setMyTeam(null);
+        hasTeamRef.current = false;
       }
 
       if (!hasTeam) {
-        try {
-          const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-          setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
-        } catch {
-          setReceivedInvites([]);
+        if (user.roles?.includes("Mentor")) {
+          try {
+            const mentored = await apiRequest<TeamDto[]>("/teams/mentoring");
+            setMentoringTeams(mentored);
+          } catch {
+            setMentoringTeams([]);
+          }
+        } else if (user.roles?.includes("Judge")) {
+          try {
+            const judging = await apiRequest<TeamDto[]>("/teams/judging");
+            setJudgingTeams(judging);
+          } catch {
+            setJudgingTeams([]);
+          }
+        } else {
+          try {
+            const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+            setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+          } catch {
+            setReceivedInvites([]);
+          }
         }
       } else {
         setReceivedInvites([]);
@@ -217,6 +239,22 @@ export default function TeamsPage() {
   };
 
   const reloadTeamOnly = async () => {
+    if (!hasTeamRef.current) {
+      try {
+        const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
+        setReceivedInvites((current) => {
+          const pendingOnly = invites.filter((inv) => inv.status === "Pending");
+          if (JSON.stringify(current) !== JSON.stringify(pendingOnly)) {
+            return pendingOnly;
+          }
+          return current;
+        });
+      } catch {
+        setReceivedInvites([]);
+      }
+      return;
+    }
+
     try {
       const team = await apiRequest<TeamDto>("/teams/my-team");
       setMyTeam((currentTeam) => {
@@ -225,6 +263,7 @@ export default function TeamsPage() {
         }
         return currentTeam;
       });
+      hasTeamRef.current = true;
       setDraftTeamName((currentDraft) => {
         if (!currentDraft && team.teamName) {
           return team.teamName;
@@ -233,9 +272,11 @@ export default function TeamsPage() {
       });
       setReceivedInvites([]);
     } catch (err) {
+      const isNotFound = err instanceof ApiError && err.status === 404;
       const text = err instanceof Error ? err.message : "";
-      if (text.toLowerCase().includes("not joined") || text.toLowerCase().includes("not found")) {
+      if (isNotFound || text.toLowerCase().includes("not joined") || text.toLowerCase().includes("not found")) {
         setMyTeam(null);
+        hasTeamRef.current = false;
         try {
           const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
           setReceivedInvites((current) => {
@@ -566,42 +607,126 @@ export default function TeamsPage() {
           </div>
         )}
 
-        <div
-          className="glass-card"
-          style={{
-            maxWidth: 560,
-            margin: "0 auto",
-            textAlign: "center",
-            padding: "2rem 1.5rem",
-          }}
-        >
+        {currentUser?.roles?.includes("Mentor") ? (
+          <div className="glass-card" style={{ padding: "2rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Users size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Teams You Are Mentoring</h3>
+                <p style={{ margin: "0.25rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                  {mentoringTeams.length} {mentoringTeams.length === 1 ? "team" : "teams"} assigned to you.
+                </p>
+              </div>
+            </div>
+            
+            {mentoringTeams.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+                {mentoringTeams.map(team => (
+                  <div key={team.teamId} style={{ border: "1px solid var(--color-border)", borderRadius: "12px", padding: "1rem", background: "var(--color-surface-1)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+                      <div>
+                        <h4 style={{ margin: "0 0 0.25rem", fontSize: "1.1rem" }}>{team.teamName}</h4>
+                        <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{team.category.eventName} - {team.category.categoryName}</span>
+                      </div>
+                      <StatusBadge status={team.status} />
+                    </div>
+                    <div style={{ fontSize: "0.9rem" }}>
+                      <p style={{ margin: "0 0 0.5rem" }}><strong>Members:</strong> {team.members.length}</p>
+                      {team.currentRound && (
+                        <p style={{ margin: 0 }}><strong>Round:</strong> {team.currentRound.roundName}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "3rem 1rem", border: "1px dashed var(--color-border)", borderRadius: "12px", background: "var(--color-surface-1)" }}>
+                <Users size={32} style={{ color: "var(--color-text-3)", marginBottom: "1rem" }} />
+                <p style={{ margin: 0, color: "var(--color-text-2)" }}>You haven't been assigned to mentor any teams yet.</p>
+              </div>
+            )}
+          </div>
+        ) : currentUser?.roles?.includes("Judge") ? (
+          <div className="glass-card" style={{ padding: "2rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Users size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Teams You Are Judging</h3>
+                <p style={{ margin: "0.25rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                  {judgingTeams.length} {judgingTeams.length === 1 ? "team" : "teams"} assigned to you.
+                </p>
+              </div>
+            </div>
+            
+            {judgingTeams.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+                {judgingTeams.map(team => (
+                  <div key={team.teamId} style={{ border: "1px solid var(--color-border)", borderRadius: "12px", padding: "1rem", background: "var(--color-surface-1)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+                      <div>
+                        <h4 style={{ margin: "0 0 0.25rem", fontSize: "1.1rem" }}>{team.teamName}</h4>
+                        <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{team.category.eventName} - {team.category.categoryName}</span>
+                      </div>
+                      <StatusBadge status={team.status} />
+                    </div>
+                    <div style={{ fontSize: "0.9rem" }}>
+                      <p style={{ margin: "0 0 0.5rem" }}><strong>Members:</strong> {team.members.length}</p>
+                      {team.currentRound && (
+                        <p style={{ margin: 0 }}><strong>Round:</strong> {team.currentRound.roundName}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "3rem 1rem", border: "1px dashed var(--color-border)", borderRadius: "12px", background: "var(--color-surface-1)" }}>
+                <Users size={32} style={{ color: "var(--color-text-3)", marginBottom: "1rem" }} />
+                <p style={{ margin: 0, color: "var(--color-text-2)" }}>You haven't been assigned to judge any teams yet.</p>
+              </div>
+            )}
+          </div>
+        ) : (
           <div
+            className="glass-card"
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: "rgba(99,102,241,0.1)",
-              color: "var(--color-primary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 1rem",
+              maxWidth: 560,
+              margin: "0 auto",
+              textAlign: "center",
+              padding: "2rem 1.5rem",
             }}
           >
-            <Crown size={24} />
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                background: "rgba(99,102,241,0.1)",
+                color: "var(--color-primary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 1rem",
+              }}
+            >
+              <Crown size={24} />
+            </div>
+            <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Ready to compete?</h3>
+            <p style={{ color: "var(--color-text-3)", marginBottom: "1.25rem", fontSize: "0.9rem" }}>
+              Create a team in one screen: pick a category, invite members, and optionally choose a mentor.
+            </p>
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={() => setCreateDrawerOpen(true)}
+              style={{ minWidth: 200, justifyContent: "center" }}
+            >
+              <Plus size={18} /> Create a Team
+            </button>
           </div>
-          <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Ready to compete?</h3>
-          <p style={{ color: "var(--color-text-3)", marginBottom: "1.25rem", fontSize: "0.9rem" }}>
-            Create a team in one screen: pick a category, invite members, and optionally choose a mentor.
-          </p>
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={() => setCreateDrawerOpen(true)}
-            style={{ minWidth: 200, justifyContent: "center" }}
-          >
-            <Plus size={18} /> Create a Team
-          </button>
-        </div>
+        )}
 
         <CreateTeamDrawer
           open={createDrawerOpen}

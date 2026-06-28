@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SEAL.NET.DTOs.Event;
 using SEAL.NET.Services.Interfaces;
@@ -37,6 +37,42 @@ namespace SEAL.NET.Controllers
         {
             var result = await _eventService.GetEventByIdAsync(id);
             if (result == null) return NotFound(new { message = "Event not found." });
+            return Ok(result);
+        }
+
+        [HttpPost("{id:guid}/register")]
+        [Authorize(Roles = "Mentor,Judge")]
+        public async Task<IActionResult> RegisterForEvent(Guid id, [FromQuery] string role)
+        {
+            var actorId = GetActorUserId();
+            if (actorId == null) return Unauthorized();
+
+            // Validate that the user actually has the role they are requesting
+            if (role != "Mentor" && role != "Judge")
+                return BadRequest(new { message = "Invalid role." });
+            if (!User.IsInRole(role))
+                return Forbid();
+
+            var result = await _eventService.RegisterForEventAsync(id, actorId.Value, role);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            await _auditLogService.LogAsync(
+                actorId,
+                $"register_{role.ToLower()}",
+                "Event",
+                id.ToString(),
+                $"Registered as {role} for event {id}.");
+            return Ok(new { message = result.Message });
+        }
+
+        [HttpGet("my-registrations")]
+        [Authorize(Roles = "Mentor,Judge")]
+        public async Task<IActionResult> GetMyRegistrations()
+        {
+            var actorId = GetActorUserId();
+            if (actorId == null) return Unauthorized();
+
+            var result = await _eventService.GetMyRegisteredEventIdsAsync(actorId.Value);
             return Ok(result);
         }
 

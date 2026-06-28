@@ -47,6 +47,16 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> GetMyTeam()
             => ToActionResult(await _teamService.GetMyTeamAsync(GetCurrentUserId()));
 
+        [HttpGet("mentoring")]
+        [Authorize(Roles = "Mentor")]
+        public async Task<IActionResult> GetMentoringTeams()
+            => ToActionResult(await _teamService.GetMentoringTeamsAsync(GetCurrentUserId()));
+
+        [HttpGet("judging")]
+        [Authorize(Roles = "Judge")]
+        public async Task<IActionResult> GetJudgingTeams()
+            => ToActionResult(await _teamService.GetJudgingTeamsAsync(GetCurrentUserId()));
+
         [HttpPost("my-team/members")]
         [Authorize(Roles = "Member,TeamLeader")]
         public async Task<IActionResult> AddMemberToMyTeam([FromBody] AddTeamMemberByStudentCodeRequest request)

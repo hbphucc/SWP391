@@ -17,7 +17,7 @@ type TeamDto = {
   teamId: string;
   teamName: string;
   status: string;
-  category?: { categoryName: string } | null;
+  category?: { categoryId: string; categoryName: string; eventId?: string } | null;
 };
 
 type MentorAssignment = {
@@ -70,6 +70,7 @@ export default function AssignmentsPage() {
   // Mentor tab state
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [mentorAssignments, setMentorAssignments] = useState<MentorAssignment[]>([]);
+  const [selectedEventIdMentor, setSelectedEventIdMentor] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [selectedMentorId, setSelectedMentorId] = useState("");
 
@@ -86,15 +87,8 @@ export default function AssignmentsPage() {
   // Non-empty = specific per-team assignments.
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
-  const mentors = useMemo(
-    () => users.filter((u) => u.isApproved && u.roles.includes("Mentor")),
-    [users],
-  );
-
-  const judges = useMemo(
-    () => users.filter((u) => u.isApproved && u.roles.includes("Judge")),
-    [users],
-  );
+  const [mentors, setMentors] = useState<UserDto[]>([]);
+  const [judges, setJudges] = useState<UserDto[]>([]);
 
   const currentCategoryTeams = useMemo<CategoryTeam[]>(() => {
     if (!selectedCategoryId) return [];
@@ -104,16 +98,16 @@ export default function AssignmentsPage() {
   const loadMentorData = async () => {
     setLoading(true);
     try {
-      const [teamData, userData, assignmentData] = await Promise.all([
+      const [teamData, assignmentData, eventData] = await Promise.all([
         apiRequest<TeamDto[]>("/admin/teams"),
-        apiRequest<UserDto[]>("/admin/users"),
         apiRequest<MentorAssignment[]>("/admin/mentors/assignments"),
+        apiRequest<EventDto[]>("/events"),
       ]);
       setTeams(teamData);
-      setUsers(userData);
       setMentorAssignments(assignmentData);
-      setSelectedTeamId((curr) => curr || teamData[0]?.teamId || "");
-      setSelectedMentorId((curr) => curr || userData.find((u) => u.roles.includes("Mentor"))?.id || "");
+      setEvents(eventData);
+      setSelectedEventIdMentor((curr) => curr || eventData[0]?.eventId || "");
+      // Note: we don't auto-select team here anymore because it depends on the selected event
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load mentor assignments.");
     } finally {
@@ -124,16 +118,13 @@ export default function AssignmentsPage() {
   const loadJudgeData = async () => {
     setLoading(true);
     try {
-      const [eventData, userData, judgeData] = await Promise.all([
+      const [eventData, judgeData] = await Promise.all([
         apiRequest<EventDto[]>("/events"),
-        apiRequest<UserDto[]>("/admin/users"),
         apiRequest<JudgeAssignmentDto[]>("/admin/judge-assignments"),
       ]);
       setEvents(eventData);
-      setUsers(userData);
       setJudgeAssignments(judgeData);
       setSelectedEventId((curr) => curr || eventData[0]?.eventId || "");
-      setSelectedJudgeId((curr) => curr || userData.find((u) => u.roles.includes("Judge"))?.id || "");
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load judge assignments.");
     } finally {
@@ -148,6 +139,51 @@ export default function AssignmentsPage() {
       void loadJudgeData();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "mentor") return;
+    
+    // Auto-select first team in the selected event
+    const eventTeams = teams.filter((t) => t.category?.eventId === selectedEventIdMentor && t.status !== "Eliminated" && t.status !== "Rejected" && t.status !== "Withdrawn");
+    if (eventTeams.length > 0 && !eventTeams.some(t => t.teamId === selectedTeamId)) {
+      setSelectedTeamId(eventTeams[0].teamId);
+    } else if (eventTeams.length === 0) {
+      setSelectedTeamId("");
+    }
+  }, [selectedEventIdMentor, teams, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "mentor" || !selectedEventIdMentor) {
+      setMentors([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        const fetchedMentors = await apiRequest<UserDto[]>(`/admin/events/${selectedEventIdMentor}/registered-mentors`);
+        setMentors(fetchedMentors);
+        setSelectedMentorId((curr) => curr || fetchedMentors[0]?.id || "");
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Could not load mentors.");
+      }
+    })();
+  }, [selectedEventIdMentor, activeTab, message]);
+
+  useEffect(() => {
+    if (activeTab !== "judge" || !selectedEventId) {
+      setJudges([]);
+      return;
+    }
+    (async () => {
+      try {
+        const fetchedJudges = await apiRequest<UserDto[]>(`/admin/events/${selectedEventId}/registered-judges`);
+        setJudges(fetchedJudges);
+        setSelectedJudgeId((curr) => curr || fetchedJudges[0]?.id || "");
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Could not load judges.");
+      }
+    })();
+  }, [selectedEventId, activeTab, message]);
 
   // When event changes, refetch its rounds + categories (with their teams).
   useEffect(() => {
@@ -366,11 +402,18 @@ export default function AssignmentsPage() {
               </h3>
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <div className="form-group">
+                  <label className="form-label">Event</label>
+                  <select className="form-select" value={selectedEventIdMentor} onChange={(e) => setSelectedEventIdMentor(e.target.value)}>
+                    <option value="">Select an event...</option>
+                    {events.map((evt) => (<option key={evt.eventId} value={evt.eventId}>{evt.eventName}</option>))}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label className="form-label">Team</label>
-                  <select className="form-select" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
+                  <select className="form-select" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} disabled={!selectedEventIdMentor}>
                     <option value="">Select a team...</option>
                     {teams
-                      .filter((team) => team.status !== "Eliminated" && team.status !== "Rejected" && team.status !== "Withdrawn")
+                      .filter((team) => team.category?.eventId === selectedEventIdMentor && team.status !== "Eliminated" && team.status !== "Rejected" && team.status !== "Withdrawn")
                       .map((team) => (
                       <option key={team.teamId} value={team.teamId}>
                         {team.teamName} ({team.category?.categoryName ?? team.status})
@@ -380,7 +423,7 @@ export default function AssignmentsPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Mentor</label>
-                  <select className="form-select" value={selectedMentorId} onChange={(e) => setSelectedMentorId(e.target.value)}>
+                  <select className="form-select" value={selectedMentorId} onChange={(e) => setSelectedMentorId(e.target.value)} disabled={!selectedEventIdMentor}>
                     <option value="">Select a mentor...</option>
                     {mentors.map((mentor) => (
                       <option key={mentor.id} value={mentor.id}>{mentor.fullName} ({mentor.email})</option>
