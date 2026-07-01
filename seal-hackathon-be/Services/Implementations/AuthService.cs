@@ -28,19 +28,22 @@ namespace SEAL.NET.Services.Implementations
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly INotificationService _notificationService;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole<Guid>> roleManager,
             IConfiguration configuration,
             IEmailService emailService,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            INotificationService notificationService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
             _emailService = emailService;
             _httpContextAccessor = httpContextAccessor;
+            _notificationService = notificationService;
         }
 
         public async Task<ServiceResult> RegisterAsync(RegisterRequest model)
@@ -536,6 +539,15 @@ namespace SEAL.NET.Services.Implementations
             var result = await _userManager.UpdateAsync(user);
             if (!result.Succeeded)
                 return ServiceResult.BadRequestBody(result.Errors);
+
+            var admins = await _userManager.GetUsersInRoleAsync("Admin");
+            if (admins.Any())
+            {
+                var adminIds = admins.Select(a => a.Id);
+                var title = $"New Role Request: {role}";
+                var message = $"{user.FullName} ({user.Email}) has requested to become a {role}. Please review their profile.";
+                await _notificationService.CreateForUsersAsync(adminIds, title, message, "info");
+            }
 
             return ServiceResult.OkMessage($"Role request for {role} submitted successfully.");
         }

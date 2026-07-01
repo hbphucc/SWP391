@@ -6,9 +6,15 @@ import { apiRequest } from "@/lib/api";
 
 const { Title, Text } = Typography;
 
+type CategoryDto = {
+  categoryId: string;
+  categoryName: string;
+};
+
 type EventDto = {
   eventId: string;
   eventName: string;
+  categories?: CategoryDto[];
 };
 
 type PrizeDto = {
@@ -36,6 +42,7 @@ export default function AdminPrizesPage() {
   const [eventId, setEventId] = useState("");
   const [prizes, setPrizes] = useState<PrizeDto[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,6 +107,10 @@ export default function AdminPrizesPage() {
       active = false;
     };
   }, [eventId, message]);
+
+  useEffect(() => {
+    setSelectedTrack(null);
+  }, [eventId]);
 
   const showCreateDrawer = () => {
     setIsEditMode(false);
@@ -177,10 +188,12 @@ export default function AdminPrizesPage() {
     }
   };
 
-  const filteredPrizes = prizes.filter((p) =>
-    p.title?.toLowerCase().includes(searchText.toLowerCase()) ||
-    (p.track ?? "").toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredPrizes = prizes.filter((p) => {
+    const searchMatch = p.title?.toLowerCase().includes(searchText.toLowerCase()) ||
+      (p.track ?? "").toLowerCase().includes(searchText.toLowerCase());
+    const trackMatch = selectedTrack ? p.track === selectedTrack : true;
+    return searchMatch && trackMatch;
+  });
 
   const columns = [
     {
@@ -223,6 +236,21 @@ export default function AdminPrizesPage() {
             onChange={setEventId}
             options={events.map((event) => ({ value: event.eventId, label: event.eventName }))}
           />
+          <Select
+            style={{ width: 200 }}
+            placeholder="All Tracks"
+            value={selectedTrack || undefined}
+            onChange={setSelectedTrack}
+            allowClear
+            disabled={!eventId}
+          >
+            <Select.Option value="All Tracks">All Tracks</Select.Option>
+            {events.find(e => e.eventId === eventId)?.categories?.map((c) => (
+              <Select.Option key={c.categoryId} value={c.categoryName}>
+                {c.categoryName}
+              </Select.Option>
+            ))}
+          </Select>
           <Input
             placeholder="Search prizes..."
             value={searchText}
@@ -274,7 +302,14 @@ export default function AdminPrizesPage() {
           </Form.Item>
 
           <Form.Item name="track" label="Track / Category">
-            <Input placeholder="e.g., All Tracks or AI & Machine Learning" />
+            <Select placeholder="Select a track (or leave empty for all tracks)" allowClear>
+              <Select.Option value="All Tracks">All Tracks</Select.Option>
+              {events.find(e => e.eventId === eventId)?.categories?.map((c) => (
+                <Select.Option key={c.categoryId} value={c.categoryName}>
+                  {c.categoryName}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item name="rank" label="Rank" tooltip="Lower number shows first (1 = top prize).">
