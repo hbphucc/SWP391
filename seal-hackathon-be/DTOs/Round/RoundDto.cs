@@ -8,6 +8,7 @@ namespace SEAL.NET.DTOs.Round
         public int MaxTeamsAdvancing { get; set; }
         public DateTime? SubmissionDeadline { get; set; }
         public bool HasSubmissions { get; set; }
+        public decimal? PassThreshold { get; set; }
         
         public Guid? PromptDocumentId { get; set; }
         public string? PromptFileName { get; set; }

@@ -12,6 +12,14 @@ namespace SEAL.NET.Models.Entities
         public int RoundOrder { get; set; }
         public int MaxTeamsAdvancing { get; set; }
         public DateTime? SubmissionDeadline { get; set; }
+
+        /// <summary>
+        /// Optional minimum weighted score a team must reach to advance from this round.
+        /// When null, AdvanceRoundAsync derives the threshold from criteria weights
+        /// (Sum(Weight) * 0.4), which preserves the legacy "score >= 40 when weights
+        /// sum to 100" behavior for rounds created before this column existed.
+        /// </summary>
+        public decimal? PassThreshold { get; set; }
         
         public Guid? PromptDocumentId { get; set; }
         public Document? PromptDocument { get; set; }

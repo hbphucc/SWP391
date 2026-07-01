@@ -45,7 +45,14 @@ namespace SEAL.NET.Controllers
 
         [HttpGet("my-team")]
         public async Task<IActionResult> GetMyTeam()
-            => ToActionResult(await _teamService.GetMyTeamAsync(GetCurrentUserId()));
+        {
+            var result = await _teamService.GetMyTeamAsync(GetCurrentUserId());
+            if (result.Outcome == ServiceOutcome.NotFound)
+            {
+                return NoContent();
+            }
+            return ToActionResult(result);
+        }
 
         [HttpGet("mentoring")]
         [Authorize(Roles = "Mentor")]
@@ -98,8 +105,8 @@ namespace SEAL.NET.Controllers
             => ToActionResult(await _teamService.RemoveMemberAsync(GetCurrentUserId(), teamId, userId));
 
         [HttpGet("mentors")]
-        public async Task<IActionResult> GetMentors()
-            => ToActionResult(await _teamService.GetMentorsAsync());
+        public async Task<IActionResult> GetMentors([FromQuery] Guid? eventId)
+            => ToActionResult(await _teamService.GetMentorsAsync(GetCurrentUserId(), eventId));
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetTeamById(Guid id)
@@ -114,6 +121,21 @@ namespace SEAL.NET.Controllers
         [Authorize(Roles = "Member,TeamLeader")]
         public async Task<IActionResult> RemoveMentorFromMyTeam()
             => ToActionResult(await _teamService.RemoveMentorFromMyTeamAsync(GetCurrentUserId()));
+
+        [HttpGet("mentor-invitations")]
+        [Authorize(Roles = "Mentor")]
+        public async Task<IActionResult> GetMentorInvitations()
+            => ToActionResult(await _teamService.GetMentorInvitationsAsync(GetCurrentUserId()));
+
+        [HttpPost("mentor-invitations/{id}/accept")]
+        [Authorize(Roles = "Mentor")]
+        public async Task<IActionResult> AcceptMentorInvitation(Guid id)
+            => ToActionResult(await _teamService.AcceptMentorInvitationAsync(GetCurrentUserId(), id));
+
+        [HttpPost("mentor-invitations/{id}/reject")]
+        [Authorize(Roles = "Mentor")]
+        public async Task<IActionResult> RejectMentorInvitation(Guid id)
+            => ToActionResult(await _teamService.RejectMentorInvitationAsync(GetCurrentUserId(), id));
 
         [HttpGet("recruiting")]
         [Authorize(Roles = "Member,TeamLeader")]

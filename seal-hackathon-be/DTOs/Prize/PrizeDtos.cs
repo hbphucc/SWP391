@@ -50,4 +50,23 @@ namespace SEAL.NET.DTOs.Prize
 
         public int Rank { get; set; }
     }
+
+    /// <summary>
+    /// Prize created together with an event via POST /api/events. Always applies
+    /// event-wide (Prize.Track stays null) — there is no per-track prize scoping
+    /// from this flow, unlike the standalone /api/prizes endpoint.
+    /// </summary>
+    public class EventPrizeItemRequest
+    {
+        [Required, MaxLength(150)]
+        public string Title { get; set; } = string.Empty;
+
+        [MaxLength(50)]
+        public string? Amount { get; set; }
+
+        [MaxLength(1000)]
+        public string? Description { get; set; }
+
+        public int Rank { get; set; }
+    }
 }

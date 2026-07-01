@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, UserCheck, Shield, RefreshCw, XCircle, Target } from "lucide-react";
+import { UserCheck, Shield, RefreshCw, XCircle, Target } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 
@@ -11,13 +11,6 @@ type UserDto = {
   email: string;
   roles: string[];
   isApproved: boolean;
-};
-
-type TeamDto = {
-  teamId: string;
-  teamName: string;
-  status: string;
-  category?: { categoryId: string; categoryName: string; eventId?: string } | null;
 };
 
 type MentorAssignment = {
@@ -30,6 +23,7 @@ type MentorAssignment = {
   assignedByName: string;
   assignedAt: string;
   isActive: boolean;
+  status: string;
 };
 
 type EventDto = {
@@ -58,21 +52,27 @@ type JudgeAssignmentDto = {
   category: { categoryId: string; categoryName: string; teams?: CategoryTeam[] };
 };
 
+type RoundSummaryDto = {
+  roundId: string;
+  roundName: string;
+  roundOrder: number;
+  teamsInRound: number;
+  activeJudgeCount: number;
+  activeMentorCount: number;
+};
+
 export default function AssignmentsPage() {
   const { message, modal } = App.useApp();
-  const [activeTab, setActiveTab] = useState<"mentor" | "judge">("mentor");
+  const [activeTab, setActiveTab] = useState<"mentor" | "judge" | "summary">("mentor");
+  const [summaryEventId, setSummaryEventId] = useState("");
+  const [roundSummary, setRoundSummary] = useState<RoundSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
-  // Per-action guard against double-clicks ("assign" / `remove-<id>`).
+  // Per-action guard against double-clicks (`remove-<id>`).
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  const [users, setUsers] = useState<UserDto[]>([]);
-
-  // Mentor tab state
-  const [teams, setTeams] = useState<TeamDto[]>([]);
+  // Mentor tab state — mentors are now invited by team leaders and confirmed by
+  // the mentor accepting; admin only reviews the list and can force-remove one.
   const [mentorAssignments, setMentorAssignments] = useState<MentorAssignment[]>([]);
-  const [selectedEventIdMentor, setSelectedEventIdMentor] = useState("");
-  const [selectedTeamId, setSelectedTeamId] = useState("");
-  const [selectedMentorId, setSelectedMentorId] = useState("");
 
   // Judge tab state
   const [events, setEvents] = useState<EventDto[]>([]);
@@ -87,7 +87,6 @@ export default function AssignmentsPage() {
   // Non-empty = specific per-team assignments.
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
-  const [mentors, setMentors] = useState<UserDto[]>([]);
   const [judges, setJudges] = useState<UserDto[]>([]);
 
   const currentCategoryTeams = useMemo<CategoryTeam[]>(() => {
@@ -98,16 +97,7 @@ export default function AssignmentsPage() {
   const loadMentorData = async () => {
     setLoading(true);
     try {
-      const [teamData, assignmentData, eventData] = await Promise.all([
-        apiRequest<TeamDto[]>("/admin/teams"),
-        apiRequest<MentorAssignment[]>("/admin/mentors/assignments"),
-        apiRequest<EventDto[]>("/events"),
-      ]);
-      setTeams(teamData);
-      setMentorAssignments(assignmentData);
-      setEvents(eventData);
-      setSelectedEventIdMentor((curr) => curr || eventData[0]?.eventId || "");
-      // Note: we don't auto-select team here anymore because it depends on the selected event
+      setMentorAssignments(await apiRequest<MentorAssignment[]>("/admin/mentors/assignments"));
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not load mentor assignments.");
     } finally {
@@ -115,12 +105,23 @@ export default function AssignmentsPage() {
     }
   };
 
-  const loadJudgeData = async () => {
+  // When eventId/roundId are provided, only the assignments scoped to that
+  // event/round are returned by the backend (additive query params). This makes
+  // the "Active Judge Assignments" panel actually reflect what the admin is
+  // filtering on, instead of dumping every assignment in the system.
+  const loadJudgeData = async (filter?: { eventId?: string; roundId?: string }) => {
     setLoading(true);
     try {
+      const qs = new URLSearchParams();
+      if (filter?.eventId) qs.set("eventId", filter.eventId);
+      if (filter?.roundId) qs.set("roundId", filter.roundId);
+      const judgeUrl = qs.toString()
+        ? `/admin/judge-assignments?${qs.toString()}`
+        : "/admin/judge-assignments";
+
       const [eventData, judgeData] = await Promise.all([
         apiRequest<EventDto[]>("/events"),
-        apiRequest<JudgeAssignmentDto[]>("/admin/judge-assignments"),
+        apiRequest<JudgeAssignmentDto[]>(judgeUrl),
       ]);
       setEvents(eventData);
       setJudgeAssignments(judgeData);
@@ -136,46 +137,47 @@ export default function AssignmentsPage() {
     const timer = setTimeout(() => {
       if (activeTab === "mentor") {
         void loadMentorData();
-      } else {
+      } else if (activeTab === "judge") {
         void loadJudgeData();
+      } else if (activeTab === "summary") {
+        void (async () => {
+          setLoading(true);
+          try {
+            const data = await apiRequest<EventDto[]>("/events");
+            setEvents(data);
+            setSummaryEventId((curr) => curr || data[0]?.eventId || "");
+          } catch (err) {
+            message.error(err instanceof Error ? err.message : "Could not load events.");
+          } finally {
+            setLoading(false);
+          }
+        })();
       }
     }, 0);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  // Fetch per-round summary whenever the selected event in the Summary tab changes.
   useEffect(() => {
-    if (activeTab !== "mentor") return;
-    
-    // Auto-select first team in the selected event
-    const eventTeams = teams.filter((t) => t.category?.eventId === selectedEventIdMentor && t.status !== "Eliminated" && t.status !== "Rejected" && t.status !== "Withdrawn");
-    const timer = setTimeout(() => {
-      if (eventTeams.length > 0 && !eventTeams.some(t => t.teamId === selectedTeamId)) {
-        setSelectedTeamId(eventTeams[0].teamId);
-      } else if (eventTeams.length === 0) {
-        setSelectedTeamId("");
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [selectedEventIdMentor, teams, activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== "mentor" || !selectedEventIdMentor) {
+    if (activeTab !== "summary" || !summaryEventId) {
       const timer = setTimeout(() => {
-        setMentors([]);
+        setRoundSummary([]);
       }, 0);
       return () => clearTimeout(timer);
     }
-
-    (async () => {
+    void (async () => {
       try {
-        const fetchedMentors = await apiRequest<UserDto[]>(`/admin/events/${selectedEventIdMentor}/registered-mentors`);
-        setMentors(fetchedMentors);
-        setSelectedMentorId((curr) => curr || fetchedMentors[0]?.id || "");
+        const data = await apiRequest<RoundSummaryDto[]>(
+          `/admin/analytics/event/${summaryEventId}/round-summary`,
+        );
+        setRoundSummary(data);
       } catch (err) {
-        message.error(err instanceof Error ? err.message : "Could not load mentors.");
+        message.error(err instanceof Error ? err.message : "Could not load round summary.");
+        setRoundSummary([]);
       }
     })();
-  }, [selectedEventIdMentor, activeTab, message]);
+  }, [activeTab, summaryEventId, message]);
 
   useEffect(() => {
     if (activeTab !== "judge" || !selectedEventId) {
@@ -271,30 +273,18 @@ export default function AssignmentsPage() {
     return () => clearTimeout(timer);
   }, [selectedRoundId, selectedCategoryId, selectedJudgeId, judgeAssignments, activeTab]);
 
+  // Re-fetch the judge assignment list whenever the event or round filter
+  // changes, so the "Active Judge Assignments" panel matches the form above it.
+  useEffect(() => {
+    if (activeTab !== "judge" || !selectedEventId) return;
+    void loadJudgeData({ eventId: selectedEventId, roundId: selectedRoundId || undefined });
+    // intentional: judgeData reload owns its own loading state
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId, selectedRoundId, activeTab]);
+
   const handleRefresh = () => {
     if (activeTab === "mentor") void loadMentorData();
-    else void loadJudgeData();
-  };
-
-  const handleAssignMentor = async () => {
-    if (busyAction) return;
-    if (!selectedTeamId || !selectedMentorId) {
-      message.warning("Select both a team and a mentor.");
-      return;
-    }
-    setBusyAction("assign");
-    try {
-      await apiRequest("/admin/mentors/assign", {
-        method: "POST",
-        body: JSON.stringify({ teamId: selectedTeamId, mentorUserId: selectedMentorId }),
-      });
-      message.success("Mentor assigned successfully.");
-      await loadMentorData();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not assign mentor.");
-    } finally {
-      setBusyAction(null);
-    }
+    else void loadJudgeData({ eventId: selectedEventId, roundId: selectedRoundId || undefined });
   };
 
   const handleDeactivateMentor = (assignment: MentorAssignment) => {
@@ -391,7 +381,7 @@ export default function AssignmentsPage() {
       </div>
 
       <div style={{ display: "flex", gap: "1.5rem", borderBottom: "1px solid var(--color-border-2)", marginBottom: "2rem", paddingBottom: "0.5rem" }}>
-        {(["mentor", "judge"] as const).map((tab) => (
+        {(["mentor", "judge", "summary"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -408,78 +398,98 @@ export default function AssignmentsPage() {
               transition: "all 0.2s",
             }}
           >
-            {tab === "mentor" ? "Mentor Assignments" : "Judge Assignments"}
+            {tab === "mentor" ? "Mentor Assignments" : tab === "judge" ? "Judge Assignments" : "Round Summary"}
           </button>
         ))}
       </div>
 
+      {activeTab === "summary" ? (
+        <div className="glass-card">
+          <h3 style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Target size={18} style={{ color: "var(--color-primary)" }} /> Per-Round Summary
+          </h3>
+          <div className="form-group" style={{ maxWidth: 360 }}>
+            <label className="form-label">Event</label>
+            <select
+              className="form-select"
+              value={summaryEventId}
+              onChange={(e) => setSummaryEventId(e.target.value)}
+            >
+              <option value="">Select an event...</option>
+              {events.map((evt) => (
+                <option key={evt.eventId} value={evt.eventId}>{evt.eventName}</option>
+              ))}
+            </select>
+          </div>
+
+          {summaryEventId && roundSummary.length === 0 ? (
+            <p style={{ color: "var(--color-text-3)" }}>No rounds in this event yet.</p>
+          ) : null}
+
+          {roundSummary.length > 0 && (
+            <div style={{ marginTop: "1rem", overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--color-border-2)", textAlign: "left" }}>
+                    <th style={{ padding: "0.6rem 0.75rem" }}>Round</th>
+                    <th style={{ padding: "0.6rem 0.75rem" }}>Teams</th>
+                    <th style={{ padding: "0.6rem 0.75rem" }}>Judges</th>
+                    <th style={{ padding: "0.6rem 0.75rem" }}>Mentors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roundSummary.map((r) => (
+                    <tr key={r.roundId} style={{ borderBottom: "1px solid var(--color-border-2)" }}>
+                      <td style={{ padding: "0.6rem 0.75rem", fontWeight: 500 }}>
+                        Round {r.roundOrder}: {r.roundName}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.75rem" }}>{r.teamsInRound}</td>
+                      <td style={{ padding: "0.6rem 0.75rem" }}>{r.activeJudgeCount}</td>
+                      <td style={{ padding: "0.6rem 0.75rem" }}>{r.activeMentorCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="form-hint" style={{ marginTop: "0.75rem" }}>
+                Mentor counts attribute mentors via the teams they are coaching in each round.
+                A mentor assigned to two teams in the same round is counted once.
+                Mentor assignments are not round-scoped in the schema — they last for the whole event.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="grid-2">
         {activeTab === "mentor" ? (
-          <>
-            <div className="glass-card">
-              <h3 style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Users size={18} style={{ color: "var(--color-primary)" }} /> Assign Mentor
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div className="form-group">
-                  <label className="form-label">Event</label>
-                  <select className="form-select" value={selectedEventIdMentor} onChange={(e) => setSelectedEventIdMentor(e.target.value)}>
-                    <option value="">Select an event...</option>
-                    {events.map((evt) => (<option key={evt.eventId} value={evt.eventId}>{evt.eventName}</option>))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Team</label>
-                  <select className="form-select" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} disabled={!selectedEventIdMentor}>
-                    <option value="">Select a team...</option>
-                    {teams
-                      .filter((team) => team.category?.eventId === selectedEventIdMentor && team.status !== "Eliminated" && team.status !== "Rejected" && team.status !== "Withdrawn")
-                      .map((team) => (
-                      <option key={team.teamId} value={team.teamId}>
-                        {team.teamName} ({team.category?.categoryName ?? team.status})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Mentor</label>
-                  <select className="form-select" value={selectedMentorId} onChange={(e) => setSelectedMentorId(e.target.value)} disabled={!selectedEventIdMentor}>
-                    <option value="">Select a mentor...</option>
-                    {mentors.map((mentor) => (
-                      <option key={mentor.id} value={mentor.id}>{mentor.fullName} ({mentor.email})</option>
-                    ))}
-                  </select>
-                </div>
-                <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading || busyAction !== null}>
-                  {busyAction === "assign" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Mentor</>}
-                </button>
-              </div>
-            </div>
-
-            <div className="glass-card">
-              <h3 style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Shield size={18} style={{ color: "var(--color-emerald)" }} /> Active Assignments
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {mentorAssignments.filter((a) => a.isActive).length === 0 ? (
-                  <p style={{ color: "var(--color-text-3)" }}>No active mentor assignments.</p>
-                ) : (
-                  mentorAssignments.filter((a) => a.isActive).map((a) => (
-                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
-                      <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem" }}>{a.mentorName.charAt(0)}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{a.mentorName}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{a.teamName}</div>
-                      </div>
+          <div className="glass-card" style={{ gridColumn: "1 / -1" }}>
+            <h3 style={{ marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Shield size={18} style={{ color: "var(--color-emerald)" }} /> Mentor Assignments
+            </h3>
+            <p className="form-hint" style={{ marginBottom: "1.25rem" }}>
+              Mentors are invited by team leaders and become active once they accept.
+              Admin cannot assign a mentor directly here, but can remove an active mentor from a team.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {mentorAssignments.length === 0 ? (
+                <p style={{ color: "var(--color-text-3)" }}>No mentor assignments yet.</p>
+              ) : (
+                mentorAssignments.map((a) => (
+                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
+                    <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem" }}>{a.mentorName.charAt(0)}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{a.mentorName}</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{a.teamName} · {a.status}</div>
+                    </div>
+                    {a.isActive && (
                       <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivateMentor(a)} disabled={busyAction !== null}>
                         {busyAction === `remove-${a.id}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
                       </button>
-                    </div>
-                  ))
-                )}
-              </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-          </>
+          </div>
         ) : (
           <>
             <div className="glass-card">
@@ -609,6 +619,7 @@ export default function AssignmentsPage() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

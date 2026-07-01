@@ -4,8 +4,8 @@ namespace SEAL.NET.Services.Interfaces
 {
     public interface IEventService
     {
-        Task<List<EventResponseDto>> GetAllEventsAsync();
-        Task<EventResponseDto?> GetEventByIdAsync(Guid id);
+        Task<List<EventResponseDto>> GetAllEventsAsync(bool includeNonPublic);
+        Task<EventResponseDto?> GetEventByIdAsync(Guid id, bool includeNonPublic);
         Task<(bool Success, string Message, Guid? Id)> CreateEventAsync(CreateEventRequest request);
         Task<(bool Success, string Message)> UpdateEventAsync(Guid id, UpdateEventRequest request);
         Task<(bool Success, string Message)> DeleteEventAsync(Guid id);

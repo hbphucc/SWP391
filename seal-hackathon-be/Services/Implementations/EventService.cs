@@ -66,17 +66,23 @@ namespace SEAL.NET.Services.Implementations
             }
         }
 
-        public async Task<List<EventResponseDto>> GetAllEventsAsync()
+        public async Task<List<EventResponseDto>> GetAllEventsAsync(bool includeNonPublic)
         {
             var events = await _eventRepository.GetEventsWithDetailsAsync();
+            // Anonymous / non-Admin callers must not see Draft or Cancelled events.
+            // Admins (and other privileged roles via the controller) get everything.
+            if (!includeNonPublic)
+                events = events.Where(e => e.Status != EventStatus.Draft && e.Status != EventStatus.Cancelled).ToList();
             return events.Select(MapToDto).ToList();
         }
 
 
-        public async Task<EventResponseDto?> GetEventByIdAsync(Guid id)
+        public async Task<EventResponseDto?> GetEventByIdAsync(Guid id, bool includeNonPublic)
         {
             var eventItem = await _eventRepository.GetEventDetailAsync(id);
             if (eventItem == null) return null;
+            if (!includeNonPublic && (eventItem.Status == EventStatus.Draft || eventItem.Status == EventStatus.Cancelled))
+                return null;
             return MapToDto(eventItem);
         }
 
@@ -89,6 +95,33 @@ namespace SEAL.NET.Services.Implementations
                     request.EndDate))
             {
                 return (false, "Dates must satisfy RegistrationStartDate < RegistrationEndDate <= StartDate < EndDate.", null);
+            }
+
+            // Validate rounds against the in-memory request BEFORE any _context.Add so a
+            // validation failure leaves no tracked entities behind in the scoped DbContext.
+            if (request.Rounds.Count > 0)
+            {
+                foreach (var r in request.Rounds)
+                {
+                    if (r.SubmissionDeadline < request.StartDate || r.SubmissionDeadline > request.EndDate)
+                        return (false, $"Round '{r.RoundName}' submission deadline must be within the event date range.", null);
+
+                    if (r.RoundOrder < 1)
+                        return (false, $"Round '{r.RoundName}' order must be a positive whole number.", null);
+
+                    if (r.MaxTeamsAdvancing < 0)
+                        return (false, $"Round '{r.RoundName}' MaxTeamsAdvancing cannot be negative.", null);
+                }
+
+                var orders = request.Rounds.Select(r => r.RoundOrder).ToList();
+                if (orders.Distinct().Count() != orders.Count)
+                    return (false, "Round order values must be unique within the event.", null);
+            }
+
+            foreach (var p in request.Prizes)
+            {
+                if (string.IsNullOrWhiteSpace(p.Title))
+                    return (false, "Every prize needs a title.", null);
             }
 
             var newEvent = new Event
@@ -109,6 +142,49 @@ namespace SEAL.NET.Services.Implementations
             // Attach selected catalog tracks as event categories in the same unit of work.
             if (request.TrackIds.Count > 0)
                 await AttachTracksAsync(newEvent.EventId, request.TrackIds, new(), new());
+
+            // Stage rounds on the same scoped DbContext so the single SaveChangesAsync
+            // below commits the event, its categories, and its rounds atomically.
+            foreach (var r in request.Rounds)
+            {
+                var newRound = new Round
+                {
+                    EventId = newEvent.EventId,
+                    RoundName = r.RoundName,
+                    SubmissionDeadline = r.SubmissionDeadline,
+                    RoundOrder = r.RoundOrder,
+                    MaxTeamsAdvancing = r.MaxTeamsAdvancing,
+                    PassThreshold = r.PassThreshold,
+                    PromptDocumentId = r.PromptDocumentId
+                };
+                _context.Rounds.Add(newRound);
+
+                foreach (var c in r.Criteria)
+                {
+                    _context.Criteria.Add(new Criteria
+                    {
+                        RoundId = newRound.RoundId,
+                        CriteriaName = c.CriteriaName,
+                        Weight = c.Weight,
+                        MaxScore = c.MaxScore
+                    });
+                }
+            }
+
+            // Stage prizes the same way. Track stays null: prizes created here apply
+            // event-wide across every track, per product requirement.
+            foreach (var p in request.Prizes)
+            {
+                _context.Prizes.Add(new Prize
+                {
+                    EventId = newEvent.EventId,
+                    Title = p.Title,
+                    Amount = p.Amount,
+                    Track = null,
+                    Description = p.Description,
+                    Rank = p.Rank
+                });
+            }
 
             await _eventRepository.SaveChangesAsync();
             return (true, "Created successfully.", newEvent.EventId);
@@ -336,6 +412,7 @@ namespace SEAL.NET.Services.Implementations
                         MaxTeamsAdvancing = r.MaxTeamsAdvancing,
                         SubmissionDeadline = r.SubmissionDeadline,
                         HasSubmissions = r.Submissions.Any(),
+                        PassThreshold = r.PassThreshold,
                         PromptDocumentId = r.PromptDocumentId,
                         PromptFileName = r.PromptDocument?.FileName
                     }).ToList()

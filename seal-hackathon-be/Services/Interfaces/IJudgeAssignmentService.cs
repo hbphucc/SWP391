@@ -5,7 +5,7 @@ namespace SEAL.NET.Services.Interfaces
 {
     public interface IJudgeAssignmentService
     {
-        Task<ServiceResult> GetAssignmentsAsync();
+        Task<ServiceResult> GetAssignmentsAsync(Guid? eventId, Guid? roundId);
         Task<ServiceResult> CreateAssignmentAsync(CreateJudgeAssignmentRequest request);
         Task<ServiceResult> DeleteAssignmentAsync(Guid assignmentId);
     }
