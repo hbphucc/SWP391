@@ -38,6 +38,7 @@ namespace SEAL.NET.Services.Implementations
                     r.MaxTeamsAdvancing,
                     HasSubmissions = r.Submissions.Any(),
                     r.EventId,
+                    r.PassThreshold,
                     r.PromptDocumentId,
                     PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
@@ -60,6 +61,7 @@ namespace SEAL.NET.Services.Implementations
                     r.MaxTeamsAdvancing,
                     HasSubmissions = r.Submissions.Any(),
                     r.EventId,
+                    r.PassThreshold,
                     r.PromptDocumentId,
                     PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
@@ -95,6 +97,7 @@ namespace SEAL.NET.Services.Implementations
                 SubmissionDeadline = request.SubmissionDeadline,
                 RoundOrder = request.RoundOrder,
                 MaxTeamsAdvancing = request.MaxTeamsAdvancing,
+                PassThreshold = request.PassThreshold,
                 PromptDocumentId = request.PromptDocumentId
             };
 
@@ -149,6 +152,7 @@ namespace SEAL.NET.Services.Implementations
             round.SubmissionDeadline = request.SubmissionDeadline;
             round.RoundOrder = request.RoundOrder;
             round.MaxTeamsAdvancing = request.MaxTeamsAdvancing;
+            round.PassThreshold = request.PassThreshold;
             round.PromptDocumentId = request.PromptDocumentId;
 
             await _context.SaveChangesAsync();
@@ -198,6 +202,12 @@ namespace SEAL.NET.Services.Implementations
 
             if (currentRound == null)
                 return ServiceResult.NotFound("Round not found.");
+
+            // Idempotency guard: once the event is Completed, advancing again would
+            // recompute ranks and re-fire notifications. Reject early.
+            var hostEvent = await _context.Events.FindAsync(currentRound.EventId);
+            if (hostEvent != null && hostEvent.Status == EventStatus.Completed)
+                return ServiceResult.BadRequest("This event has already been completed.");
 
             var nextRound = await _context.Rounds
                 .Where(r => r.EventId == currentRound.EventId &&
@@ -352,6 +362,15 @@ namespace SEAL.NET.Services.Implementations
             if (!teams.Any())
                 return ServiceResult.BadRequest("No active teams found for this round.");
 
+            // Threshold to be considered "passing". When the round has an explicit
+            // PassThreshold we use it; otherwise we derive it from the criteria
+            // weights (40% of the weight total). For rounds whose weights sum to 100
+            // the derived value is 40, preserving the legacy hard-coded behavior.
+            var criteriaWeightSum = await _context.Criteria
+                .Where(c => c.RoundId == roundId)
+                .SumAsync(c => (decimal?)c.Weight) ?? 0m;
+            var effectiveThreshold = currentRound.PassThreshold ?? (criteriaWeightSum * 0.4m);
+
             var groupedByCategory = teams
                 .GroupBy(t => t.CategoryId);
 
@@ -390,8 +409,8 @@ namespace SEAL.NET.Services.Implementations
                 var submittedTeams = rankedTeams.Where(x => x.Submitted).ToList();
                 var unsubmittedTeams = rankedTeams.Where(x => !x.Submitted).ToList();
 
-                var passingTeams = submittedTeams.Where(x => x.TotalScore >= 40m).ToList();
-                var failingTeams = submittedTeams.Where(x => x.TotalScore < 40m).ToList();
+                var passingTeams = submittedTeams.Where(x => x.TotalScore >= effectiveThreshold).ToList();
+                var failingTeams = submittedTeams.Where(x => x.TotalScore < effectiveThreshold).ToList();
 
                 var winners = currentRound.MaxTeamsAdvancing > 0
                     ? passingTeams.Take(currentRound.MaxTeamsAdvancing).ToList()
@@ -432,9 +451,9 @@ namespace SEAL.NET.Services.Implementations
                     {
                         item.Team.EliminationReason = "Eliminated because no project was submitted.";
                     }
-                    else if (item.TotalScore < 40m)
+                    else if (item.TotalScore < effectiveThreshold)
                     {
-                        item.Team.EliminationReason = "Eliminated because score was below 40.";
+                        item.Team.EliminationReason = $"Eliminated because score was below the pass threshold ({effectiveThreshold:F1}).";
                     }
                     else
                     {
@@ -455,8 +474,8 @@ namespace SEAL.NET.Services.Implementations
                     {
                         var reasonMsg = !item.Submitted
                             ? "no project was submitted before the deadline"
-                            : (item.TotalScore < 40m
-                                ? $"score was {item.TotalScore:F1} (minimum required: 40)"
+                            : (item.TotalScore < effectiveThreshold
+                                ? $"score was {item.TotalScore:F1} (minimum required: {effectiveThreshold:F1})"
                                 : $"team did not place in the top {currentRound.MaxTeamsAdvancing} based on scores (your score: {item.TotalScore:F1})");
 
                         await _notificationService.CreateForUsersAsync(
@@ -470,9 +489,35 @@ namespace SEAL.NET.Services.Implementations
 
             await _context.SaveChangesAsync();
 
+            // After advance, how many teams in the new round have no judge yet?
+            // A judge can be assigned per-team (TeamId != null) or category-wide
+            // (TeamId == null) — both cover a team. We surface this count so the
+            // admin UI can prompt "N teams have no judge for {nextRound} yet."
+            var teamsInNextRound = await _context.Teams
+                .Where(t => t.CurrentRoundId == nextRound.RoundId && t.Status == TeamStatus.Approved)
+                .Select(t => new { t.TeamId, t.CategoryId })
+                .ToListAsync();
+
+            var categoryWideJudgedCategories = await _context.JudgeAssignments
+                .Where(ja => ja.RoundId == nextRound.RoundId && ja.TeamId == null)
+                .Select(ja => ja.CategoryId)
+                .Distinct()
+                .ToListAsync();
+
+            var perTeamJudgedTeamIds = await _context.JudgeAssignments
+                .Where(ja => ja.RoundId == nextRound.RoundId && ja.TeamId != null)
+                .Select(ja => ja.TeamId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            var teamsNeedingJudges = teamsInNextRound
+                .Where(t => !categoryWideJudgedCategories.Contains(t.CategoryId) &&
+                            !perTeamJudgedTeamIds.Contains(t.TeamId))
+                .Count();
+
             var successMessage = currentRound.MaxTeamsAdvancing > 0
                 ? $"Round advanced successfully. Selected the top {currentRound.MaxTeamsAdvancing} teams based on scores."
-                : "Round advanced successfully based on score threshold (>= 40).";
+                : $"Round advanced successfully based on pass threshold (>= {effectiveThreshold:F1}).";
 
             return ServiceResult.Ok(new
             {
@@ -487,6 +532,7 @@ namespace SEAL.NET.Services.Implementations
                     nextRound.RoundId,
                     nextRound.RoundName
                 },
+                teamsNeedingJudges,
                 advancedTeams,
                 eliminatedTeams
             });

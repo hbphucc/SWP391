@@ -22,9 +22,12 @@ namespace SEAL.NET.Services.Interfaces
         Task<ServiceResult> AddMemberAsync(Guid currentUserId, Guid teamId, AddTeamMemberRequest request);
         Task<ServiceResult> RemoveMemberAsync(Guid currentUserId, Guid teamId, Guid userId);
         Task<ServiceResult> GetTeamByIdAsync(Guid currentUserId, Guid teamId, bool isPrivileged);
-        Task<ServiceResult> GetMentorsAsync();
+        Task<ServiceResult> GetMentorsAsync(Guid currentUserId, Guid? eventId);
         Task<ServiceResult> AssignMentorToMyTeamAsync(Guid currentUserId, ChooseMentorRequest request);
         Task<ServiceResult> RemoveMentorFromMyTeamAsync(Guid currentUserId);
+        Task<ServiceResult> GetMentorInvitationsAsync(Guid currentUserId);
+        Task<ServiceResult> AcceptMentorInvitationAsync(Guid currentUserId, Guid assignmentId);
+        Task<ServiceResult> RejectMentorInvitationAsync(Guid currentUserId, Guid assignmentId);
         Task<ServiceResult> CreateKickRequestAsync(Guid currentUserId, Guid userId, CreateKickRequestRequest request);
         Task<ServiceResult> GetPendingKickRequestsForJudgeAsync(Guid judgeUserId);
         Task<ServiceResult> ApproveKickRequestAsync(Guid judgeUserId, Guid kickRequestId);

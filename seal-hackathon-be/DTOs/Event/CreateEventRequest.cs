@@ -1,3 +1,5 @@
+using SEAL.NET.DTOs.Prize;
+using SEAL.NET.DTOs.Round;
 using SEAL.NET.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 
@@ -34,5 +36,18 @@ namespace SEAL.NET.DTOs.Event
         /// (Teams register into Categories). Duplicates and inactive tracks are ignored.
         /// </summary>
         public List<Guid> TrackIds { get; set; } = [];
+
+        /// <summary>
+        /// Optional rounds to create together with the event in a single transaction.
+        /// When empty, the event is created without rounds (legacy shape) and rounds
+        /// can be added later via POST /api/events/{id}/rounds.
+        /// </summary>
+        public List<CreateRoundRequest> Rounds { get; set; } = [];
+
+        /// <summary>
+        /// Optional prizes to create together with the event, applying event-wide
+        /// across all tracks. More can be added later via POST /api/prizes.
+        /// </summary>
+        public List<EventPrizeItemRequest> Prizes { get; set; } = [];
     }
 }

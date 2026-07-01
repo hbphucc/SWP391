@@ -117,7 +117,7 @@ export default function UserEventsPage() {
       title: "ACTIONS",
       key: "actions",
       render: (_: unknown, record: EventDto) => {
-        const canRegister = (record.status === "Published" || record.status === "Ongoing" || record.status === "Upcoming" || record.status === "Active") && !myRegistrations.includes(record.eventId);
+        const canRegister = (record.status === "Draft" || record.status === "Published" || record.status === "Ongoing" || record.status === "Upcoming" || record.status === "Active") && !myRegistrations.includes(record.eventId);
         return (
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <Link href={`/dashboard/events/${record.eventId}`}>

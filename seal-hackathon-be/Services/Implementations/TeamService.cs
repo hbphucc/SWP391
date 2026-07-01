@@ -306,12 +306,24 @@ namespace SEAL.NET.Services.Implementations
                 if (!await _userManager.IsInRoleAsync(mentor, "Mentor"))
                     return ServiceResult.BadRequest("Selected user is not a mentor.");
 
+                // Mentor must have registered for this event (eventId is the team's
+                // category's event, resolved above).
+                var mentorIsRegistered = await _context.Events
+                    .Where(e => e.EventId == eventId)
+                    .SelectMany(e => e.RegisteredMentors)
+                    .AnyAsync(u => u.Id == mentor.Id);
+                if (!mentorIsRegistered)
+                    return ServiceResult.BadRequest("Selected mentor has not registered for this event.");
+
+                // Invite only — the mentor becomes the team's actual mentor once they
+                // accept via POST /teams/mentor-invitations/{id}/accept.
                 _context.MentorAssignments.Add(new MentorAssignment
                 {
                     MentorUserId = mentor.Id,
                     TeamId = team.TeamId,
                     AssignedByUserId = leaderId,
-                    IsActive = true,
+                    Status = InvitationStatus.Pending,
+                    IsActive = false,
                     AssignedAt = DateTime.UtcNow
                 });
             }
@@ -326,8 +338,8 @@ namespace SEAL.NET.Services.Implementations
                 {
                     await _notificationService.CreateAsync(
                         request.MentorId.Value,
-                        "Mentor Assignment",
-                        $"You have been selected to mentor team {team.TeamName}.",
+                        "Mentor Invitation",
+                        $"Team {team.TeamName} invited you to be their mentor. Accept or decline from your dashboard.",
                         "team");
                 }
                 catch { }
@@ -355,6 +367,13 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ma => ma.Mentor)
                 .FirstOrDefaultAsync();
 
+            var pendingMentorInvite = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == team.TeamId && ma.Status == InvitationStatus.Pending)
+                .Include(ma => ma.Mentor)
+                .OrderByDescending(ma => ma.AssignedAt)
+                .Select(ma => new { ma.Id, ma.Mentor.FullName, ma.AssignedAt })
+                .FirstOrDefaultAsync();
+
             var assignedJudge = await _context.JudgeAssignments
                 .Where(ja => ja.RoundId == team.CurrentRoundId &&
                     (ja.TeamId == team.TeamId ||
@@ -364,8 +383,8 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ja => ja.Judge)
                 .FirstOrDefaultAsync();
 
-            var hideMentorAndJudge = team.Status == TeamStatus.Rejected || 
-                                     team.Status == TeamStatus.Eliminated || 
+            var hideMentorAndJudge = team.Status == TeamStatus.Rejected ||
+                                     team.Status == TeamStatus.Eliminated ||
                                      team.Status == TeamStatus.Withdrawn;
 
             return ServiceResult.Ok(new
@@ -400,6 +419,12 @@ namespace SEAL.NET.Services.Implementations
                     fullName = activeMentor.FullName,
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
+                },
+                pendingMentorInvite = (hideMentorAndJudge || pendingMentorInvite == null) ? null : new
+                {
+                    assignmentId = pendingMentorInvite.Id,
+                    mentorName = pendingMentorInvite.FullName,
+                    invitedAt = pendingMentorInvite.AssignedAt
                 },
                 judge = (hideMentorAndJudge || assignedJudge == null) ? null : new
                 {
@@ -879,6 +904,13 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ma => ma.Mentor)
                 .FirstOrDefaultAsync();
 
+            var pendingMentorInvite = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == team.TeamId && ma.Status == InvitationStatus.Pending)
+                .Include(ma => ma.Mentor)
+                .OrderByDescending(ma => ma.AssignedAt)
+                .Select(ma => new { ma.Id, ma.Mentor.FullName, ma.AssignedAt })
+                .FirstOrDefaultAsync();
+
             var assignedJudge = await _context.JudgeAssignments
                 .Where(ja => ja.RoundId == team.CurrentRoundId &&
                     (ja.TeamId == team.TeamId ||
@@ -888,8 +920,8 @@ namespace SEAL.NET.Services.Implementations
                 .Select(ja => ja.Judge)
                 .FirstOrDefaultAsync();
 
-            var hideMentorAndJudge = team.Status == TeamStatus.Rejected || 
-                                     team.Status == TeamStatus.Eliminated || 
+            var hideMentorAndJudge = team.Status == TeamStatus.Rejected ||
+                                     team.Status == TeamStatus.Eliminated ||
                                      team.Status == TeamStatus.Withdrawn;
 
             return ServiceResult.Ok(new
@@ -936,6 +968,12 @@ namespace SEAL.NET.Services.Implementations
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
                 },
+                pendingMentorInvite = (hideMentorAndJudge || pendingMentorInvite == null) ? null : new
+                {
+                    assignmentId = pendingMentorInvite.Id,
+                    mentorName = pendingMentorInvite.FullName,
+                    invitedAt = pendingMentorInvite.AssignedAt
+                },
                 judge = (hideMentorAndJudge || assignedJudge == null) ? null : new
                 {
                     id = assignedJudge.Id,
@@ -955,14 +993,37 @@ namespace SEAL.NET.Services.Implementations
         // so this stays a display concern only.
         private const int MentorSoftCapacity = 5;
 
-        public async Task<ServiceResult> GetMentorsAsync()
+        public async Task<ServiceResult> GetMentorsAsync(Guid currentUserId, Guid? eventId)
         {
             var mentorRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Mentor");
             if (mentorRole == null)
                 return ServiceResult.Ok(new List<object>());
 
+            // Scope mentors to a single event. Callers fall into two cases:
+            //   1. Pre-team flow (CreateTeamDrawer): caller passes eventId derived from
+            //      the chosen category — the team doesn't exist yet.
+            //   2. Post-team flow (mentor swap on an existing team): no eventId, we look
+            //      it up from the leader's current team.
+            // If neither yields an event we return an empty list rather than leaking the
+            // full system mentor roster.
+            Guid? scopedEventId = eventId;
+            if (scopedEventId == null)
+            {
+                var team = await GetCurrentUserTeamAsync(currentUserId);
+                scopedEventId = team?.Category?.EventId;
+            }
+
+            if (scopedEventId == null)
+                return ServiceResult.Ok(new List<object>());
+
+            var registeredMentorIds = await _context.Events
+                .Where(e => e.EventId == scopedEventId.Value)
+                .SelectMany(e => e.RegisteredMentors)
+                .Select(u => u.Id)
+                .ToListAsync();
+
             var mentorUserIds = await _context.UserRoles
-                .Where(ur => ur.RoleId == mentorRole.Id)
+                .Where(ur => ur.RoleId == mentorRole.Id && registeredMentorIds.Contains(ur.UserId))
                 .Select(ur => ur.UserId)
                 .ToListAsync();
 
@@ -1034,14 +1095,30 @@ namespace SEAL.NET.Services.Implementations
             if (!isMentor)
                 return ServiceResult.BadRequest("Selected user is not a mentor.");
 
-            // Deactivate any existing active mentor assignments for this team
-            var activeAssignments = await _context.MentorAssignments
-                .Where(ma => ma.TeamId == team.TeamId && ma.IsActive)
+            // Mentor must have registered for the team's event. Having the global
+            // "Mentor" role alone is necessary but not sufficient.
+            var eventId = team.Category!.EventId;
+            var isRegistered = await _context.Events
+                .Where(e => e.EventId == eventId)
+                .SelectMany(e => e.RegisteredMentors)
+                .AnyAsync(u => u.Id == request.MentorUserId);
+            if (!isRegistered)
+                return ServiceResult.BadRequest("Selected mentor has not registered for this event.");
+
+            var existingForTeam = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == team.TeamId &&
+                             (ma.Status == InvitationStatus.Pending || ma.IsActive))
                 .ToListAsync();
 
-            foreach (var ma in activeAssignments)
+            if (existingForTeam.Any(ma => ma.MentorUserId == request.MentorUserId))
+                return ServiceResult.BadRequest("This mentor is already assigned or invited for your team.");
+
+            // Withdraw any other pending invite for this team (only one outstanding
+            // invite at a time) — a currently-active mentor, if any, stays active
+            // until the new invite is accepted, so the team is never left without one.
+            foreach (var ma in existingForTeam.Where(ma => ma.Status == InvitationStatus.Pending))
             {
-                ma.IsActive = false;
+                ma.Status = InvitationStatus.Cancelled;
             }
 
             var assignment = new MentorAssignment
@@ -1049,7 +1126,8 @@ namespace SEAL.NET.Services.Implementations
                 MentorUserId = request.MentorUserId,
                 TeamId = team.TeamId,
                 AssignedByUserId = currentUserId,
-                IsActive = true,
+                Status = InvitationStatus.Pending,
+                IsActive = false,
                 AssignedAt = DateTime.UtcNow
             };
 
@@ -1061,14 +1139,14 @@ namespace SEAL.NET.Services.Implementations
             {
                 await _notificationService.CreateAsync(
                     mentor.Id,
-                    "Mentor Assignment",
-                    $"You have been selected to mentor team {team.TeamName}.",
+                    "Mentor Invitation",
+                    $"Team {team.TeamName} invited you to be their mentor. Accept or decline from your dashboard.",
                     "team"
                 );
             }
             catch { }
 
-            return ServiceResult.OkMessage("Mentor selected successfully.");
+            return ServiceResult.OkMessage("Mentor invitation sent. Waiting for the mentor to accept.");
         }
 
         public async Task<ServiceResult> RemoveMentorFromMyTeamAsync(Guid currentUserId)
@@ -1088,17 +1166,136 @@ namespace SEAL.NET.Services.Implementations
                 .Where(ma => ma.TeamId == team.TeamId && ma.IsActive)
                 .ToListAsync();
 
-            if (!activeAssignments.Any())
+            if (activeAssignments.Any())
+            {
+                foreach (var ma in activeAssignments)
+                {
+                    ma.IsActive = false;
+                }
+
+                await _context.SaveChangesAsync();
+                return ServiceResult.OkMessage("Mentor removed successfully.");
+            }
+
+            // No confirmed mentor yet — cancel the outstanding invite instead, if any.
+            var pendingInvites = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == team.TeamId && ma.Status == InvitationStatus.Pending)
+                .ToListAsync();
+
+            if (!pendingInvites.Any())
                 return ServiceResult.BadRequest("Your team does not have a mentor assigned.");
 
-            foreach (var ma in activeAssignments)
+            foreach (var ma in pendingInvites)
             {
-                ma.IsActive = false;
+                ma.Status = InvitationStatus.Cancelled;
             }
 
             await _context.SaveChangesAsync();
 
-            return ServiceResult.OkMessage("Mentor removed successfully.");
+            return ServiceResult.OkMessage("Mentor invitation cancelled.");
+        }
+
+        public async Task<ServiceResult> GetMentorInvitationsAsync(Guid currentUserId)
+        {
+            var invitations = await _context.MentorAssignments
+                .Where(ma => ma.MentorUserId == currentUserId && ma.Status == InvitationStatus.Pending)
+                .Include(ma => ma.Team)
+                    .ThenInclude(t => t.Category)
+                        .ThenInclude(c => c!.Event)
+                .OrderByDescending(ma => ma.AssignedAt)
+                .Select(ma => new
+                {
+                    assignmentId = ma.Id,
+                    teamId = ma.TeamId,
+                    teamName = ma.Team.TeamName,
+                    categoryName = ma.Team.Category!.CategoryName,
+                    eventName = ma.Team.Category.Event!.EventName,
+                    invitedAt = ma.AssignedAt
+                })
+                .ToListAsync();
+
+            return ServiceResult.Ok(invitations);
+        }
+
+        public async Task<ServiceResult> AcceptMentorInvitationAsync(Guid currentUserId, Guid assignmentId)
+        {
+            var invitation = await _context.MentorAssignments
+                .Include(ma => ma.Team)
+                .FirstOrDefaultAsync(ma => ma.Id == assignmentId);
+
+            if (invitation == null)
+                return ServiceResult.NotFound("Invitation not found.");
+
+            if (invitation.MentorUserId != currentUserId)
+                return ServiceResult.Forbidden();
+
+            if (invitation.Status != InvitationStatus.Pending)
+                return ServiceResult.BadRequest("This invitation is no longer pending.");
+
+            // Deactivate any other active mentor for this team (defensive — the
+            // single-outstanding-invite rule should already prevent this) and
+            // withdraw any other still-pending invite for the same team.
+            var others = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == invitation.TeamId && ma.Id != invitation.Id &&
+                             (ma.IsActive || ma.Status == InvitationStatus.Pending))
+                .ToListAsync();
+
+            foreach (var ma in others)
+            {
+                ma.IsActive = false;
+                if (ma.Status == InvitationStatus.Pending)
+                    ma.Status = InvitationStatus.Cancelled;
+            }
+
+            invitation.Status = InvitationStatus.Accepted;
+            invitation.IsActive = true;
+
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                await _notificationService.CreateAsync(
+                    invitation.Team.LeaderId,
+                    "Mentor Invitation Accepted",
+                    "Your mentor invitation was accepted.",
+                    "team"
+                );
+            }
+            catch { }
+
+            return ServiceResult.OkMessage("Invitation accepted. You are now this team's mentor.");
+        }
+
+        public async Task<ServiceResult> RejectMentorInvitationAsync(Guid currentUserId, Guid assignmentId)
+        {
+            var invitation = await _context.MentorAssignments
+                .Include(ma => ma.Team)
+                .FirstOrDefaultAsync(ma => ma.Id == assignmentId);
+
+            if (invitation == null)
+                return ServiceResult.NotFound("Invitation not found.");
+
+            if (invitation.MentorUserId != currentUserId)
+                return ServiceResult.Forbidden();
+
+            if (invitation.Status != InvitationStatus.Pending)
+                return ServiceResult.BadRequest("This invitation is no longer pending.");
+
+            invitation.Status = InvitationStatus.Rejected;
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                await _notificationService.CreateAsync(
+                    invitation.Team.LeaderId,
+                    "Mentor Invitation Declined",
+                    "Your mentor invitation was declined.",
+                    "team"
+                );
+            }
+            catch { }
+
+            return ServiceResult.OkMessage("Invitation declined.");
         }
 
         public async Task<ServiceResult> CreateKickRequestAsync(Guid currentUserId, Guid userId, CreateKickRequestRequest request)

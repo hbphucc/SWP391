@@ -3,9 +3,9 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Calendar, Clock, Save, AlertCircle, RefreshCw,
-  Plus, Trash2, GripVertical, Target, Pencil,
+  Plus, Trash2, GripVertical, Target, Pencil, Award,
 } from "lucide-react";
-import { App, DatePicker, Modal } from "antd";
+import { App, DatePicker, Input, Modal } from "antd";
 import dayjs from "dayjs";
 import { apiRequest, apiUpload } from "@/lib/api";
 import { TRACKS_OPTIONS } from "@/lib/constants";
@@ -126,6 +126,13 @@ const INITIAL_ROUND = () => ({
   promptFileName: null as string | null,
   criteria: [{ id: Date.now(), name: "Technical", weight: "40", maxScore: "10" }],
 });
+const INITIAL_PRIZE = () => ({
+  id: Date.now(),
+  title: "",
+  amount: "",
+  description: "",
+  rank: 1,
+});
 
 /**
  * Mirrors the backend's HasValidDateChain: regStart < regEnd <= start < end.
@@ -154,7 +161,41 @@ function validateDateChain(form: {
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function AdminEventsPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
+
+  // Promise-based wrappers around AntD's `modal` API. They give the same
+  // imperative shape as window.confirm/prompt (await + boolean/string), so the
+  // call sites stay readable while gaining theme-consistent dialogs.
+  const confirmAsync = (title: string, content?: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      modal.confirm({
+        title,
+        content,
+        okText: "Confirm",
+        cancelText: "Cancel",
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+
+  const promptReasonAsync = (title: string, placeholder?: string): Promise<string | null> =>
+    new Promise((resolve) => {
+      let value = "";
+      modal.confirm({
+        title,
+        content: (
+          <Input.TextArea
+            rows={3}
+            placeholder={placeholder}
+            onChange={(e) => { value = e.target.value; }}
+          />
+        ),
+        okText: "Submit",
+        cancelText: "Cancel",
+        onOk: () => resolve(value),
+        onCancel: () => resolve(null),
+      });
+    });
   const searchParams = useSearchParams();
 
   /* ── View toggle ──
@@ -181,11 +222,12 @@ export default function AdminEventsPage() {
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
   const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
+  const [prizes, setPrizes] = useState<ReturnType<typeof INITIAL_PRIZE>[]>([]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   // Active section anchor for the sticky TOC sidebar. Used purely for the
   // "current section" highlight; clicking a TOC item smooth-scrolls to the
   // anchor and the IntersectionObserver below updates this on scroll.
-  const [activeSection, setActiveSection] = useState<"general" | "timeline" | "rounds" | "tracks">("general");
+  const [activeSection, setActiveSection] = useState<"general" | "timeline" | "rounds" | "prizes" | "tracks">("general");
   const [submitting, setSubmitting] = useState(false);
   // Track catalog loaded from the backend (/api/tracks). When present the wizard
   // sends track IDs; if it's empty/unreachable we fall back to the static labels.
@@ -305,8 +347,9 @@ export default function AdminEventsPage() {
 
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return;
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete "${selectedEvent.eventName}"? All teams, submissions, scores, rounds, and related event data will also be deleted. This action cannot be undone.`,
+    const confirmed = await confirmAsync(
+      `Delete "${selectedEvent.eventName}"?`,
+      "All teams, submissions, scores, rounds, and related event data will also be deleted. This action cannot be undone.",
     );
     if (!confirmed) return;
 
@@ -397,8 +440,9 @@ export default function AdminEventsPage() {
 
   const handleDeleteRound = async (round: RoundDto) => {
     if (!selectedEvent) return;
-    const confirmed = window.confirm(
-      `Delete "${round.roundName}"? Its submissions, scores, criteria, and judge assignments will also be permanently deleted.`,
+    const confirmed = await confirmAsync(
+      `Delete "${round.roundName}"?`,
+      "Its submissions, scores, criteria, and judge assignments will also be permanently deleted.",
     );
     if (!confirmed) return;
 
@@ -417,21 +461,36 @@ export default function AdminEventsPage() {
 
   const handleAdvanceRound = async (round: RoundDto, isFinal: boolean = false) => {
     const roundId = round.roundId;
-    const confirmMessage = isFinal 
-      ? "Are you sure you want to end the competition? The system will calculate average scores, rank all teams, award prizes, and send notifications."
+    const confirmTitle = isFinal ? "End the competition?" : "Advance this round?";
+    const confirmContent = isFinal
+      ? "The system will calculate average scores, rank all teams, award prizes, and send notifications."
       : round.maxTeamsAdvancing > 0
-        ? `Are you sure you want to advance this round? The top ${round.maxTeamsAdvancing} teams (by average score) will move to the next round, and others will be eliminated.`
-        : "Are you sure you want to advance this round? Teams with average score >= 40 will move to the next round, and others will be eliminated.";
-    if (!window.confirm(confirmMessage)) {
+        ? `The top ${round.maxTeamsAdvancing} teams (by average score) will move to the next round; others will be eliminated.`
+        : "Teams whose score meets the pass threshold will move to the next round; others will be eliminated.";
+    const ok = await confirmAsync(confirmTitle, confirmContent);
+    if (!ok) {
       return;
     }
     setAdvancingId(roundId);
     try {
-      const res = await apiRequest<{ message: string }>(
+      const res = await apiRequest<{
+        message: string;
+        teamsNeedingJudges?: number;
+        toRound?: { roundId: string; roundName: string };
+      }>(
         `/admin/rounds/${roundId}/advance`,
         { method: "POST" }
       );
       message.success(res.message || "Round advanced successfully.");
+      // After a non-final advance, surface how many teams in the new round have no
+      // judge yet. Admins routinely forget to re-assign judges per round because
+      // JudgeAssignment is round-scoped (Mentor is not).
+      if (res.teamsNeedingJudges && res.teamsNeedingJudges > 0 && res.toRound) {
+        message.warning({
+          content: `${res.teamsNeedingJudges} team(s) in ${res.toRound.roundName} have no judge yet. Open Assignments to fix.`,
+          duration: 8,
+        });
+      }
       await refreshEvents();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not advance round.");
@@ -441,7 +500,7 @@ export default function AdminEventsPage() {
   };
 
   const handlePublishEvent = async (id: string) => {
-    if (!window.confirm("Are you sure you want to publish this event? This will make it visible to participants.")) return;
+    if (!await confirmAsync("Publish this event?", "It will become visible to participants.")) return;
     setUpdatingEvent(true);
     try {
       await apiRequest(`/Events/${id}/publish`, { method: "POST" });
@@ -455,7 +514,7 @@ export default function AdminEventsPage() {
   };
 
   const handleStartEvent = async (id: string) => {
-    if (!window.confirm("Are you sure you want to start this event?")) return;
+    if (!await confirmAsync("Start this event?")) return;
     setUpdatingEvent(true);
     try {
       await apiRequest(`/Events/${id}/start`, { method: "POST" });
@@ -469,7 +528,7 @@ export default function AdminEventsPage() {
   };
 
   const handleCompleteEvent = async (id: string) => {
-    if (!window.confirm("Are you sure you want to complete this event?")) return;
+    if (!await confirmAsync("Complete this event?")) return;
     setUpdatingEvent(true);
     try {
       await apiRequest(`/Events/${id}/complete`, { method: "POST" });
@@ -483,7 +542,7 @@ export default function AdminEventsPage() {
   };
 
   const handleCancelEvent = async (id: string) => {
-    const reason = window.prompt("Enter cancel reason (optional):");
+    const reason = await promptReasonAsync("Cancel this event?", "Optional reason for cancelling");
     if (reason === null) return;
     setUpdatingEvent(true);
     try {
@@ -503,6 +562,8 @@ export default function AdminEventsPage() {
   /* ─────────────── Create event ─────────────── */
   const addRound = () => setRounds((rs) => [...rs, { ...INITIAL_ROUND(), name: `Round ${rs.length + 1}` }]);
   const removeRound = (id: number) => setRounds((rs) => rs.filter((r) => r.id !== id));
+  const addPrize = () => setPrizes((ps) => [...ps, { ...INITIAL_PRIZE(), id: Date.now(), rank: ps.length + 1 }]);
+  const removePrize = (id: number) => setPrizes((ps) => ps.filter((p) => p.id !== id));
   const toggleTrack = (t: string) =>
     setSelectedTracks((sel) => (sel.includes(t) ? sel.filter((x) => x !== t) : [...sel, t]));
 
@@ -566,9 +627,19 @@ export default function AdminEventsPage() {
     if (rounds.some((r) => r.criteria.length === 0)) { message.error("Every round must have at least one scoring criteria."); return; }
     if (rounds.some((r) => r.criteria.some(c => !c.name.trim()))) { message.error("Every criteria needs a name."); return; }
 
+    if (prizes.some((p) => !p.title.trim())) { message.error("Every prize needs a title."); return; }
+
+    if (!usingCatalog && selectedTracks.length > 0) {
+      message.error("Track catalog is unavailable — cannot attach tracks. Try again in a moment, or create the event without tracks and add categories later.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const created = await apiRequest<{ eventId?: string; id?: string }>("/Events", {
+      // Single atomic POST: event + rounds + track-categories commit together.
+      // If the backend rejects any part (date chain, deadline outside range, etc.),
+      // nothing is written and the wizard stays open so the admin can fix and retry.
+      await apiRequest("/Events", {
         method: "POST",
         body: JSON.stringify({
           eventName: eventForm.eventName.trim(),
@@ -582,75 +653,33 @@ export default function AdminEventsPage() {
           trackIds: usingCatalog ? selectedTracks : [],
           posterUrl: eventForm.posterUrl,
           winnerImageUrl: eventForm.winnerImageUrl,
+          rounds: rounds.map((r, i) => ({
+            roundName: r.name.trim(),
+            submissionDeadline: toApiDate(r.deadline),
+            roundOrder: i + 1,
+            maxTeamsAdvancing: Number(r.topN) || 0,
+            promptDocumentId: r.promptDocumentId || null,
+            criteria: r.criteria.map((c) => ({
+              criteriaName: c.name.trim(),
+              maxScore: Number(c.maxScore) || 10,
+              weight: Number(c.weight) || 1,
+            })),
+          })),
+          // Prizes created here apply event-wide across every track (no per-track
+          // scoping from this flow).
+          prizes: prizes.map((p) => ({
+            title: p.title.trim(),
+            amount: p.amount.trim() || null,
+            description: p.description.trim() || null,
+            rank: Number(p.rank) || 0,
+          })),
         }),
       });
-
-      const eventId = created.eventId ?? created.id ?? "";
-
-      // The event now exists; if a follow-up call fails, surface what happened
-      // instead of letting a retry create a duplicate event.
-      try {
-        const createdRounds = await Promise.all(
-          rounds.map((r, i) =>
-            apiRequest<{ roundId: string }>(`/events/${eventId}/rounds`, {
-              method: "POST",
-              body: JSON.stringify({
-                roundName: r.name.trim(),
-                submissionDeadline: toApiDate(r.deadline),
-                roundOrder: i + 1,
-                maxTeamsAdvancing: Number(r.topN) || 0,
-                promptDocumentId: r.promptDocumentId || null,
-              }),
-            }),
-          ),
-        );
-
-        await Promise.all(
-          rounds.flatMap((r, i) =>
-            r.criteria.map(c =>
-              apiRequest(`/rounds/${createdRounds[i].roundId}/criteria`, {
-                method: "POST",
-                body: JSON.stringify({
-                  criteriaName: c.name.trim(),
-                  maxScore: Number(c.maxScore) || 10,
-                  weight: Number(c.weight) || 1
-                }),
-              }),
-            ),
-          ),
-        );
-
-        // Fallback only: when the backend track catalog is unavailable, persist the
-        // chosen static labels as categories the legacy way.
-        if (!usingCatalog && selectedTracks.length > 0) {
-          await Promise.all(
-            selectedTracks.map((track) =>
-              apiRequest(`/events/${eventId}/categories`, {
-                method: "POST",
-                body: JSON.stringify({ categoryName: track, description: null }),
-              }),
-            ),
-          );
-        }
-      } catch (configErr) {
-        message.warning(
-          `The event was created, but part of its configuration failed: ${
-            configErr instanceof Error ? configErr.message : "unknown error"
-          }. Finish setting it up from the event list instead of creating it again.`,
-          8,
-        );
-        setEventForm(INITIAL_EVENT_FORM);
-        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
-        setSelectedTracks([]);
-        setActiveSection("general");
-        setView("list");
-        await refreshEvents();
-        return;
-      }
 
       message.success("Event created successfully.");
       setEventForm({ ...INITIAL_EVENT_FORM });
       setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
+      setPrizes([]);
       setSelectedTracks([]);
       setActiveSection("general");
       setView("list");
@@ -1019,6 +1048,7 @@ export default function AdminEventsPage() {
               { id: "general", label: "General Info" },
               { id: "timeline", label: "Timeline" },
               { id: "rounds", label: "Rounds" },
+              { id: "prizes", label: "Prizes" },
               { id: "tracks", label: "Tracks" },
             ] as const).map((item) => {
               const active = activeSection === item.id;
@@ -1355,7 +1385,7 @@ export default function AdminEventsPage() {
                         </button>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {(r.criteria || []).map((c, ci) => (
+                        {(r.criteria || []).map((c) => (
                           <div key={c.id} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
                             <input
                               className="form-input"
@@ -1395,6 +1425,84 @@ export default function AdminEventsPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          </section>
+
+          {/* ─── Prizes section ─── */}
+          <section id="ec-prizes">
+          {(
+            <div className="glass-card">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
+                  <Award size={18} style={{ color: "var(--color-primary)" }} /> Prizes
+                </h3>
+                <button className="btn btn-primary btn-sm" onClick={addPrize}>
+                  <Plus size={14} /> Add Prize
+                </button>
+              </div>
+              <p className="form-hint" style={{ marginBottom: "1.5rem" }}>
+                Optional. Each prize applies event-wide across every track — there is no per-track prize here.
+              </p>
+              {prizes.length === 0 ? (
+                <div className="empty-state">
+                  <Award size={32} className="empty-icon" />
+                  <div className="empty-title">No prizes yet</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {prizes.map((p) => (
+                    <div key={p.id} style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "1.25rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                        <div className="form-group" style={{ flex: 1, gap: 0 }}>
+                          <input
+                            className="form-input"
+                            style={{ padding: "0.4rem 0.75rem" }}
+                            placeholder="Prize title (e.g. Grand Prize)"
+                            value={p.title}
+                            onChange={(e) => setPrizes(prizes.map((x) => x.id === p.id ? { ...x, title: e.target.value } : x))}
+                          />
+                        </div>
+                        <button className="btn btn-danger btn-icon btn-sm" onClick={() => removePrize(p.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                        <div className="form-group">
+                          <label className="form-label">Amount</label>
+                          <input
+                            className="form-input"
+                            placeholder="e.g. $1,000"
+                            value={p.amount}
+                            onChange={(e) => setPrizes(prizes.map((x) => x.id === p.id ? { ...x, amount: e.target.value } : x))}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Rank</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min={0}
+                            value={p.rank}
+                            onChange={(e) => setPrizes(prizes.map((x) => x.id === p.id ? { ...x, rank: Number(e.target.value) || 0 } : x))}
+                          />
+                          <span className="form-hint">Lower number shows first (1 = top prize).</span>
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ marginTop: "1rem" }}>
+                        <label className="form-label">Description</label>
+                        <textarea
+                          className="form-textarea"
+                          rows={2}
+                          placeholder="What this prize is awarded for…"
+                          value={p.description}
+                          onChange={(e) => setPrizes(prizes.map((x) => x.id === p.id ? { ...x, description: e.target.value } : x))}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           </section>

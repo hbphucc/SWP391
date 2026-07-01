@@ -28,14 +28,18 @@ namespace SEAL.NET.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllEvents()
         {
-            var result = await _eventService.GetAllEventsAsync();
+            // Anonymous and non-Admin callers see only Published/Ongoing/Completed events.
+            // Admin and staff roles see everything including Draft/Cancelled.
+            var includeNonPublic = User.IsInRole("Admin") || User.IsInRole("Judge") || User.IsInRole("Mentor");
+            var result = await _eventService.GetAllEventsAsync(includeNonPublic);
             return Ok(result);
         }
 
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetEventById(Guid id)
         {
-            var result = await _eventService.GetEventByIdAsync(id);
+            var includeNonPublic = User.IsInRole("Admin") || User.IsInRole("Judge") || User.IsInRole("Mentor");
+            var result = await _eventService.GetEventByIdAsync(id, includeNonPublic);
             if (result == null) return NotFound(new { message = "Event not found." });
             return Ok(result);
         }
@@ -87,7 +91,7 @@ namespace SEAL.NET.Controllers
                 "create_event",
                 "Event",
                 result.Id?.ToString(),
-                $"Created event {request.EventName}.");
+                $"Created event {request.EventName} with {request.Rounds.Count} round(s), {request.TrackIds.Count} track(s), and {request.Prizes.Count} prize(s).");
             return CreatedAtAction(nameof(GetEventById), new { id = result.Id }, new { id = result.Id });
         }
 

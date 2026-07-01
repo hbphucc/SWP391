@@ -24,14 +24,21 @@ namespace SEAL.NET.Services.Implementations
             _notificationService = notificationService;
         }
 
-        public async Task<ServiceResult> GetAssignmentsAsync()
+        public async Task<ServiceResult> GetAssignmentsAsync(Guid? eventId, Guid? roundId)
         {
-            var rawAssignments = await _context.JudgeAssignments
+            var query = _context.JudgeAssignments
                 .Include(a => a.Judge)
                 .Include(a => a.Round)
                 .Include(a => a.Category)
                 .Include(a => a.Team)
-                .ToListAsync();
+                .AsQueryable();
+
+            if (eventId.HasValue)
+                query = query.Where(a => a.Round.EventId == eventId.Value);
+            if (roundId.HasValue)
+                query = query.Where(a => a.RoundId == roundId.Value);
+
+            var rawAssignments = await query.ToListAsync();
 
             var grouped = rawAssignments
                 .GroupBy(a => new { a.JudgeId, a.RoundId, a.CategoryId })
@@ -92,6 +99,16 @@ namespace SEAL.NET.Services.Implementations
 
             if (round.EventId != category.EventId)
                 return ServiceResult.BadRequest("Round and category must belong to the same event.");
+
+            // The judge must have registered for this event (added themselves via the
+            // event registration flow). Having the global "Judge" role is necessary but
+            // not sufficient — registration is what scopes a judge to an event.
+            var isRegistered = await _context.Events
+                .Where(e => e.EventId == round.EventId)
+                .SelectMany(e => e.RegisteredJudges)
+                .AnyAsync(u => u.Id == request.JudgeId);
+            if (!isRegistered)
+                return ServiceResult.BadRequest("Selected judge has not registered for this event.");
 
             // 1. Remove existing assignments for this specific judge, round, and category combination (to avoid duplicates or update assignments)
             var existingForJudge = await _context.JudgeAssignments

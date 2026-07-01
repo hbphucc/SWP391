@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Team;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
+using System.Data;
 
 namespace SEAL.NET.Services.Implementations
 {
@@ -410,6 +412,53 @@ namespace SEAL.NET.Services.Implementations
             if (currentUserIdRaw == null) return ServiceResult.Unauthorized("Invalid authentication token.");
             var currentUserId = currentUserIdRaw.Value;
 
+            // Two concurrent accept calls (e.g., the same user clicking accept in two
+            // tabs across different teams) can otherwise both pass the
+            // "user has no team in this event" check before either commits, leading to
+            // double-join. Serializable isolation makes the conflicting read-then-write
+            // pattern observable to PostgreSQL, which fails one of the two transactions
+            // with 40001 (serialization_failure). We retry that loser once and surface
+            // a friendly error if it loses again.
+            const int maxAttempts = 2;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    return await AcceptInvitationCoreAsync(currentUserId, id);
+                }
+                catch (DbUpdateException ex) when (IsSerializationFailure(ex) && attempt < maxAttempts)
+                {
+                    // Reset change tracker before the next attempt so stale entities
+                    // from the failed transaction don't poison the retry.
+                    foreach (var entry in _context.ChangeTracker.Entries().ToList())
+                        entry.State = EntityState.Detached;
+                }
+                catch (DbUpdateException ex) when (IsSerializationFailure(ex))
+                {
+                    return ServiceResult.Conflict("Concurrent update", "Could not complete the request due to a concurrent change. Please try again.");
+                }
+            }
+
+            // Unreachable: the loop returns or throws on the final attempt.
+            return ServiceResult.Conflict("Concurrent update", "Could not complete the request due to a concurrent change. Please try again.");
+        }
+
+        private static bool IsSerializationFailure(DbUpdateException ex)
+        {
+            // PostgreSQL SQLSTATE 40001 = serialization_failure (also matches
+            // deadlock_detected 40P01 under some configurations).
+            for (Exception? inner = ex; inner != null; inner = inner.InnerException)
+            {
+                if (inner is PostgresException pg && (pg.SqlState == "40001" || pg.SqlState == "40P01"))
+                    return true;
+            }
+            return false;
+        }
+
+        private async Task<ServiceResult> AcceptInvitationCoreAsync(Guid currentUserId, Guid id)
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
             var invitation = await _context.TeamInvitations
                 .Include(ti => ti.Team)
                     .ThenInclude(t => t.Category)
@@ -448,7 +497,6 @@ namespace SEAL.NET.Services.Implementations
             var targetUserId = isJoinRequest ? invitation.InviterUserId : currentUserId;
 
             var alreadyJoinedEvent = await _context.TeamMembers
-                .Include(tm => tm.Team)
                 .AnyAsync(tm =>
                     tm.UserId == targetUserId &&
                     categoryIdsInSameEvent.Contains(tm.Team!.CategoryId));
@@ -468,35 +516,37 @@ namespace SEAL.NET.Services.Implementations
             invitation.Status = InvitationStatus.Accepted;
             invitation.RespondedAt = DateTime.UtcNow;
 
+            // Cancel the user's other Pending invitations and Pending join requests
+            // that target teams in the same event, in one DB-side filter rather than
+            // loading-then-filtering in memory.
             var otherPendingInEvent = await _context.TeamInvitations
-                .Include(ti => ti.Team)
-                .Where(ti => ti.InviteeUserId == targetUserId && ti.Status == InvitationStatus.Pending && ti.Id != id)
+                .Where(ti => ti.InviteeUserId == targetUserId &&
+                             ti.Status == InvitationStatus.Pending &&
+                             ti.Id != id &&
+                             categoryIdsInSameEvent.Contains(ti.Team.CategoryId))
                 .ToListAsync();
 
             foreach (var otherInvite in otherPendingInEvent)
             {
-                if (categoryIdsInSameEvent.Contains(otherInvite.Team.CategoryId))
-                {
-                    otherInvite.Status = InvitationStatus.Rejected;
-                    otherInvite.RespondedAt = DateTime.UtcNow;
-                }
+                otherInvite.Status = InvitationStatus.Rejected;
+                otherInvite.RespondedAt = DateTime.UtcNow;
             }
 
             var otherRequestsInEvent = await _context.TeamInvitations
-                .Include(ti => ti.Team)
-                .Where(ti => ti.InviterUserId == targetUserId && ti.Status == InvitationStatus.Pending && ti.Id != id)
+                .Where(ti => ti.InviterUserId == targetUserId &&
+                             ti.Status == InvitationStatus.Pending &&
+                             ti.Id != id &&
+                             categoryIdsInSameEvent.Contains(ti.Team.CategoryId))
                 .ToListAsync();
 
             foreach (var otherRequest in otherRequestsInEvent)
             {
-                if (categoryIdsInSameEvent.Contains(otherRequest.Team.CategoryId))
-                {
-                    otherRequest.Status = InvitationStatus.Rejected;
-                    otherRequest.RespondedAt = DateTime.UtcNow;
-                }
+                otherRequest.Status = InvitationStatus.Rejected;
+                otherRequest.RespondedAt = DateTime.UtcNow;
             }
 
             await _context.SaveChangesAsync();
+            await tx.CommitAsync();
 
             try
             {

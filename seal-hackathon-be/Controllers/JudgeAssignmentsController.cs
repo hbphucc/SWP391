@@ -19,8 +19,8 @@ namespace SEAL.NET.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAssignments()
-            => this.ToActionResult(await _judgeAssignmentService.GetAssignmentsAsync());
+        public async Task<IActionResult> GetAssignments([FromQuery] Guid? eventId, [FromQuery] Guid? roundId)
+            => this.ToActionResult(await _judgeAssignmentService.GetAssignmentsAsync(eventId, roundId));
 
         [HttpPost]
         public async Task<IActionResult> CreateAssignment([FromBody] CreateJudgeAssignmentRequest request)

@@ -19,6 +19,7 @@ import { ApiError, apiRequest } from "@/lib/api";
 export type CreateTeamCategoryOption = {
   categoryId: string;
   categoryName: string;
+  eventId: string;
   eventName: string;
   registrationEndDate: string;
 };
@@ -102,19 +103,35 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
       ? (categories.find(c => new Date(c.registrationEndDate) >= new Date())?.categoryId || categories[0].categoryId) 
       : "");
 
-  // Fetch mentors lazily on first open. We keep the result for the lifetime of
-  // the drawer so reopening doesn't refetch unless the parent unmounts us. The
-  // Promise.resolve hop defers the setState out of the effect body so the
-  // project's react-hooks/set-state-in-effect rule stays happy.
+  // The event the selected category belongs to. Mentors are scoped to a single
+  // event server-side, so we pass this with the /teams/mentors fetch.
+  const effectiveEventId = useMemo(
+    () => categories.find((c) => c.categoryId === effectiveCategoryId)?.eventId ?? "",
+    [categories, effectiveCategoryId],
+  );
+
+  // Fetch mentors whenever the selected event changes. The backend now scopes
+  // the response to mentors registered for that event, so a stale list from a
+  // different event would mislead the leader.
   useEffect(() => {
-    if (!open || mentors.length > 0) return;
+    if (!open || !effectiveEventId) {
+      setMentors([]);
+      return;
+    }
     let cancelled = false;
     void Promise.resolve().then(async () => {
       if (cancelled) return;
       setLoadingMentors(true);
       try {
-        const list = await apiRequest<CreateTeamMentorOption[]>("/teams/mentors");
-        if (!cancelled) setMentors(list);
+        const list = await apiRequest<CreateTeamMentorOption[]>(
+          `/teams/mentors?eventId=${encodeURIComponent(effectiveEventId)}`,
+        );
+        if (!cancelled) {
+          setMentors(list);
+          // Clear a previously chosen mentor that is no longer in the new
+          // event's registered roster.
+          setMentorId((prev) => (prev && list.some((m) => m.id === prev) ? prev : undefined));
+        }
       } catch {
         if (!cancelled) message.error("Could not load mentor list.");
       } finally {
@@ -122,7 +139,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
       }
     });
     return () => { cancelled = true; };
-  }, [open, mentors.length, message]);
+  }, [open, effectiveEventId, message]);
 
   const resetForm = () => {
     setTeamName("");
@@ -184,7 +201,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
 
       message.success(
         mentorId
-          ? "Team registered with mentor assigned. Invitations sent to members."
+          ? "Team registered. Mentor invited (waiting for them to accept) and invitations sent to members."
           : "Team registered and invitations sent to members.",
       );
       resetForm();
@@ -210,7 +227,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
           <Users size={18} /> Create Team
         </span>
       }
-      width={560}
+      size="large"
       maskClosable={!submitting}
       destroyOnHidden
       footer={
@@ -265,7 +282,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
         <div className="form-group">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.4rem" }}>
             <label className="form-label" style={{ margin: 0 }}>
-              <UserPlus size={13} /> Members ({trimmedMembers.length} / {MEMBER_CAP})
+              <UserPlus size={13} /> Invitees ({trimmedMembers.length} / {MEMBER_CAP})
             </label>
             <button
               type="button"
@@ -277,7 +294,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
             </button>
           </div>
           <p className="form-hint" style={{ marginBottom: "0.5rem" }}>
-            Student code or email of each member you want to invite. The team needs 3-5 members including you.
+            Student code or email of each person you want to invite. They become team members only after accepting the invitation. The team needs 3-5 members including you.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {memberInputs.map((value, index) => (
@@ -331,7 +348,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
         {/* Optional mentor */}
         <div className="form-group">
           <label className="form-label" htmlFor="ct-mentor">
-            <GraduationCap size={13} /> Mentor (optional)
+            <GraduationCap size={13} /> Invite a Mentor (optional)
           </label>
           <Select
             id="ct-mentor"
@@ -340,7 +357,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
             allowClear
             showSearch
             loading={loadingMentors}
-            placeholder={loadingMentors ? "Loading mentors..." : "Pick a mentor now, or assign later"}
+            placeholder={loadingMentors ? "Loading mentors..." : "Invite a mentor now, or invite later"}
             disabled={submitting}
             style={{ width: "100%" }}
             optionFilterProp="label"
@@ -370,7 +387,9 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
               );
             }}
           />
-          <span className="form-hint">You can also change or remove the mentor after the team is created.</span>
+          <span className="form-hint">
+            The mentor must accept before they officially become your team&apos;s mentor. You can invite, change, or cancel the invitation after the team is created.
+          </span>
         </div>
       </div>
     </Drawer>

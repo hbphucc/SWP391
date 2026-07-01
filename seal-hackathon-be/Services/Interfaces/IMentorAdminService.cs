@@ -1,13 +1,14 @@
-using SEAL.NET.DTOs.Team;
 using SEAL.NET.Services.Common;
 
 namespace SEAL.NET.Services.Interfaces
 {
-    /// <summary>Admin mentor-assignment management (for <c>AdminMentorsController</c>).</summary>
+    /// <summary>
+    /// Admin read/remove access over mentor assignments (for <c>AdminMentorsController</c>).
+    /// Creating an assignment is leader-invite + mentor-accept only; admin cannot assign.
+    /// </summary>
     public interface IMentorAdminService
     {
         Task<ServiceResult> GetAssignmentsAsync();
-        Task<ServiceResult> AssignMentorAsync(Guid actorUserId, AssignMentorRequest request);
         Task<ServiceResult> DeactivateAssignmentAsync(Guid id);
     }
 }

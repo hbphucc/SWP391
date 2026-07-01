@@ -2,12 +2,6 @@ using System;
 
 namespace SEAL.NET.DTOs.Team
 {
-    public class AssignMentorRequest
-    {
-        public Guid MentorUserId { get; set; }
-        public Guid TeamId { get; set; }
-    }
-
     public class ChooseMentorRequest
     {
         public Guid MentorUserId { get; set; }
@@ -24,6 +18,7 @@ namespace SEAL.NET.DTOs.Team
         public string? AssignedByName { get; set; }
         public DateTime AssignedAt { get; set; }
         public bool IsActive { get; set; }
+        public string Status { get; set; } = string.Empty;
     }
 
     public class MentorTeamResponseDto

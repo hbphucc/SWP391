@@ -1,8 +1,7 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Team;
-using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -11,17 +10,10 @@ namespace SEAL.NET.Services.Implementations
     public class MentorAdminService : IMentorAdminService
     {
         private readonly ApplicationDbContext _context;
-        private readonly UserManager<ApplicationUser> _userManager;
-        private readonly INotificationService _notificationService;
 
-        public MentorAdminService(
-            ApplicationDbContext context,
-            UserManager<ApplicationUser> userManager,
-            INotificationService notificationService)
+        public MentorAdminService(ApplicationDbContext context)
         {
             _context = context;
-            _userManager = userManager;
-            _notificationService = notificationService;
         }
 
         public async Task<ServiceResult> GetAssignmentsAsync()
@@ -41,98 +33,17 @@ namespace SEAL.NET.Services.Implementations
                     TeamName = ma.Team.TeamName,
                     AssignedByName = ma.AssignedBy != null ? ma.AssignedBy.FullName : "System",
                     AssignedAt = ma.AssignedAt,
-                    IsActive = ma.IsActive
+                    IsActive = ma.IsActive,
+                    Status = ma.Status.ToString()
                 })
                 .ToListAsync();
 
             return ServiceResult.Ok(assignments);
         }
 
-        public async Task<ServiceResult> AssignMentorAsync(Guid actorUserId, AssignMentorRequest request)
-        {
-            var mentor = await _userManager.FindByIdAsync(request.MentorUserId.ToString());
-            if (mentor == null)
-                return ServiceResult.NotFound("Mentor user not found.");
-
-            if (!mentor.IsApproved)
-                return ServiceResult.BadRequest("This mentor's account is disabled or not allowed to access.");
-
-            var isMentor = await _userManager.IsInRoleAsync(mentor, "Mentor");
-            if (!isMentor)
-                return ServiceResult.BadRequest("Selected user does not have the Mentor role.");
-
-            var team = await _context.Teams
-                .Include(t => t.Members)
-                .FirstOrDefaultAsync(t => t.TeamId == request.TeamId);
-
-            if (team == null)
-                return ServiceResult.NotFound("Team not found.");
-
-            var duplicate = await _context.MentorAssignments
-                .AnyAsync(ma => ma.MentorUserId == request.MentorUserId && ma.TeamId == request.TeamId && ma.IsActive);
-
-            if (duplicate)
-                return ServiceResult.BadRequest("This mentor is already actively assigned to this team.");
-
-            // Deactivate any existing active mentor assignments for this team
-            var activeAssignments = await _context.MentorAssignments
-                .Where(ma => ma.TeamId == request.TeamId && ma.IsActive)
-                .ToListAsync();
-
-            foreach (var ma in activeAssignments)
-            {
-                ma.IsActive = false;
-                try
-                {
-                    await _notificationService.CreateAsync(
-                        ma.MentorUserId,
-                        "Mentor Unassigned",
-                        $"You have been unassigned from mentoring team {team.TeamName}.",
-                        "team"
-                    );
-                }
-                catch { }
-            }
-
-            var assignment = new MentorAssignment
-            {
-                MentorUserId = request.MentorUserId,
-                TeamId = request.TeamId,
-                AssignedByUserId = actorUserId,
-                IsActive = true,
-                AssignedAt = DateTime.UtcNow
-            };
-
-            _context.MentorAssignments.Add(assignment);
-            await _context.SaveChangesAsync();
-
-            // Notify mentor
-            try
-            {
-                await _notificationService.CreateAsync(
-                    mentor.Id,
-                    "Mentor Assignment",
-                    $"You have been assigned to mentor team {team.TeamName}.",
-                    "team"
-                );
-            }
-            catch { }
-
-            // Notify team leader
-            try
-            {
-                await _notificationService.CreateAsync(
-                    team.LeaderId,
-                    "Mentor Assigned",
-                    $"{mentor.FullName} has been assigned as your team's mentor.",
-                    "team"
-                );
-            }
-            catch { }
-
-            return ServiceResult.OkMessage("Mentor assigned successfully.");
-        }
-
+        // Creating assignments is now leader-initiated (invite) + mentor-accepted —
+        // see TeamService.AssignMentorToMyTeamAsync / AcceptMentorInvitationAsync.
+        // Admin retains only the ability to view and forcibly remove an assignment.
         public async Task<ServiceResult> DeactivateAssignmentAsync(Guid id)
         {
             var assignment = await _context.MentorAssignments.FirstOrDefaultAsync(ma => ma.Id == id);
@@ -143,6 +54,7 @@ namespace SEAL.NET.Services.Implementations
                 return ServiceResult.BadRequest("Assignment is already inactive.");
 
             assignment.IsActive = false;
+            assignment.Status = InvitationStatus.Cancelled;
             await _context.SaveChangesAsync();
 
             return ServiceResult.OkMessage("Assignment deactivated successfully.");

@@ -41,11 +41,25 @@ type TeamDto = {
     email: string;
     schoolName?: string | null;
   } | null;
+  pendingMentorInvite?: {
+    assignmentId: string;
+    mentorName: string;
+    invitedAt: string;
+  } | null;
   judge?: {
     id: string;
     fullName: string;
     email: string;
   } | null;
+};
+
+type MentorInvitationDto = {
+  assignmentId: string;
+  teamId: string;
+  teamName: string;
+  categoryName: string;
+  eventName: string;
+  invitedAt: string;
 };
 
 type MentorOption = {
@@ -100,6 +114,7 @@ export default function TeamsPage() {
   const hasTeamRef = useRef<boolean>(false);
   const [mentoringTeams, setMentoringTeams] = useState<TeamDto[]>([]);
   const [judgingTeams, setJudgingTeams] = useState<TeamDto[]>([]);
+  const [mentorInvitations, setMentorInvitations] = useState<MentorInvitationDto[]>([]);
 
   const [mentors, setMentors] = useState<MentorOption[]>([]);
   const [showMentorModal, setShowMentorModal] = useState(false);
@@ -155,6 +170,7 @@ export default function TeamsPage() {
       events.flatMap((event) =>
         event.categories.map((category) => ({
           ...category,
+          eventId: event.eventId,
           eventName: event.eventName,
           registrationEndDate: event.registrationEndDate,
         })),
@@ -199,6 +215,9 @@ export default function TeamsPage() {
       let hasTeam = false;
       try {
         const team = await apiRequest<TeamDto>("/teams/my-team");
+        if (!team) {
+          throw new ApiError("Not joined", 404);
+        }
         setMyTeam(team);
         setDraftTeamName(team.teamName);
         hasTeam = true;
@@ -220,6 +239,12 @@ export default function TeamsPage() {
             setMentoringTeams(mentored);
           } catch {
             setMentoringTeams([]);
+          }
+          try {
+            const invitations = await apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations");
+            setMentorInvitations(invitations);
+          } catch {
+            setMentorInvitations([]);
           }
         } else if (user.roles?.includes("Judge")) {
           try {
@@ -265,6 +290,9 @@ export default function TeamsPage() {
 
     try {
       const team = await apiRequest<TeamDto>("/teams/my-team");
+      if (!team) {
+        throw new ApiError("Not joined", 404);
+      }
       setMyTeam((currentTeam) => {
         if (JSON.stringify(currentTeam) !== JSON.stringify(team)) {
           return team;
@@ -319,6 +347,26 @@ export default function TeamsPage() {
       setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
+    }
+  };
+
+  const handleAcceptMentorInvite = async (assignmentId: string, teamName: string) => {
+    try {
+      await apiRequest(`/teams/mentor-invitations/${assignmentId}/accept`, { method: "POST" });
+      message.success(`You are now mentoring ${teamName}.`);
+      await loadPage();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not accept invitation.");
+    }
+  };
+
+  const handleRejectMentorInvite = async (assignmentId: string) => {
+    try {
+      await apiRequest(`/teams/mentor-invitations/${assignmentId}/reject`, { method: "POST" });
+      message.success("Invitation declined.");
+      await loadPage();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not decline invitation.");
     }
   };
 
@@ -504,7 +552,7 @@ export default function TeamsPage() {
         method: "POST",
         body: JSON.stringify({ mentorUserId: mentorId }),
       });
-      message.success("Mentor assigned successfully.");
+      message.success("Mentor invited. Waiting for them to accept.");
       setShowMentorModal(false);
       setMentorSearch("");
       await loadPage();
@@ -517,18 +565,21 @@ export default function TeamsPage() {
   };
 
   const handleRemoveMentor = () => {
+    const hasActiveMentor = Boolean(myTeam?.mentor);
     modal.confirm({
-      title: "Remove mentor",
-      content: "Are you sure you want to remove the mentor from your team?",
-      okText: "Remove",
+      title: hasActiveMentor ? "Remove mentor" : "Cancel invitation",
+      content: hasActiveMentor
+        ? "Are you sure you want to remove the mentor from your team?"
+        : "Cancel the pending mentor invitation?",
+      okText: hasActiveMentor ? "Remove" : "Cancel Invite",
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
           await apiRequest("/teams/my-team/mentor", { method: "DELETE" });
-          message.success("Mentor removed successfully.");
+          message.success(hasActiveMentor ? "Mentor removed successfully." : "Mentor invitation cancelled.");
           await loadPage();
         } catch (err) {
-          message.error(err instanceof Error ? err.message : "Could not remove mentor.");
+          message.error(err instanceof Error ? err.message : "Could not update mentor.");
         }
       },
     });
@@ -616,6 +667,35 @@ export default function TeamsPage() {
         )}
 
         {currentUser?.roles?.includes("Mentor") ? (
+          <>
+          {mentorInvitations.length > 0 && (
+            <div className="glass-card" style={{ padding: "2rem", marginBottom: "1.5rem" }}>
+              <h3 style={{ margin: "0 0 1.25rem", fontSize: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <GraduationCap size={22} style={{ color: "var(--color-primary)" }} /> Pending Mentor Invitations
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {mentorInvitations.map((inv) => (
+                  <div
+                    key={inv.assignmentId}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{inv.teamName}</div>
+                      <div style={{ fontSize: "0.82rem", color: "var(--color-text-3)" }}>{inv.eventName} · {inv.categoryName}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button className="btn btn-primary btn-sm" onClick={() => handleAcceptMentorInvite(inv.assignmentId, inv.teamName)}>
+                        Accept
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => handleRejectMentorInvite(inv.assignmentId)}>
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="glass-card" style={{ padding: "2rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
               <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -656,6 +736,7 @@ export default function TeamsPage() {
               </div>
             )}
           </div>
+          </>
         ) : currentUser?.roles?.includes("Judge") ? (
           <div className="glass-card" style={{ padding: "2rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -1067,40 +1148,59 @@ export default function TeamsPage() {
             </div>
 
             {myTeam.mentor ? (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
-                    {myTeam.mentor.fullName.charAt(0)}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: "1rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                      {myTeam.mentor.fullName.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.mentor.fullName}</div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.mentor.email}</div>
+                      {myTeam.mentor.schoolName && (
+                        <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
+                          {myTeam.mentor.schoolName}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.mentor.fullName}</div>
-                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>{myTeam.mentor.email}</div>
-                    {myTeam.mentor.schoolName && (
-                      <div style={{ fontSize: "0.82rem", color: "var(--color-text-2)", marginTop: "0.2rem" }}>
-                        {myTeam.mentor.schoolName}
-                      </div>
-                    )}
+                  {isLeader && myTeam.status === "Pending" && (
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
+                        Invite Different Mentor
+                      </button>
+                      <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {myTeam.pendingMentorInvite && (
+                  <div style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--color-warning)" }}>
+                    Invited {myTeam.pendingMentorInvite.mentorName} to replace the current mentor — waiting for them to accept.
                   </div>
+                )}
+              </div>
+            ) : myTeam.pendingMentorInvite ? (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.pendingMentorInvite.mentorName}</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--color-warning)" }}>Invitation sent — waiting for mentor to accept</div>
                 </div>
                 {isLeader && myTeam.status === "Pending" && (
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
-                      Change Mentor
-                    </button>
-                    <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
-                      Remove
-                    </button>
-                  </div>
+                  <button className="btn btn-ghost danger btn-sm" onClick={handleRemoveMentor}>
+                    Cancel Invite
+                  </button>
                 )}
               </div>
             ) : (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
                 <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
-                  No mentor selected yet.
+                  No mentor invited yet.
                 </div>
                 {isLeader && myTeam.status === "Pending" && (
                   <button className="btn btn-primary btn-sm" onClick={() => { loadMentors(); setShowMentorModal(true); }}>
-                    Choose Mentor
+                    Invite Mentor
                   </button>
                 )}
               </div>
@@ -1186,7 +1286,7 @@ export default function TeamsPage() {
       )}
 
       <Modal
-        title="Select Team Mentor"
+        title="Invite a Mentor"
         open={showMentorModal}
         onCancel={() => { if (!assigningMentorId) { setShowMentorModal(false); setMentorSearch(""); } }}
         footer={null}
@@ -1282,10 +1382,10 @@ export default function TeamsPage() {
                       style={{ flexShrink: 0 }}
                     >
                       {assigningMentorId === mentor.id
-                        ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> Selecting</>
+                        ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> Inviting</>
                         : isCurrent
-                          ? <><Check size={13} /> Selected</>
-                          : "Select"}
+                          ? <><Check size={13} /> Current Mentor</>
+                          : "Invite"}
                     </button>
                   </div>
                 );

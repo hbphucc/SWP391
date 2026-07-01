@@ -15,6 +15,11 @@ namespace SEAL.NET.DTOs.Round
 
         public int MaxTeamsAdvancing { get; set; } = 0;
 
+        /// <summary>
+        /// Optional minimum weighted score to advance. Null = auto-derive from criteria weights.
+        /// </summary>
+        public decimal? PassThreshold { get; set; }
+
         public Guid? PromptDocumentId { get; set; }
     }
 }
