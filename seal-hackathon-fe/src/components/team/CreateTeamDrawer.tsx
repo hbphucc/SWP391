@@ -207,7 +207,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
           <Users size={18} /> Create Team
         </span>
       }
-      width={560}
+      size="large"
       maskClosable={!submitting}
       destroyOnHidden
       footer={

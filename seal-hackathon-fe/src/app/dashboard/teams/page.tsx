@@ -191,6 +191,9 @@ export default function TeamsPage() {
       let hasTeam = false;
       try {
         const team = await apiRequest<TeamDto>("/teams/my-team");
+        if (!team) {
+          throw new ApiError("Not joined", 404);
+        }
         setMyTeam(team);
         setDraftTeamName(team.teamName);
         hasTeam = true;
@@ -257,6 +260,9 @@ export default function TeamsPage() {
 
     try {
       const team = await apiRequest<TeamDto>("/teams/my-team");
+      if (!team) {
+        throw new ApiError("Not joined", 404);
+      }
       setMyTeam((currentTeam) => {
         if (JSON.stringify(currentTeam) !== JSON.stringify(team)) {
           return team;

@@ -1,8 +1,19 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Trophy, Award, Star, Medal, Gift } from "lucide-react";
-import { App } from "antd";
+import { App, Select } from "antd";
 import { apiRequest } from "@/lib/api";
+
+type CategoryDto = {
+  categoryId: string;
+  categoryName: string;
+};
+
+type EventDto = {
+  eventId: string;
+  eventName: string;
+  categories?: CategoryDto[];
+};
 
 interface PrizeDto {
   prizeId: string;
@@ -24,17 +35,27 @@ function prizeIcon(rank: number) {
 
 export default function PrizesPage() {
   const { message } = App.useApp();
-  const [prizes, setPrizes] = useState<PrizeDto[]>([]);
+  const [allPrizes, setAllPrizes] = useState<PrizeDto[]>([]);
+  const [events, setEvents] = useState<EventDto[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await apiRequest<PrizeDto[]>("/Prizes");
-        setPrizes(data);
+        const [pData, eData] = await Promise.all([
+          apiRequest<PrizeDto[]>("/Prizes"),
+          apiRequest<EventDto[]>("/Events")
+        ]);
+        setAllPrizes(pData);
+        setEvents(eData);
+        if (eData.length > 0) {
+          setSelectedEventId(eData[0].eventId);
+        }
       } catch (err) {
-        message.error(err instanceof Error ? err.message : "Could not load prizes.");
-        setPrizes([]);
+        message.error(err instanceof Error ? err.message : "Could not load data.");
+        setAllPrizes([]);
       } finally {
         setLoading(false);
       }
@@ -42,22 +63,55 @@ export default function PrizesPage() {
     load();
   }, [message]);
 
+  useEffect(() => {
+    setSelectedTrack(null);
+  }, [selectedEventId]);
+
+  const displayedPrizes = allPrizes.filter((p) => {
+    const matchEvent = selectedEventId ? p.eventId === selectedEventId : true;
+    const matchTrack = selectedTrack ? p.track === selectedTrack : true;
+    return matchEvent && matchTrack;
+  });
+
   return (
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div className="page-header" style={{ flexShrink: 0 }}>
+      <div className="page-header" style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "1rem" }}>
         <div>
           <h1 className="page-title">Hackathon Prizes</h1>
-          <p className="page-subtitle">Rewards and categories for winning teams</p>
+          <p className="page-subtitle" style={{ margin: 0 }}>Rewards and categories for winning teams</p>
+        </div>
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+          <Select
+            style={{ width: 220 }}
+            placeholder="Select Event"
+            value={selectedEventId || undefined}
+            onChange={setSelectedEventId}
+            options={events.map((e) => ({ value: e.eventId, label: e.eventName }))}
+            allowClear
+          />
+          <Select
+            style={{ width: 180 }}
+            placeholder="All Tracks"
+            value={selectedTrack || undefined}
+            onChange={setSelectedTrack}
+            allowClear
+            disabled={!selectedEventId}
+          >
+            <Select.Option value="All Tracks">All Tracks</Select.Option>
+            {events.find(e => e.eventId === selectedEventId)?.categories?.map((c) => (
+              <Select.Option key={c.categoryId} value={c.categoryName}>{c.categoryName}</Select.Option>
+            ))}
+          </Select>
         </div>
       </div>
 
       {loading ? (
         <div className="empty-state"><Gift size={48} className="empty-icon" /><div className="empty-title">Loading prizes…</div></div>
-      ) : prizes.length === 0 ? (
+      ) : displayedPrizes.length === 0 ? (
         <div className="empty-state"><Gift size={48} className="empty-icon" /><div className="empty-title">No prizes announced yet</div></div>
       ) : (
         <div className="glass-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "1.5rem", overflowY: "auto", flex: 1, paddingRight: "0.5rem", paddingBottom: "2rem" }}>
-          {prizes.map(p => (
+          {displayedPrizes.map(p => (
             <div key={p.prizeId} className="glass-card" style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start", padding: "1.5rem", transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
               <div style={{ width: 64, height: 64, background: "rgba(255,255,255,0.05)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "1px solid rgba(255,255,255,0.1)" }}>
                 {prizeIcon(p.rank)}
