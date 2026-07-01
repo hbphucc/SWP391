@@ -32,7 +32,7 @@
 
 .rightSide {
   flex: 1;
-  background-image: url('https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=2070&auto=format&fit=crop');
+  background-image: url('/images/login_illustration.png');
   background-size: cover;
   background-position: center;
   position: relative;

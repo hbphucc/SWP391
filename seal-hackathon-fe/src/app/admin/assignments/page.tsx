@@ -133,11 +133,14 @@ export default function AssignmentsPage() {
   };
 
   useEffect(() => {
-    if (activeTab === "mentor") {
-      void loadMentorData();
-    } else {
-      void loadJudgeData();
-    }
+    const timer = setTimeout(() => {
+      if (activeTab === "mentor") {
+        void loadMentorData();
+      } else {
+        void loadJudgeData();
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [activeTab]);
 
   useEffect(() => {
@@ -145,17 +148,22 @@ export default function AssignmentsPage() {
     
     // Auto-select first team in the selected event
     const eventTeams = teams.filter((t) => t.category?.eventId === selectedEventIdMentor && t.status !== "Eliminated" && t.status !== "Rejected" && t.status !== "Withdrawn");
-    if (eventTeams.length > 0 && !eventTeams.some(t => t.teamId === selectedTeamId)) {
-      setSelectedTeamId(eventTeams[0].teamId);
-    } else if (eventTeams.length === 0) {
-      setSelectedTeamId("");
-    }
+    const timer = setTimeout(() => {
+      if (eventTeams.length > 0 && !eventTeams.some(t => t.teamId === selectedTeamId)) {
+        setSelectedTeamId(eventTeams[0].teamId);
+      } else if (eventTeams.length === 0) {
+        setSelectedTeamId("");
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [selectedEventIdMentor, teams, activeTab]);
 
   useEffect(() => {
     if (activeTab !== "mentor" || !selectedEventIdMentor) {
-      setMentors([]);
-      return;
+      const timer = setTimeout(() => {
+        setMentors([]);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     (async () => {
@@ -171,8 +179,10 @@ export default function AssignmentsPage() {
 
   useEffect(() => {
     if (activeTab !== "judge" || !selectedEventId) {
-      setJudges([]);
-      return;
+      const timer = setTimeout(() => {
+        setJudges([]);
+      }, 0);
+      return () => clearTimeout(timer);
     }
     (async () => {
       try {
@@ -188,9 +198,11 @@ export default function AssignmentsPage() {
   // When event changes, refetch its rounds + categories (with their teams).
   useEffect(() => {
     if (activeTab !== "judge" || !selectedEventId) {
-      setRounds([]);
-      setCategories([]);
-      return;
+      const timer = setTimeout(() => {
+        setRounds([]);
+        setCategories([]);
+      }, 0);
+      return () => clearTimeout(timer);
     }
     (async () => {
       try {
@@ -223,11 +235,14 @@ export default function AssignmentsPage() {
     );
 
     if (specificAssignment) {
-      if (specificAssignment.isCategoryWide) {
-        setSelectedTeamIds([]);
-      } else {
-        setSelectedTeamIds(specificAssignment.category.teams?.map((t) => t.teamId) ?? []);
-      }
+      const timer = setTimeout(() => {
+        if (specificAssignment.isCategoryWide) {
+          setSelectedTeamIds([]);
+        } else {
+          setSelectedTeamIds(specificAssignment.category.teams?.map((t) => t.teamId) ?? []);
+        }
+      }, 0);
+      return () => clearTimeout(timer);
       return;
     }
 
@@ -238,17 +253,22 @@ export default function AssignmentsPage() {
     );
 
     if (anyAssignment) {
-      setSelectedJudgeId(anyAssignment.judge.judgeId);
-      if (anyAssignment.isCategoryWide) {
-        setSelectedTeamIds([]);
-      } else {
-        setSelectedTeamIds(anyAssignment.category.teams?.map((t) => t.teamId) ?? []);
-      }
-      return;
+      const timer = setTimeout(() => {
+        setSelectedJudgeId(anyAssignment.judge.judgeId);
+        if (anyAssignment.isCategoryWide) {
+          setSelectedTeamIds([]);
+        } else {
+          setSelectedTeamIds(anyAssignment.category.teams?.map((t) => t.teamId) ?? []);
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     // 3. If there are no assignments for this round and category at all, reset team selections.
-    setSelectedTeamIds([]);
+    const timer = setTimeout(() => {
+      setSelectedTeamIds([]);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [selectedRoundId, selectedCategoryId, selectedJudgeId, judgeAssignments, activeTab]);
 
   const handleRefresh = () => {

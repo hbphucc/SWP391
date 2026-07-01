@@ -24,8 +24,11 @@ namespace SEAL.NET.DTOs.Event
         [Required]
         public DateTime EndDate { get; set; }
 
+        [MaxLength(2048)]
+        public string? PosterUrl { get; set; }
 
-
+        [MaxLength(2048)]
+        public string? WinnerImageUrl { get; set; }
         /// <summary>
         /// Optional catalog tracks. Additive only: tracks not already attached to the
         /// event get a new Category. Existing categories are never removed here (they

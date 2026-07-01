@@ -4,7 +4,6 @@ import ThemeProvider from "../components/ThemeProvider";
 import AuthProvider from "../components/AuthProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import FloatingThemeToggle from "../components/FloatingThemeToggle";
-import DraggableDevIndicator from "../components/DraggableDevIndicator";
 import "./globals.css";
 
 const themeBootstrap = `
@@ -54,7 +53,6 @@ export default function RootLayout({
             {children}
             <FloatingThemeToggle />
             <AIChatbotWrapper />
-            <DraggableDevIndicator />
           </AuthProvider>
         </ThemeProvider>
 

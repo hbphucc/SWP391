@@ -34,7 +34,10 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const [userOpen, setUserOpen] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [themeIconMounted, setThemeIconMounted] = useState(false);
-  useEffect(() => setThemeIconMounted(true), []);
+  useEffect(() => {
+    const timer = setTimeout(() => setThemeIconMounted(true), 0);
+    return () => clearTimeout(timer);
+  }, []);
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,11 +96,14 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   }, []);
 
   useEffect(() => {
-    if (!currentUser) {
-      setAvatar(null);
-      return;
-    }
-    setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+    const timer = setTimeout(() => {
+      if (!currentUser) {
+        setAvatar(null);
+      } else {
+        setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [currentUser]);
 
   useEffect(() => {
@@ -285,9 +291,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
             {avatar ? (
               <img src={avatar} alt="Avatar" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
             ) : (
-              <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", textTransform: "uppercase" }}>
-                {currentUser.name?.charAt(0) || "U"}
-              </div>
+              <img src="/images/user_avatar.png" alt="Avatar Placeholder" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", border: '1px solid rgba(255,255,255,0.1)' }} />
             )}
             <div className={styles.userInfo}>
               <span className={styles.userName}>{currentUser.name || "User"}</span>

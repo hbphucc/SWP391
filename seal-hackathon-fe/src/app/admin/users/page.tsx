@@ -90,7 +90,7 @@ export default function UsersPage() {
   const loadRoleRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiRequest<any[]>("/admin/users/role-requests");
+      const data = await apiRequest<{ id: string; fullName: string; email: string; roles?: string[]; requestedRole?: string; schoolName?: string | null }[]>("/admin/users/role-requests");
       setRoleRequests(data.map((user) => {
         const currentRole = user.roles?.includes("Admin") ? "Admin" 
             : user.roles?.includes("Mentor") ? "Mentor"

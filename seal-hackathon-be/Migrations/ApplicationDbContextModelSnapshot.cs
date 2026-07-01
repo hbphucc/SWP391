@@ -443,6 +443,10 @@ namespace SEAL.NET.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("PosterUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<DateTime>("RegistrationEndDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -454,6 +458,10 @@ namespace SEAL.NET.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.Property<string>("WinnerImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.HasKey("EventId");
 

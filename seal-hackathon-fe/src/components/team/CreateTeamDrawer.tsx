@@ -20,6 +20,7 @@ export type CreateTeamCategoryOption = {
   categoryId: string;
   categoryName: string;
   eventName: string;
+  registrationEndDate: string;
 };
 
 export type CreateTeamMentorOption = {
@@ -56,7 +57,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
   const [submitting, setSubmitting] = useState(false);
 
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<{email: string, fullName: string, studentCode: string}[]>([]);
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -76,7 +77,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
     }
     setActiveSuggestionIndex(index);
     try {
-      const res = await apiRequest<string[]>(
+      const res = await apiRequest<{email: string, fullName: string, studentCode: string}[]>(
         `/teams/members/search?query=${encodeURIComponent(val)}&categoryId=${effectiveCategoryId}`
       );
       setSuggestions(res);
@@ -97,7 +98,9 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
   // fall back to the first available — derived rather than copied into state to
   // avoid a setState-in-effect cascade.
   const effectiveCategoryId =
-    categoryId || (categories.length > 0 ? categories[0].categoryId : "");
+    categoryId || (categories.length > 0 
+      ? (categories.find(c => new Date(c.registrationEndDate) >= new Date())?.categoryId || categories[0].categoryId) 
+      : "");
 
   // Fetch mentors lazily on first open. We keep the result for the lifetime of
   // the drawer so reopening doesn't refetch unless the parent unmounts us. The
@@ -207,7 +210,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
           <Users size={18} /> Create Team
         </span>
       }
-      size="large"
+      width={560}
       maskClosable={!submitting}
       destroyOnHidden
       footer={
@@ -247,11 +250,14 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
             disabled={submitting || categories.length === 0}
           >
             {categories.length === 0 && <option value="">No published events available</option>}
-            {categories.map((c) => (
-              <option key={c.categoryId} value={c.categoryId}>
-                {c.eventName} — {c.categoryName}
-              </option>
-            ))}
+            {categories.map((c) => {
+              const isClosed = new Date(c.registrationEndDate) < new Date();
+              return (
+                <option key={c.categoryId} value={c.categoryId} disabled={isClosed}>
+                  {c.eventName} — {c.categoryName} {isClosed ? "(Closed)" : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -287,13 +293,20 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
                   />
                   {activeSuggestionIndex === index && suggestions.length > 0 && (
                     <ul className="suggestions-list">
-                      {suggestions.map((email) => (
+                      {suggestions.map((user) => (
                         <li
-                          key={email}
+                          key={user.email}
                           className="suggestion-item"
-                          onMouseDown={(e) => selectSuggestion(index, email, e)}
+                          onMouseDown={(e) => selectSuggestion(index, user.email, e)}
+                          style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", cursor: "pointer", borderBottom: "1px solid var(--color-border-2)" }}
                         >
-                          {email}
+                          <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", flexShrink: 0, background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                            {user.fullName.charAt(0)}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", textAlign: "left" }}>
+                            <span style={{ fontWeight: 500, fontSize: "0.95rem", color: "var(--color-text-1)" }}>{user.fullName} {user.studentCode ? `(${user.studentCode})` : ""}</span>
+                            <span style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{user.email}</span>
+                          </div>
                         </li>
                       ))}
                     </ul>

@@ -5,6 +5,7 @@ import {
   Clock, ArrowRight, Zap, Award,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import styles from "./page.module.css";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
@@ -125,7 +126,7 @@ export default function DashboardPage() {
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
   const [myTeam, setMyTeam] = useState<TeamDto | null>(null);
   const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
-  const userRoles = user?.roles ?? [];
+  const userRoles = useMemo(() => user?.roles ?? [], [user?.roles]);
   const isAdmin = userRoles.includes("Admin");
   const canJudge = isAdmin || userRoles.includes("Judge");
   const currentUserId = user?.id ?? null;
@@ -298,6 +299,10 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* Banner */}
+      <div style={{ position: 'relative', width: '100%', height: '200px', borderRadius: '1rem', overflow: 'hidden', marginBottom: '1.5rem', marginTop: '-1rem' }}>
+        <Image src="/images/dashboard_header.png" alt="Dashboard Banner" fill style={{ objectFit: 'cover' }} priority />
+      </div>
       {/* Header */}
       <div className="page-header" style={{ marginBottom: receivedInvites.length > 0 ? "1.5rem" : "2rem" }}>
         <div>

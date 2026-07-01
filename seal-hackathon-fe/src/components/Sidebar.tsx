@@ -125,11 +125,14 @@ export default function Sidebar({
 
   // Avatar is a UI-only per-email preference; never drives identity/authz.
   useEffect(() => {
-    if (!currentUser) {
-      setAvatar(null);
-      return;
-    }
-    setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+    const timer = setTimeout(() => {
+      if (!currentUser) {
+        setAvatar(null);
+      } else {
+        setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [currentUser]);
 
   const handleLogout = async () => {

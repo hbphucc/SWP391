@@ -1399,7 +1399,7 @@ namespace SEAL.NET.Services.Implementations
         {
             if (string.IsNullOrWhiteSpace(query))
             {
-                return ServiceResult.Ok(new List<string>());
+                return ServiceResult.Ok(new List<object>());
             }
 
             var category = await _context.Categories.FirstOrDefaultAsync(c => c.CategoryId == categoryId);
@@ -1421,7 +1421,7 @@ namespace SEAL.NET.Services.Implementations
             var memberRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Member");
             if (memberRole == null)
             {
-                return ServiceResult.Ok(new List<string>());
+                return ServiceResult.Ok(new List<object>());
             }
 
             var memberUserIdsQuery = _context.Set<IdentityUserRole<Guid>>()
@@ -1430,17 +1430,26 @@ namespace SEAL.NET.Services.Implementations
 
             var queryLower = query.Trim().ToLower();
 
-            var matchingEmails = await _context.Users
+            var matchingUsers = await _context.Users
                 .Where(u => u.IsApproved &&
                             memberUserIdsQuery.Contains(u.Id) &&
                             u.Id != currentUserId &&
                             !userIdsAlreadyJoined.Contains(u.Id) &&
-                            u.Email != null && u.Email.ToLower().Contains(queryLower))
-                .Select(u => u.Email!)
+                            (
+                                (u.Email != null && u.Email.ToLower().Contains(queryLower)) ||
+                                (u.StudentCode != null && u.StudentCode.ToLower().Contains(queryLower)) ||
+                                (u.FullName != null && u.FullName.ToLower().Contains(queryLower))
+                            ))
+                .Select(u => new
+                {
+                    Email = u.Email,
+                    FullName = u.FullName,
+                    StudentCode = u.StudentCode
+                })
                 .Take(10)
                 .ToListAsync();
 
-            return ServiceResult.Ok(matchingEmails);
+            return ServiceResult.Ok(matchingUsers);
         }
     }
 }

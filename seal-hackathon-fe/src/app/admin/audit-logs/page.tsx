@@ -45,7 +45,8 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     if (isAdmin) {
-      void loadLogs();
+      const timer = setTimeout(() => void loadLogs(), 0);
+      return () => clearTimeout(timer);
     }
   }, [isAdmin, loadLogs]);
 

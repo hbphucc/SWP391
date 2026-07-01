@@ -10,7 +10,18 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: 'bottom-left',
   },
-
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      }
+    ],
+  },
 };
 
 export default nextConfig;

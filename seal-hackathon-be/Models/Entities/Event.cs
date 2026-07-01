@@ -20,7 +20,11 @@ namespace SEAL.NET.Models.Entities
         public EventStatus Status { get; set; } = EventStatus.Draft;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [MaxLength(2048)]
+        public string? PosterUrl { get; set; }
 
+        [MaxLength(2048)]
+        public string? WinnerImageUrl { get; set; }
 
         public List<Category> Categories { get; set; } = [];
         public List<Round> Rounds { get; set; } = [];
