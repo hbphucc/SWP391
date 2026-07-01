@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare } from "lucide-react";
 import styles from "./page.module.css";
@@ -42,12 +43,11 @@ interface WinnerDto {
 const STATUS_LABEL: Record<string, string> = {
   Ongoing: "Ongoing",
   Upcoming: "Coming Soon",
-  Published: "Coming Soon",
   Completed: "Completed",
   Cancelled: "Cancelled",
 };
 
-const FEATURED_STATUS_ORDER = ["Ongoing", "Published", "Completed"] as const;
+const FEATURED_STATUS_ORDER = ["Ongoing", "Upcoming", "Completed"] as const;
 
 function getFeaturedEvents(events: EventDto[]) {
   return FEATURED_STATUS_ORDER.flatMap((status) => {
@@ -64,7 +64,7 @@ function getFeaturedEvents(events: EventDto[]) {
 
 function badgeClass(status: string) {
   if (status === "Ongoing") return "badge-success";
-  if (status === "Upcoming" || status === "Published") return "badge-primary";
+  if (status === "Upcoming") return "badge-primary";
   return "badge-neutral";
 }
 
@@ -82,7 +82,7 @@ export default function LandingPage() {
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedComp, setSelectedComp] = useState<EventDto | null>(null);
-  const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Published" | "Completed">("featured");
+  const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Upcoming" | "Completed">("featured");
   const [winners, setWinners] = useState<WinnerDto[]>([]);
   const [loadingWinners, setLoadingWinners] = useState(false);
 
@@ -139,10 +139,6 @@ export default function LandingPage() {
 
   return (
     <div className={styles.container}>
-      {/* Background Decorative Elements */}
-      <div className={styles.bgBlob1}></div>
-      <div className={styles.bgBlob2}></div>
-
       {/* Navbar */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
@@ -177,19 +173,53 @@ export default function LandingPage() {
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className={styles.hero}
+          style={{ display: 'flex', flexWrap: 'wrap-reverse', alignItems: 'center', justifyContent: 'space-between', gap: '3rem', width: '100%', marginBottom: '4rem' }}
         >
-          <div className={styles.heroTag}>
-            <Rocket size={16} />
-            <span>Unleash Your Creative Potential</span>
+          <div style={{ flex: '1 1 500px' }}>
+            <div className={styles.heroTag} style={{ marginBottom: '1.5rem' }}>
+              <Rocket size={16} />
+              <span>Unleash Your Creative Potential</span>
+            </div>
+            <h1 className={styles.heroTitle} style={{ textAlign: 'left', marginTop: 0, fontSize: 'clamp(3rem, 5vw, 4.5rem)', lineHeight: 1.1, letterSpacing: '-0.02em', fontWeight: 900, color: 'var(--color-primary)' }}>
+              Explore & Compete in <br/>
+              <span>World-Class Hackathons</span>
+            </h1>
+            <p className={styles.heroDesc} style={{ textAlign: 'left', maxWidth: '100%', marginBottom: '2.5rem', fontSize: '1.25rem', lineHeight: 1.7, color: 'var(--color-text-2)' }}>
+              Connect with top talent, showcase your skills, and build outstanding software solutions in globally recognized Hackathon competitions.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <Link href="/auth/register" className="btn btn-primary" style={{ padding: '0.8rem 1.5rem', fontSize: '1.1rem', borderRadius: '99px' }}>Get Started</Link>
+              <Link href="#featured-events" className="btn btn-ghost" style={{ padding: '0.8rem 1.5rem', fontSize: '1.1rem', borderRadius: '99px', border: '1px solid var(--color-border)' }}>View Events</Link>
+            </div>
           </div>
-          <h1 className={styles.heroTitle}>
-            Explore & Compete in <br/>
-            <span className="gradient-text">World-Class Hackathons</span>
-          </h1>
-          <p className={styles.heroDesc}>
-            Connect with top talent, showcase your skills, and build outstanding software solutions in globally recognized Hackathon competitions.
-          </p>
+          <div style={{ flex: '1 1 500px', position: 'relative', height: '400px', borderRadius: '2rem', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(99,102,241,0.25)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top right, rgba(99,102,241,0.1), transparent)', zIndex: 1, pointerEvents: 'none' }} />
+            <Image src="/images/hero_banner.png" alt="Hero Banner" fill style={{ objectFit: 'cover' }} priority />
+          </div>
+        </motion.div>
+
+        {/* About Us Section */}
+        <motion.div
+          initial={{ y: 30, opacity: 0 }}
+          whileInView={{ y: 0, opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: '3rem', margin: '4rem auto', maxWidth: '1200px', padding: '2rem', alignItems: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}
+        >
+          <div style={{ flex: '1 1 400px', position: 'relative', height: '350px', borderRadius: '1rem', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+            <Image src="/images/about_us_image.png" alt="About SEAL Hackathon" fill style={{ objectFit: 'cover' }} />
+          </div>
+          <div style={{ flex: '1 1 400px', padding: '1rem' }}>
+            <h2 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1.5rem' }}>Why Join <span className="gradient-text">SEAL?</span></h2>
+            <p style={{ color: 'var(--color-text-2)', fontSize: '1.1rem', lineHeight: 1.7, marginBottom: '1.5rem' }}>
+              SEAL is the ultimate platform for aspiring software engineers to collaborate, build, and showcase their talents. We bring together university students and tech enthusiasts from across the globe to solve real-world problems.
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-text-1)' }}><CheckCircle2 style={{ color: 'var(--color-primary)' }} size={20} /> Connect with top tech companies and mentors</li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-text-1)' }}><CheckCircle2 style={{ color: 'var(--color-primary)' }} size={20} /> Build your portfolio with real-world projects</li>
+              <li style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-text-1)' }}><CheckCircle2 style={{ color: 'var(--color-primary)' }} size={20} /> Win massive prizes and recognition</li>
+            </ul>
+          </div>
         </motion.div>
 
         {/* Competitions Section */}
@@ -202,7 +232,7 @@ export default function LandingPage() {
             >
               <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>
                 <Globe style={{ color: "var(--color-primary-2)" }} />
-                {activeTab === "featured" ? "Featured Events" : activeTab === "Ongoing" ? "Ongoing Events" : activeTab === "Published" ? "Upcoming Events" : "Past Events"}
+                {activeTab === "featured" ? "Featured Events" : activeTab === "Ongoing" ? "Ongoing Events" : activeTab === "Upcoming" ? "Upcoming Events" : "Past Events"}
               </h2>
             </motion.div>
 
@@ -218,7 +248,7 @@ export default function LandingPage() {
               <button className={`tab-btn ${activeTab === "Ongoing" ? "active" : ""}`} onClick={() => setActiveTab("Ongoing")}>
                 Ongoing
               </button>
-              <button className={`tab-btn ${activeTab === "Published" ? "active" : ""}`} onClick={() => setActiveTab("Published")}>
+              <button className={`tab-btn ${activeTab === "Upcoming" ? "active" : ""}`} onClick={() => setActiveTab("Upcoming")}>
                 Upcoming
               </button>
               <button className={`tab-btn ${activeTab === "Completed" ? "active" : ""}`} onClick={() => setActiveTab("Completed")}>
@@ -231,6 +261,8 @@ export default function LandingPage() {
             <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>Loading events…</div>
           ) : displayedEvents.length === 0 ? (
             <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>
+              <Image src="/images/empty_state.png" alt="Empty" width={250} height={250} style={{ opacity: 0.9, marginBottom: '1rem', borderRadius: '1rem' }} />
+              <br />
               No {activeTab === "featured" ? "featured" : activeTab === "Completed" ? "past" : activeTab.toLowerCase()} events available at the moment.
             </div>
           ) : (
@@ -245,7 +277,17 @@ export default function LandingPage() {
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
                     className={`glass-card ${styles.eventCard}`}
+                    style={{ overflow: 'hidden' }}
                   >
+                    <div style={{ height: '180px', position: 'relative', margin: '-1.5rem -1.5rem 1.5rem -1.5rem', background: '#f1f5f9' }}>
+                      <Image 
+                        src={["https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800", "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=800", "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=800", "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800", "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800"][comp.eventId.charCodeAt(0) % 5]} 
+                        alt="Event Thumbnail" 
+                        fill 
+                        style={{ objectFit: 'cover' }} 
+                        priority={index < 3}
+                      />
+                    </div>
                     {/* Top Badge */}
                     <div className={styles.cardHeader}>
                       <span className={`badge ${badgeClass(comp.status)}`}>

@@ -36,7 +36,7 @@ export default function RegisterPage() {
 
   const { refresh } = useAuth();
 
-  const handleGoogleLoginResponse = async (response: any) => {
+  const handleGoogleLoginResponse = async (response: { credential: string }) => {
     setLoading(true);
     try {
       const idToken = response.credential;
@@ -62,7 +62,7 @@ export default function RegisterPage() {
   };
 
   const initGoogleSignIn = () => {
-    const google = (window as any).google;
+    const google = (window as unknown as { google?: { accounts?: { id?: { initialize: (config: object) => void; renderButton: (el: HTMLElement | null, config: object) => void } } } }).google;
     if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
       google.accounts.id.initialize({
         client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
@@ -81,10 +81,11 @@ export default function RegisterPage() {
   };
 
   useEffect(() => {
-    const google = (window as any).google;
+    const google = (window as unknown as { google?: { accounts?: { id?: object } } }).google;
     if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
       initGoogleSignIn();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleProgrammingLanguage = (language: string) => {
@@ -101,6 +102,11 @@ export default function RegisterPage() {
 
     if (!studentType) {
       message.error("Please select a student type.");
+      return;
+    }
+
+    if (studentType === "fpt" && !form.email.toLowerCase().endsWith("@fpt.edu.vn")) {
+      message.error("FPT University students must use an @fpt.edu.vn email address.");
       return;
     }
 

@@ -26,7 +26,7 @@ export default function UserEventsPage() {
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
   const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
-  const userRoles = user?.roles ?? [];
+  const userRoles = React.useMemo(() => user?.roles ?? [], [user?.roles]);
 
   useEffect(() => {
     let active = true;

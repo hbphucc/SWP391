@@ -38,7 +38,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "", remember: false });
 
-  const handleGoogleLoginResponse = async (response: any) => {
+  const handleGoogleLoginResponse = async (response: { credential: string }) => {
     setLoading(true);
     setError("");
     try {
@@ -65,7 +65,7 @@ function LoginForm() {
   };
 
   const initGoogleSignIn = () => {
-    const google = (window as any).google;
+    const google = (window as unknown as { google?: { accounts?: { id?: { initialize: (config: object) => void; renderButton: (el: HTMLElement | null, config: object) => void } } } }).google;
     if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
       google.accounts.id.initialize({
         client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
@@ -84,10 +84,11 @@ function LoginForm() {
   };
 
   useEffect(() => {
-    const google = (window as any).google;
+    const google = (window as unknown as { google?: { accounts?: { id?: object } } }).google;
     if (typeof window !== "undefined" && google && google.accounts && google.accounts.id) {
       initGoogleSignIn();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // If the user is already signed in (cookie still valid), bounce them out of

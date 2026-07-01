@@ -39,7 +39,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // still be allowed through. Pathname-change is our "navigation completed"
   // signal — it fires once for the route the caller pushed us to.
   useEffect(() => {
-    if (loggingOut) setLoggingOut(false);
+    if (loggingOut) {
+      const timer = setTimeout(() => setLoggingOut(false), 0);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 

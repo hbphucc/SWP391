@@ -159,10 +159,15 @@ export default function JudgingPortalPage() {
 
   useEffect(() => {
     if (authLoading || !isJudge) {
-      if (!authLoading) setLoading(false);
+      if (!authLoading) {
+        const timer = setTimeout(() => setLoading(false), 0);
+        return () => clearTimeout(timer);
+      }
       return;
     }
-    loadJudgeData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timer = setTimeout(() => loadJudgeData(), 0);
+    return () => clearTimeout(timer);
   }, [authLoading, isJudge, loadJudgeData]);
 
   const eventOptions = useMemo(() => {

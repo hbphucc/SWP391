@@ -46,7 +46,7 @@ export default function StoragePage() {
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadStats = async () => {
+  const loadStats = React.useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiRequest<StorageStats>("/Documents/storage-stats");
@@ -56,11 +56,12 @@ export default function StoragePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [message]);
 
   useEffect(() => {
-    void loadStats();
-  }, []);
+    const timer = setTimeout(() => void loadStats(), 0);
+    return () => clearTimeout(timer);
+  }, [loadStats]);
 
   if (loading) {
     return (

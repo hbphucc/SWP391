@@ -4,7 +4,7 @@
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  background: var(--color-bg);
+  background: transparent;
 }
 
 .header {
@@ -316,7 +316,7 @@
   border-radius: 28px;
   background:
     radial-gradient(circle at 18% 10%, rgba(99, 102, 241, 0.12), transparent 30%),
-    rgba(15, 23, 42, 0.74);
+    var(--color-surface);
   box-shadow: var(--shadow-md);
   color: inherit;
   cursor: pointer;
@@ -339,7 +339,7 @@
   background:
     radial-gradient(circle at 88% 10%, rgba(16, 185, 129, 0.17), transparent 34%),
     radial-gradient(circle at 10% 100%, rgba(34, 211, 238, 0.11), transparent 28%),
-    rgba(15, 23, 42, 0.8);
+    var(--color-surface);
 }
 
 .valueIcon {
@@ -390,8 +390,8 @@
   padding: 0.35rem 0.7rem;
   border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: 999px;
-  color: var(--color-text-2);
-  background: rgba(15, 23, 42, 0.52);
+  color: var(--color-text);
+  background: var(--color-surface-2);
   font-size: 0.78rem;
 }
 
@@ -399,9 +399,9 @@
   padding: 4rem 2rem;
   border-radius: 32px;
   background:
-    linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.24)),
-    rgba(15, 23, 42, 0.42);
-  border: 1px solid rgba(129, 140, 248, 0.14);
+    linear-gradient(180deg, rgba(99, 102, 241, 0.08), var(--color-surface-2)),
+    var(--color-surface);
+  border: 1px solid var(--color-border);
 }
 
 .stepsGrid {
@@ -522,11 +522,12 @@
   font-size: clamp(1.7rem, 3vw, 2.5rem);
   line-height: 1.15;
   margin-bottom: 0.75rem;
+  color: #fff;
 }
 
 .ctaDesc {
   max-width: 640px;
-  color: var(--color-text-2);
+  color: rgba(255, 255, 255, 0.85);
   line-height: 1.6;
 }
 
@@ -543,9 +544,9 @@
   gap: 0.4rem;
   padding: 0.45rem 0.75rem;
   border-radius: 999px;
-  color: var(--color-text);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   font-size: 0.84rem;
   font-weight: 700;
 }

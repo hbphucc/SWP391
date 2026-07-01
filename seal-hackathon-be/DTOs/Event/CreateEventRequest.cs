@@ -24,8 +24,11 @@ namespace SEAL.NET.DTOs.Event
         [Required]
         public DateTime EndDate { get; set; }
 
+        [MaxLength(2048)]
+        public string? PosterUrl { get; set; }
 
-
+        [MaxLength(2048)]
+        public string? WinnerImageUrl { get; set; }
         /// <summary>
         /// Optional catalog tracks to attach. Each materializes a per-event Category
         /// (Teams register into Categories). Duplicates and inactive tracks are ignored.

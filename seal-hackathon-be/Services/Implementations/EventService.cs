@@ -99,7 +99,9 @@ namespace SEAL.NET.Services.Implementations
                 RegistrationEndDate = request.RegistrationEndDate,
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
-                Status = EventStatus.Draft
+                Status = EventStatus.Draft,
+                PosterUrl = request.PosterUrl,
+                WinnerImageUrl = request.WinnerImageUrl
             };
 
             await _eventRepository.AddAsync(newEvent);
@@ -155,6 +157,8 @@ namespace SEAL.NET.Services.Implementations
             eventItem.RegistrationEndDate = request.RegistrationEndDate;
             eventItem.StartDate = request.StartDate;
             eventItem.EndDate = request.EndDate;
+            eventItem.PosterUrl = request.PosterUrl;
+            eventItem.WinnerImageUrl = request.WinnerImageUrl;
 
             // Additively attach any newly-selected tracks (never removes categories).
             if (request.TrackIds.Count > 0)
@@ -312,6 +316,8 @@ namespace SEAL.NET.Services.Implementations
                 StartDate = e.StartDate,
                 EndDate = e.EndDate,
                 Status = e.Status.ToString(),
+                PosterUrl = e.PosterUrl,
+                WinnerImageUrl = e.WinnerImageUrl,
                 HasSubmissions = e.Rounds.Any(r => r.Submissions.Any()),
                 Categories = e.Categories.Select(c => new CategoryDto
                 {

@@ -19,7 +19,8 @@ export default function FloatingThemeToggle() {
   // the default-dark Sun) doesn't briefly contradict the client when light
   // mode was chosen. The container itself is fine to render server-side.
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!pathname) return null;

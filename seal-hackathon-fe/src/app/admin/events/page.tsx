@@ -100,6 +100,8 @@ const INITIAL_EVENT_FORM = {
   registrationEndDate: "",
   startDate: "",
   endDate: "",
+  posterUrl: null as string | null,
+  winnerImageUrl: null as string | null,
 };
 const INITIAL_EDIT_FORM = {
   registrationStartDate: "",
@@ -122,6 +124,7 @@ const INITIAL_ROUND = () => ({
   deadline: "",
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
+  criteria: [{ id: Date.now(), name: "Technical", weight: "40", maxScore: "10" }],
 });
 
 /**
@@ -177,7 +180,7 @@ export default function AdminEventsPage() {
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
+  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   // Active section anchor for the sticky TOC sidebar. Used purely for the
   // "current section" highlight; clicking a TOC item smooth-scrolls to the
@@ -558,7 +561,10 @@ export default function AdminEventsPage() {
     const chainError = validateDateChain(eventForm);
     if (chainError) { message.error(chainError); return; }
 
+    if (rounds.length === 0) { message.error("At least one round is required."); return; }
     if (rounds.some((r) => !r.name.trim() || !r.deadline)) { message.error("Every round needs a name and submission deadline."); return; }
+    if (rounds.some((r) => r.criteria.length === 0)) { message.error("Every round must have at least one scoring criteria."); return; }
+    if (rounds.some((r) => r.criteria.some(c => !c.name.trim()))) { message.error("Every criteria needs a name."); return; }
 
     setSubmitting(true);
     try {
@@ -574,6 +580,8 @@ export default function AdminEventsPage() {
           startDate: toApiDate(eventForm.startDate),
           endDate: toApiDate(eventForm.endDate),
           trackIds: usingCatalog ? selectedTracks : [],
+          posterUrl: eventForm.posterUrl,
+          winnerImageUrl: eventForm.winnerImageUrl,
         }),
       });
 
@@ -582,9 +590,9 @@ export default function AdminEventsPage() {
       // The event now exists; if a follow-up call fails, surface what happened
       // instead of letting a retry create a duplicate event.
       try {
-        await Promise.all(
+        const createdRounds = await Promise.all(
           rounds.map((r, i) =>
-            apiRequest(`/events/${eventId}/rounds`, {
+            apiRequest<{ roundId: string }>(`/events/${eventId}/rounds`, {
               method: "POST",
               body: JSON.stringify({
                 roundName: r.name.trim(),
@@ -594,6 +602,21 @@ export default function AdminEventsPage() {
                 promptDocumentId: r.promptDocumentId || null,
               }),
             }),
+          ),
+        );
+
+        await Promise.all(
+          rounds.flatMap((r, i) =>
+            r.criteria.map(c =>
+              apiRequest(`/rounds/${createdRounds[i].roundId}/criteria`, {
+                method: "POST",
+                body: JSON.stringify({
+                  criteriaName: c.name.trim(),
+                  maxScore: Number(c.maxScore) || 10,
+                  weight: Number(c.weight) || 1
+                }),
+              }),
+            ),
           ),
         );
 
@@ -617,7 +640,7 @@ export default function AdminEventsPage() {
           8,
         );
         setEventForm(INITIAL_EVENT_FORM);
-        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
+        setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
         setSelectedTracks([]);
         setActiveSection("general");
         setView("list");
@@ -627,7 +650,7 @@ export default function AdminEventsPage() {
 
       message.success("Event created successfully.");
       setEventForm({ ...INITIAL_EVENT_FORM });
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null }]);
+      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
       setSelectedTracks([]);
       setActiveSection("general");
       setView("list");
@@ -1080,6 +1103,114 @@ export default function AdminEventsPage() {
                   </div>
                 </div>
 
+                {/* Event Images */}
+                <div style={{ border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1rem" }}>
+                  <h4 style={{ display: "flex", alignItems: "center", gap: "0.45rem", margin: "0 0 0.25rem 0" }}>
+                    <AlertCircle size={15} style={{ color: "var(--color-primary)" }} /> Event Imagery
+                  </h4>
+                  <p className="form-hint" style={{ marginBottom: "0.9rem" }}>
+                    Upload a poster or winner image to display on the event dashboard.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div className="form-group">
+                      <label className="form-label">Event Poster</label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "1rem", minHeight: 40 }}>
+                        <input
+                          type="file"
+                          id="create-event-poster"
+                          style={{ display: "none" }}
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const fd = new FormData();
+                                fd.append("file", file);
+                                const res = await apiUpload<{ documentId: string }>("/Documents", fd);
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://localhost:7266/api";
+                                setEventForm({ ...eventForm, posterUrl: `${API_BASE_URL}/Documents/${res.documentId}/download` });
+                                message.success("Poster uploaded successfully!");
+                              } catch (err) {
+                                message.error(err instanceof Error ? err.message : "Upload failed.");
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => document.getElementById("create-event-poster")?.click()}
+                        >
+                          Choose Poster
+                        </button>
+                        {eventForm.posterUrl ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span style={{ fontSize: "0.85rem", color: "var(--color-success)", fontWeight: 500 }}>Uploaded</span>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-icon btn-sm"
+                              style={{ padding: "0.2rem" }}
+                              onClick={() => setEventForm({ ...eventForm, posterUrl: null })}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>No file selected</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Winner Image</label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "1rem", minHeight: 40 }}>
+                        <input
+                          type="file"
+                          id="create-event-winner-image"
+                          style={{ display: "none" }}
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const fd = new FormData();
+                                fd.append("file", file);
+                                const res = await apiUpload<{ documentId: string }>("/Documents", fd);
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://localhost:7266/api";
+                                setEventForm({ ...eventForm, winnerImageUrl: `${API_BASE_URL}/Documents/${res.documentId}/download` });
+                                message.success("Winner image uploaded successfully!");
+                              } catch (err) {
+                                message.error(err instanceof Error ? err.message : "Upload failed.");
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => document.getElementById("create-event-winner-image")?.click()}
+                        >
+                          Choose Image
+                        </button>
+                        {eventForm.winnerImageUrl ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span style={{ fontSize: "0.85rem", color: "var(--color-success)", fontWeight: 500 }}>Uploaded</span>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-icon btn-sm"
+                              style={{ padding: "0.2rem" }}
+                              onClick={() => setEventForm({ ...eventForm, winnerImageUrl: null })}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>No file selected</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Event Runtime — when the competition actually runs */}
                 <div style={{ border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1rem" }}>
                   <h4 style={{ display: "flex", alignItems: "center", gap: "0.45rem", margin: "0 0 0.25rem 0" }}>
@@ -1209,6 +1340,56 @@ export default function AdminEventsPage() {
                         ) : (
                           <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>No prompt document uploaded</span>
                         )}
+                      </div>
+                    </div>
+                    {/* Inline Criteria Builder for this Round */}
+                    <div style={{ marginTop: "1rem", borderTop: "1px dashed var(--color-border)", paddingTop: "1rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                        <label className="form-label" style={{ margin: 0 }}>Scoring Criteria *</label>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: [...(x.criteria || []), { id: Date.now(), name: "", weight: "10", maxScore: "10" }] } : x))}
+                        >
+                          <Plus size={13} /> Add Criteria
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        {(r.criteria || []).map((c, ci) => (
+                          <div key={c.id} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+                            <input
+                              className="form-input"
+                              style={{ flex: 2, padding: "0.4rem 0.6rem" }}
+                              placeholder="Criteria Name"
+                              value={c.name}
+                              onChange={(e) => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.map(cx => cx.id === c.id ? { ...cx, name: e.target.value } : cx) } : x))}
+                            />
+                            <input
+                              className="form-input"
+                              type="number"
+                              style={{ flex: 1, padding: "0.4rem 0.6rem" }}
+                              placeholder="Weight (%)"
+                              value={c.weight}
+                              onChange={(e) => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.map(cx => cx.id === c.id ? { ...cx, weight: e.target.value } : cx) } : x))}
+                            />
+                            <input
+                              className="form-input"
+                              type="number"
+                              style={{ flex: 1, padding: "0.4rem 0.6rem" }}
+                              placeholder="Max Score"
+                              value={c.maxScore}
+                              onChange={(e) => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.map(cx => cx.id === c.id ? { ...cx, maxScore: e.target.value } : cx) } : x))}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-icon"
+                              disabled={(r.criteria || []).length <= 1}
+                              onClick={() => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.filter(cx => cx.id !== c.id) } : x))}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>

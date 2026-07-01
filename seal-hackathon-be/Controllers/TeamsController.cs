@@ -45,14 +45,7 @@ namespace SEAL.NET.Controllers
 
         [HttpGet("my-team")]
         public async Task<IActionResult> GetMyTeam()
-        {
-            var result = await _teamService.GetMyTeamAsync(GetCurrentUserId());
-            if (result.Outcome == ServiceOutcome.NotFound)
-            {
-                return NoContent();
-            }
-            return ToActionResult(result);
-        }
+            => ToActionResult(await _teamService.GetMyTeamAsync(GetCurrentUserId()));
 
         [HttpGet("mentoring")]
         [Authorize(Roles = "Mentor")]

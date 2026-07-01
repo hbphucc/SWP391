@@ -25,6 +25,7 @@ type TeamDto = {
   category: {
     categoryId: string;
     categoryName: string;
+    eventName?: string;
   };
   eventStatus?: string | null;
   finalRank?: number | null;
@@ -61,6 +62,7 @@ type MentorOption = {
 type EventDto = {
   eventId: string;
   eventName: string;
+  registrationEndDate: string;
   categories: {
     categoryId: string;
     categoryName: string;
@@ -110,7 +112,7 @@ export default function TeamsPage() {
   const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
   const [kickReason, setKickReason] = useState("");
 
-  const [memberSuggestions, setMemberSuggestions] = useState<string[]>([]);
+  const [memberSuggestions, setMemberSuggestions] = useState<{email: string, fullName: string, studentCode: string}[]>([]);
   const [showMemberSuggestions, setShowMemberSuggestions] = useState(false);
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function TeamsPage() {
     }
     setShowMemberSuggestions(true);
     try {
-      const res = await apiRequest<string[]>(
+      const res = await apiRequest<{email: string, fullName: string, studentCode: string}[]>(
         `/teams/members/search?query=${encodeURIComponent(val)}&categoryId=${myTeam.category.categoryId}`
       );
       setMemberSuggestions(res);
@@ -154,10 +156,16 @@ export default function TeamsPage() {
         event.categories.map((category) => ({
           ...category,
           eventName: event.eventName,
+          registrationEndDate: event.registrationEndDate,
         })),
       ),
     [events],
   );
+
+  const hasActiveEvents = useMemo(() => {
+    const now = new Date();
+    return categories.some(c => new Date(c.registrationEndDate) >= now);
+  }, [categories]);
 
   const isLeader = Boolean(myTeam && currentUser && myTeam.leaderId === currentUser.id);
   const canModifyMembers = isLeader && (myTeam?.status === "Pending" || myTeam?.status === "Eliminated");
@@ -191,9 +199,6 @@ export default function TeamsPage() {
       let hasTeam = false;
       try {
         const team = await apiRequest<TeamDto>("/teams/my-team");
-        if (!team) {
-          throw new ApiError("Not joined", 404);
-        }
         setMyTeam(team);
         setDraftTeamName(team.teamName);
         hasTeam = true;
@@ -260,9 +265,6 @@ export default function TeamsPage() {
 
     try {
       const team = await apiRequest<TeamDto>("/teams/my-team");
-      if (!team) {
-        throw new ApiError("Not joined", 404);
-      }
       setMyTeam((currentTeam) => {
         if (JSON.stringify(currentTeam) !== JSON.stringify(team)) {
           return team;
@@ -650,7 +652,7 @@ export default function TeamsPage() {
             ) : (
               <div style={{ textAlign: "center", padding: "3rem 1rem", border: "1px dashed var(--color-border)", borderRadius: "12px", background: "var(--color-surface-1)" }}>
                 <Users size={32} style={{ color: "var(--color-text-3)", marginBottom: "1rem" }} />
-                <p style={{ margin: 0, color: "var(--color-text-2)" }}>You haven't been assigned to mentor any teams yet.</p>
+                <p style={{ margin: 0, color: "var(--color-text-2)" }}>You haven&apos;t been assigned to mentor any teams yet.</p>
               </div>
             )}
           </div>
@@ -691,7 +693,7 @@ export default function TeamsPage() {
             ) : (
               <div style={{ textAlign: "center", padding: "3rem 1rem", border: "1px dashed var(--color-border)", borderRadius: "12px", background: "var(--color-surface-1)" }}>
                 <Users size={32} style={{ color: "var(--color-text-3)", marginBottom: "1rem" }} />
-                <p style={{ margin: 0, color: "var(--color-text-2)" }}>You haven't been assigned to judge any teams yet.</p>
+                <p style={{ margin: 0, color: "var(--color-text-2)" }}>You haven&apos;t been assigned to judge any teams yet.</p>
               </div>
             )}
           </div>
@@ -727,10 +729,17 @@ export default function TeamsPage() {
             <button
               className="btn btn-primary btn-lg"
               onClick={() => setCreateDrawerOpen(true)}
+              disabled={!hasActiveEvents}
+              title={!hasActiveEvents ? "Registration for all events has closed." : ""}
               style={{ minWidth: 200, justifyContent: "center" }}
             >
               <Plus size={18} /> Create a Team
             </button>
+            {!hasActiveEvents && categories.length > 0 && (
+              <div style={{ marginTop: "1rem", color: "var(--color-danger)", fontSize: "0.9rem", fontWeight: 500 }}>
+                Registration for all current events has ended.
+              </div>
+            )}
           </div>
         )}
 
@@ -753,6 +762,22 @@ export default function TeamsPage() {
             {myTeam.category.categoryName}
             {myTeam.currentRound ? ` · ${myTeam.currentRound.roundName}` : ""}
           </p>
+          {(myTeam.mentor || myTeam.judge) && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", marginTop: "0.75rem", fontSize: "0.95rem" }}>
+              {myTeam.mentor && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--color-text-2)" }}>
+                  <GraduationCap size={16} style={{ color: "var(--color-primary)" }} />
+                  <span>Mentor: <strong>{myTeam.mentor.fullName}</strong></span>
+                </div>
+              )}
+              {myTeam.judge && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--color-text-2)" }}>
+                  <Users size={16} style={{ color: "var(--color-primary)" }} />
+                  <span>Giám khảo: <strong>{myTeam.judge.fullName}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard/matchmaking")}>
@@ -1133,13 +1158,20 @@ export default function TeamsPage() {
                 />
                 {showMemberSuggestions && memberSuggestions.length > 0 && (
                   <ul className="suggestions-list">
-                    {memberSuggestions.map((email) => (
+                    {memberSuggestions.map((user) => (
                       <li
-                        key={email}
+                        key={user.email}
                         className="suggestion-item"
-                        onMouseDown={(e) => selectMemberSuggestion(email, e)}
+                        onMouseDown={(e) => selectMemberSuggestion(user.email, e)}
+                        style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", cursor: "pointer", borderBottom: "1px solid var(--color-border-2)" }}
                       >
-                        {email}
+                        <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", flexShrink: 0, background: "rgba(99,102,241,0.1)", color: "var(--color-primary)" }}>
+                          {user.fullName.charAt(0)}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontWeight: 500, fontSize: "0.95rem" }}>{user.fullName} {user.studentCode ? `(${user.studentCode})` : ""}</span>
+                          <span style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{user.email}</span>
+                        </div>
                       </li>
                     ))}
                   </ul>

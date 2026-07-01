@@ -17,7 +17,7 @@ namespace SEAL.NET.DTOs.Event
         public List<CategoryDto> Categories { get; set; } = [];
         public List<RoundDto> Rounds { get; set; } = [];
 
-
-    }
+        public string? PosterUrl { get; set; }
+        public string? WinnerImageUrl { get; set; }    }
 
 }
