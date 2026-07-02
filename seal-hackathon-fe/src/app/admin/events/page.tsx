@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Calendar, Clock, Save, AlertCircle, RefreshCw,
-  Plus, Trash2, GripVertical, Target, Pencil, Award,
+  Plus, Trash2, GripVertical, Target, Pencil, Award, Tag, UserCheck, FileText,
 } from "lucide-react";
 import { App, DatePicker, Input, Modal } from "antd";
 import dayjs from "dayjs";
@@ -11,6 +11,11 @@ import { apiRequest, apiUpload } from "@/lib/api";
 import { TRACKS_OPTIONS } from "@/lib/constants";
 import StatusBadge from "@/components/StatusBadge";
 import { getRegistrationLabel } from "@/lib/format";
+import WorkspaceTabs from "@/components/workspace/WorkspaceTabs";
+import AdminTracksView from "@/components/admin/tracks/AdminTracksView";
+import AdminPrizesView from "@/components/admin/prizes/AdminPrizesView";
+import AdminCriteriaView from "@/components/admin/criteria/AdminCriteriaView";
+import AdminAssignmentsView from "@/components/admin/assignments/AdminAssignmentsView";
 
 /* ─── Types ─── */
 type RoundDto = {
@@ -197,6 +202,8 @@ export default function AdminEventsPage() {
       });
     });
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   /* ── View toggle ──
    * `?action=create` deep-links straight into Step 1 of the wizard. This is the
@@ -207,7 +214,16 @@ export default function AdminEventsPage() {
 
   /* ── Events list ── */
   const [events, setEvents] = useState<EventDto[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState(() => searchParams.get("event") || "");
+
+  // Keeps the `event` query param in sync so the Events/Tracks/Criteria/Prizes/
+  // Assignments tabs below are deep-linkable and old routes can redirect here.
+  const selectEvent = useCallback((id: string) => {
+    setSelectedEventId(id);
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) params.set("event", id); else params.delete("event");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [advancingId, setAdvancingId] = useState("");
@@ -359,7 +375,7 @@ export default function AdminEventsPage() {
       message.success("Event deleted successfully.");
       setEditingTime(false);
       setEditingRoundId("");
-      setSelectedEventId("");
+      selectEvent("");
       await refreshEvents();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not delete event.");
@@ -741,7 +757,7 @@ export default function AdminEventsPage() {
                 <select
                   className="form-input"
                   value={selectedEventId}
-                  onChange={(e) => { setSelectedEventId(e.target.value); setEditingTime(false); setEditingRoundId(""); }}
+                  onChange={(e) => { selectEvent(e.target.value); setEditingTime(false); setEditingRoundId(""); }}
                   disabled={loading || saving || updatingEvent || deletingEvent}
                   style={{ cursor: "pointer", fontWeight: "bold" }}
                 >
@@ -870,8 +886,15 @@ export default function AdminEventsPage() {
                     </div>
                   )}
 
-                  <h4 style={{ marginBottom: "1rem", color: "var(--color-text)" }}>Event Stages / Rounds</h4>
-
+                  <WorkspaceTabs
+                    defaultTab="rounds"
+                    tabs={[
+                      {
+                        id: "rounds",
+                        label: "Rounds",
+                        icon: Clock,
+                        render: () => (
+                  <div>
                   {selectedEvent.rounds.length === 0 && (
                     <div className="empty-state">
                       <Clock size={40} className="empty-icon" />
@@ -1012,6 +1035,40 @@ export default function AdminEventsPage() {
                     <AlertCircle size={14} style={{ color: "var(--color-warning)" }} />
                     Teams will be locked out of submissions past these deadlines.
                   </div>
+                  </div>
+                        ),
+                      },
+                      {
+                        id: "tracks",
+                        label: "Tracks",
+                        icon: Tag,
+                        render: () => <AdminTracksView eventId={selectedEvent.eventId} />,
+                      },
+                      {
+                        id: "criteria",
+                        label: "Criteria",
+                        icon: FileText,
+                        render: () => (
+                          <AdminCriteriaView
+                            eventName={selectedEvent.eventName}
+                            rounds={selectedEvent.rounds.map((r) => ({ roundId: r.roundId, roundName: r.roundName }))}
+                          />
+                        ),
+                      },
+                      {
+                        id: "prizes",
+                        label: "Prizes",
+                        icon: Award,
+                        render: () => <AdminPrizesView eventId={selectedEvent.eventId} />,
+                      },
+                      {
+                        id: "assignments",
+                        label: "Assignments",
+                        icon: UserCheck,
+                        render: () => <AdminAssignmentsView eventId={selectedEvent.eventId} />,
+                      },
+                    ]}
+                  />
                 </div>
               )}
 

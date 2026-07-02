@@ -16,12 +16,13 @@ namespace SEAL.NET.Services.Implementations
             _context = context;
         }
 
-        public async Task<ServiceResult> GetAssignmentsAsync()
+        public async Task<ServiceResult> GetAssignmentsAsync(Guid? eventId = null)
         {
             var assignments = await _context.MentorAssignments
                 .Include(ma => ma.Mentor)
-                .Include(ma => ma.Team)
+                .Include(ma => ma.Team).ThenInclude(t => t.Category)
                 .Include(ma => ma.AssignedBy)
+                .Where(ma => eventId == null || ma.Team.Category.EventId == eventId)
                 .OrderByDescending(ma => ma.AssignedAt)
                 .Select(ma => new MentorAssignmentResponseDto
                 {

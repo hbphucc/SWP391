@@ -18,8 +18,8 @@ namespace SEAL.NET.Controllers
         }
 
         [HttpGet("assignments")]
-        public async Task<IActionResult> GetAssignments()
-            => this.ToActionResult(await _mentorAdminService.GetAssignmentsAsync());
+        public async Task<IActionResult> GetAssignments([FromQuery] Guid? eventId)
+            => this.ToActionResult(await _mentorAdminService.GetAssignmentsAsync(eventId));
 
         [HttpDelete("assignments/{id}")]
         public async Task<IActionResult> DeactivateAssignment(Guid id)
