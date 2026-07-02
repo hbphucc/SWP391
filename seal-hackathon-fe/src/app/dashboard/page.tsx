@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Trophy, Users, Calendar, Target, TrendingUp, TrendingDown,
-  Clock, ArrowRight, Zap, Award,
+  Clock, ArrowRight, Zap, Award, LayoutDashboard, Search, Send,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,6 +10,12 @@ import styles from "./page.module.css";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { App } from "antd";
+import WorkspaceTabs, { WorkspaceTab } from "@/components/workspace/WorkspaceTabs";
+import TeamsView from "@/components/team/TeamsView";
+import MatchmakingView from "@/components/matchmaking/MatchmakingView";
+import SubmissionsView from "@/components/submissions/SubmissionsView";
+import RankingsView from "@/components/rankings/RankingsView";
+import PrizesView from "@/components/prizes/PrizesView";
 
 const STATUS_BADGE: Record<string, string> = {
   Active:    "badge-success",
@@ -129,6 +135,7 @@ export default function DashboardPage() {
   const userRoles = useMemo(() => user?.roles ?? [], [user?.roles]);
   const isAdmin = userRoles.includes("Admin");
   const canJudge = isAdmin || userRoles.includes("Judge");
+  const isMemberish = userRoles.includes("Member") || userRoles.includes("TeamLeader");
   const currentUserId = user?.id ?? null;
 
   useEffect(() => {
@@ -408,6 +415,62 @@ export default function DashboardPage() {
         })}
       </div>
 
+      <WorkspaceTabs
+        defaultTab="overview"
+        tabs={[
+          {
+            id: "overview",
+            label: "Overview",
+            icon: LayoutDashboard,
+            render: renderOverview,
+          },
+          ...(!isAdmin
+            ? [
+                {
+                  id: "team",
+                  label: "My Team",
+                  icon: Users,
+                  badge: receivedInvites.length,
+                  render: () => <TeamsView />,
+                } satisfies WorkspaceTab,
+              ]
+            : []),
+          ...(isMemberish
+            ? [
+                {
+                  id: "matchmaking",
+                  label: "Matchmaking",
+                  icon: Search,
+                  render: () => <MatchmakingView />,
+                } satisfies WorkspaceTab,
+                {
+                  id: "submissions",
+                  label: "Submissions",
+                  icon: Send,
+                  render: () => <SubmissionsView />,
+                } satisfies WorkspaceTab,
+              ]
+            : []),
+          {
+            id: "results",
+            label: "Results",
+            icon: Trophy,
+            render: () => (
+              <div>
+                <RankingsView embedded />
+                <div style={{ marginTop: "2rem" }}>
+                  <PrizesView />
+                </div>
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+
+  function renderOverview() {
+    return (
       <div className={styles.mainGrid}>
         {/* Events Column */}
         <div className={styles.eventsCol}>
@@ -521,11 +584,10 @@ export default function DashboardPage() {
             <div className={styles.quickActions}>
               {[
                 ...(isAdmin ? [{ label: "Create Event", href: "/admin/events?action=create", icon: Calendar, color: "#6366f1" }] : []),
-                { label: "Register Team",   href: "/dashboard/teams",   icon: Users,   color: "#8b5cf6" },
+                { label: "Register Team",   href: "/dashboard?tab=team",   icon: Users,   color: "#8b5cf6" },
                 // Scoring is only accessible to Judges/Admins — don't tease it to Members.
                 ...(canJudge ? [{ label: "Score Submissions", href: "/dashboard/judging", icon: Target, color: "#06b6d4" }] : []),
-                { label: "View Rankings",   href: "/dashboard/rankings",       icon: Trophy,  color: "#f59e0b" },
-                { label: "View Prizes",     href: "/dashboard/prizes",         icon: Award,   color: "#f43f5e" },
+                { label: "View Results",    href: "/dashboard?tab=results",    icon: Trophy,  color: "#f59e0b" },
               ].map(q => {
                 const Icon = q.icon;
                 return (
@@ -566,6 +628,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 }

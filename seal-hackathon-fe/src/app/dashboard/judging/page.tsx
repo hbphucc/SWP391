@@ -5,10 +5,13 @@ import {
   AlertCircle, CalendarDays, Trophy, ListChecks, Clock, Hourglass, Search,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { App } from "antd";
 import { apiRequest, isAuthError } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import StatusBadge from "@/components/StatusBadge";
+import WorkspaceTabs from "@/components/workspace/WorkspaceTabs";
+import RankingsView from "@/components/rankings/RankingsView";
 import { formatDate, formatDateTime, formatScore, daysUntil } from "@/lib/format";
 
 // ─── Types (mirror backend DTOs) ───────────────────────────────────
@@ -108,6 +111,7 @@ function StatCard({
 
 export default function JudgingPortalPage() {
   const { message } = App.useApp();
+  const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
 
   const isJudge = user?.roles.includes("Judge") ?? false;
@@ -165,7 +169,6 @@ export default function JudgingPortalPage() {
       }
       return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const timer = setTimeout(() => loadJudgeData(), 0);
     return () => clearTimeout(timer);
   }, [authLoading, isJudge, loadJudgeData]);
@@ -200,6 +203,12 @@ export default function JudgingPortalPage() {
     } finally {
       setResolvingId(null);
     }
+  };
+
+  const continueJudging = (eventId: string) => {
+    setEventFilter(eventId);
+    setStatusFilter("notjudged");
+    router.replace("/dashboard/judging?tab=queue", { scroll: false });
   };
 
   // ─── Access / loading guards ──────────────────────────────────────
@@ -247,11 +256,139 @@ export default function JudgingPortalPage() {
   const stats = dashboard?.stats;
   const nearestDays = daysUntil(stats?.nearestDeadline);
 
+  const renderQueueTab = () => (
+    <div>
+      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "1 1 220px", minWidth: 200 }}>
+          <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-3)" }} />
+          <input className="form-input" style={{ paddingLeft: 32, width: "100%" }} placeholder="Search team or project..."
+            value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search teams" />
+        </div>
+        <select className="form-input" style={{ width: 240 }} value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} aria-label="Filter by event">
+          <option value="">All events</option>
+          {eventOptions.map((ev) => <option key={ev.id} value={ev.id}>{ev.label}</option>)}
+        </select>
+        <div className="tabs">
+          {FILTERS.map((f) => (
+            <button key={f.key} className={`tab-btn ${statusFilter === f.key ? "active" : ""}`} onClick={() => setStatusFilter(f.key)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {visibleTeams.length === 0 ? (
+        <div className="empty-state">
+          <Target size={48} className="empty-icon" />
+          <div className="empty-title">No teams match these filters</div>
+          <div className="empty-desc">Try clearing the search or status filter.</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {visibleTeams.map((t) => {
+            const action = actionFor(t);
+            return (
+              <div key={`${t.roundId}-${t.teamId}`} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.92rem", color: "var(--color-text-1)" }}>{t.teamName}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
+                    {t.projectName ? <>{t.projectName} · </> : null}{t.category} · {t.roundName}
+                  </div>
+                  {t.lastJudgedAt && (
+                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: 2 }}>
+                      Last updated {formatDateTime(t.lastJudgedAt)}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <StatusBadge status={t.judgingStatus} />
+                  {t.scoreState === "Locked" && <StatusBadge status="Locked" />}
+                </div>
+
+                <div style={{ minWidth: 64, textAlign: "center" }} title="Your weighted score (0–100)">
+                  <div style={{ fontWeight: 800, fontSize: "1.05rem", color: t.myScore !== null ? "var(--color-text-1)" : "var(--color-text-3)" }}>
+                    {formatScore(t.myScore)}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-3)" }}>my score</div>
+                </div>
+
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  {t.repositoryUrl && <a className="btn btn-secondary btn-sm" href={t.repositoryUrl} target="_blank" rel="noopener noreferrer">Repo <ExternalLink size={12} /></a>}
+                  {t.demoUrl && <a className="btn btn-secondary btn-sm" href={t.demoUrl} target="_blank" rel="noopener noreferrer">Demo <ExternalLink size={12} /></a>}
+                  {t.slideUrl && <a className="btn btn-secondary btn-sm" href={t.slideUrl} target="_blank" rel="noopener noreferrer">Slides <ExternalLink size={12} /></a>}
+                  {action.disabled ? (
+                    <button className="btn btn-sm btn-secondary" disabled title="This team has not submitted yet">{action.label}</button>
+                  ) : (
+                    <Link href={`/dashboard/judging/${t.submissionId}`}>
+                      <button className={`btn btn-sm ${action.variant}`}>{action.label} <ChevronRight size={13} /></button>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderProgressTab = () => (
+    (dashboard?.events.length ?? 0) === 0 ? (
+      <div className="empty-state">
+        <CalendarDays size={48} className="empty-icon" />
+        <div className="empty-title">No assigned events</div>
+        <div className="empty-desc">You have not been assigned to judge any events yet.</div>
+      </div>
+    ) : (
+      <div className="grid-3">
+        {dashboard!.events.map((ev) => {
+          const deadlineDays = daysUntil(ev.judgingDeadline);
+          return (
+            <div key={ev.eventId} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.85rem", padding: "1.25rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text-1)" }}>{ev.eventName}</span>
+                <StatusBadge status={ev.eventStatus} />
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <span><Target size={12} style={{ marginRight: 5, verticalAlign: -1 }} />Round: <strong style={{ color: "var(--color-text-2)" }}>{ev.currentRoundName ?? "—"}</strong></span>
+                <span><CalendarDays size={12} style={{ marginRight: 5, verticalAlign: -1 }} />{formatDate(ev.eventStartDate)} – {formatDate(ev.eventEndDate)}</span>
+                <span style={{ color: deadlineDays !== null && deadlineDays < 3 ? "var(--color-danger)" : undefined }}>
+                  <Clock size={12} style={{ marginRight: 5, verticalAlign: -1 }} />
+                  Deadline: {ev.judgingDeadline ? formatDateTime(ev.judgingDeadline) : "—"}
+                  {deadlineDays !== null && (deadlineDays < 0 ? " (overdue)" : deadlineDays < 7 ? ` (${deadlineDays}d)` : "")}
+                </span>
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "var(--color-text-3)", marginBottom: 5 }}>
+                  <span>{ev.judgedTeams}/{ev.assignedTeams - ev.notSubmittedTeams} judged</span>
+                  <span>{formatScore(ev.progressPercentage, "0")}%</span>
+                </div>
+                <div className="progress">
+                  <div className="progress-fill green" style={{ width: `${Math.min(100, ev.progressPercentage)}%` }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.74rem", color: "var(--color-text-3)" }}>
+                <span><CheckCircle size={11} style={{ color: "#10b981", verticalAlign: -1, marginRight: 3 }} />{ev.judgedTeams} judged</span>
+                <span><Hourglass size={11} style={{ color: "#f59e0b", verticalAlign: -1, marginRight: 3 }} />{ev.notJudgedTeams} pending</span>
+                <span><XCircle size={11} style={{ color: "#94a3b8", verticalAlign: -1, marginRight: 3 }} />{ev.notSubmittedTeams} no submission</span>
+              </div>
+              <button className="btn btn-sm btn-primary" style={{ marginTop: "auto" }}
+                onClick={() => continueJudging(ev.eventId)}>
+                Continue Judging <ChevronRight size={13} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    )
+  );
+
   return (
     <div>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h1 className="page-title">Judging Portal</h1>
+          <h1 className="page-title">Judging Workspace</h1>
           <p className="page-subtitle">Your assigned events, rounds and teams — at a glance</p>
         </div>
         <button className="btn btn-secondary" onClick={loadJudgeData} disabled={loading}>
@@ -272,7 +409,7 @@ export default function JudgingPortalPage() {
         </div>
       ) : (
         <>
-          {/* ─── Stats ──────────────────────────────────────────── */}
+          {/* ─── Stats (always visible) ─────────────────────────── */}
           <div className="grid-4" style={{ marginBottom: "1.5rem" }}>
             <StatCard value={stats?.totalAssignedTeams ?? 0} label="Assigned Teams" color="#6366f1" Icon={ListChecks}
               hint="Total teams across all rounds you are assigned to judge." />
@@ -280,15 +417,6 @@ export default function JudgingPortalPage() {
               hint="Teams whose scores you have finalized (locked)." />
             <StatCard value={stats?.notJudgedTeams ?? 0} label="Awaiting Your Score" color="#f59e0b" Icon={Hourglass}
               hint="Submitted teams you have not finished scoring." />
-            <StatCard value={stats?.notSubmittedTeams ?? 0} label="Not Submitted" color="#94a3b8" Icon={XCircle}
-              hint="Assigned teams that have not submitted yet." />
-          </div>
-
-          <div className="grid-4" style={{ marginBottom: "2rem" }}>
-            <StatCard value={stats?.ongoingEvents ?? 0} label="Ongoing Events" color="#06b6d4" Icon={CalendarDays} />
-            <StatCard value={stats?.openRounds ?? 0} label="Open Rounds" color="#8b5cf6" Icon={Target} />
-            <StatCard value={`${formatScore(stats?.completionPercentage, "0")}%`} label="Completion" color="#10b981" Icon={Trophy}
-              hint="Judged ÷ submitted teams." />
             <StatCard
               value={stats?.nearestDeadline ? formatDate(stats.nearestDeadline) : "—"}
               label="Nearest Deadline" color="#f43f5e" Icon={Clock}
@@ -296,7 +424,7 @@ export default function JudgingPortalPage() {
             />
           </div>
 
-          {/* ─── Pending kick requests ──────────────────────────── */}
+          {/* ─── Pending kick requests (always visible — urgent) ── */}
           {kickRequests.length > 0 && (
             <div style={{ marginBottom: "2rem" }}>
               <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--color-text-1)" }}>
@@ -337,140 +465,31 @@ export default function JudgingPortalPage() {
             </div>
           )}
 
-          {/* ─── Per-event progress ─────────────────────────────── */}
-          <div style={{ marginBottom: "2rem" }}>
-            <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--color-text-1)" }}>
-              <CalendarDays size={20} style={{ color: "var(--color-primary)" }} /> My Events
-            </h3>
-            {(dashboard?.events.length ?? 0) === 0 ? (
-              <div className="empty-state">
-                <CalendarDays size={48} className="empty-icon" />
-                <div className="empty-title">No assigned events</div>
-                <div className="empty-desc">You have not been assigned to judge any events yet.</div>
-              </div>
-            ) : (
-              <div className="grid-3">
-                {dashboard!.events.map((ev) => {
-                  const deadlineDays = daysUntil(ev.judgingDeadline);
-                  return (
-                    <div key={ev.eventId} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.85rem", padding: "1.25rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text-1)" }}>{ev.eventName}</span>
-                        <StatusBadge status={ev.eventStatus} />
-                      </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                        <span><Target size={12} style={{ marginRight: 5, verticalAlign: -1 }} />Round: <strong style={{ color: "var(--color-text-2)" }}>{ev.currentRoundName ?? "—"}</strong></span>
-                        <span><CalendarDays size={12} style={{ marginRight: 5, verticalAlign: -1 }} />{formatDate(ev.eventStartDate)} – {formatDate(ev.eventEndDate)}</span>
-                        <span style={{ color: deadlineDays !== null && deadlineDays < 3 ? "var(--color-danger)" : undefined }}>
-                          <Clock size={12} style={{ marginRight: 5, verticalAlign: -1 }} />
-                          Deadline: {ev.judgingDeadline ? formatDateTime(ev.judgingDeadline) : "—"}
-                          {deadlineDays !== null && (deadlineDays < 0 ? " (overdue)" : deadlineDays < 7 ? ` (${deadlineDays}d)` : "")}
-                        </span>
-                      </div>
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "var(--color-text-3)", marginBottom: 5 }}>
-                          <span>{ev.judgedTeams}/{ev.assignedTeams - ev.notSubmittedTeams} judged</span>
-                          <span>{formatScore(ev.progressPercentage, "0")}%</span>
-                        </div>
-                        <div className="progress">
-                          <div className="progress-fill green" style={{ width: `${Math.min(100, ev.progressPercentage)}%` }} />
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.74rem", color: "var(--color-text-3)" }}>
-                        <span><CheckCircle size={11} style={{ color: "#10b981", verticalAlign: -1, marginRight: 3 }} />{ev.judgedTeams} judged</span>
-                        <span><Hourglass size={11} style={{ color: "#f59e0b", verticalAlign: -1, marginRight: 3 }} />{ev.notJudgedTeams} pending</span>
-                        <span><XCircle size={11} style={{ color: "#94a3b8", verticalAlign: -1, marginRight: 3 }} />{ev.notSubmittedTeams} no submission</span>
-                      </div>
-                      <button className="btn btn-sm btn-primary" style={{ marginTop: "auto" }}
-                        onClick={() => { setEventFilter(ev.eventId); setStatusFilter("notjudged"); }}>
-                        Continue Judging <ChevronRight size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ─── Team list with filters ─────────────────────────── */}
-          <div>
-            <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--color-text-1)" }}>
-              <Target size={20} style={{ color: "var(--color-primary)" }} /> Assigned Teams
-            </h3>
-
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem", alignItems: "center" }}>
-              <div style={{ position: "relative", flex: "1 1 220px", minWidth: 200 }}>
-                <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-3)" }} />
-                <input className="form-input" style={{ paddingLeft: 32, width: "100%" }} placeholder="Search team or project..."
-                  value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search teams" />
-              </div>
-              <select className="form-input" style={{ width: 240 }} value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} aria-label="Filter by event">
-                <option value="">All events</option>
-                {eventOptions.map((ev) => <option key={ev.id} value={ev.id}>{ev.label}</option>)}
-              </select>
-              <div className="tabs">
-                {FILTERS.map((f) => (
-                  <button key={f.key} className={`tab-btn ${statusFilter === f.key ? "active" : ""}`} onClick={() => setStatusFilter(f.key)}>
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {visibleTeams.length === 0 ? (
-              <div className="empty-state">
-                <Target size={48} className="empty-icon" />
-                <div className="empty-title">No teams match these filters</div>
-                <div className="empty-desc">Try clearing the search or status filter.</div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {visibleTeams.map((t) => {
-                  const action = actionFor(t);
-                  return (
-                    <div key={`${t.roundId}-${t.teamId}`} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem", flexWrap: "wrap" }}>
-                      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: "0.92rem", color: "var(--color-text-1)" }}>{t.teamName}</div>
-                        <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
-                          {t.projectName ? <>{t.projectName} · </> : null}{t.category} · {t.roundName}
-                        </div>
-                        {t.lastJudgedAt && (
-                          <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: 2 }}>
-                            Last updated {formatDateTime(t.lastJudgedAt)}
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
-                        <StatusBadge status={t.judgingStatus} />
-                        {t.scoreState === "Locked" && <StatusBadge status="Locked" />}
-                      </div>
-
-                      <div style={{ minWidth: 64, textAlign: "center" }} title="Your weighted score (0–100)">
-                        <div style={{ fontWeight: 800, fontSize: "1.05rem", color: t.myScore !== null ? "var(--color-text-1)" : "var(--color-text-3)" }}>
-                          {formatScore(t.myScore)}
-                        </div>
-                        <div style={{ fontSize: "0.68rem", color: "var(--color-text-3)" }}>my score</div>
-                      </div>
-
-                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-                        {t.repositoryUrl && <a className="btn btn-secondary btn-sm" href={t.repositoryUrl} target="_blank" rel="noopener noreferrer">Repo <ExternalLink size={12} /></a>}
-                        {t.demoUrl && <a className="btn btn-secondary btn-sm" href={t.demoUrl} target="_blank" rel="noopener noreferrer">Demo <ExternalLink size={12} /></a>}
-                        {t.slideUrl && <a className="btn btn-secondary btn-sm" href={t.slideUrl} target="_blank" rel="noopener noreferrer">Slides <ExternalLink size={12} /></a>}
-                        {action.disabled ? (
-                          <button className="btn btn-sm btn-secondary" disabled title="This team has not submitted yet">{action.label}</button>
-                        ) : (
-                          <Link href={`/dashboard/judging/${t.submissionId}`}>
-                            <button className={`btn btn-sm ${action.variant}`}>{action.label} <ChevronRight size={13} /></button>
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* ─── Workspace tabs ─────────────────────────────────── */}
+          <WorkspaceTabs
+            defaultTab="queue"
+            tabs={[
+              {
+                id: "queue",
+                label: "Scoring Queue",
+                icon: Target,
+                badge: stats?.notJudgedTeams ?? 0,
+                render: renderQueueTab,
+              },
+              {
+                id: "progress",
+                label: "My Events",
+                icon: CalendarDays,
+                render: renderProgressTab,
+              },
+              {
+                id: "results",
+                label: "Results",
+                icon: Trophy,
+                render: () => <RankingsView embedded />,
+              },
+            ]}
+          />
         </>
       )}
     </div>
