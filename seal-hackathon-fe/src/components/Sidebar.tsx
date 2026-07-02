@@ -16,10 +16,7 @@ import {
   Cloud,
   Tag,
   Target,
-  Send,
-  Star,
   Menu,
-  Search,
   Bell,
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
@@ -49,28 +46,14 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     items: [
       { icon: Calendar, label: "Events", href: "/dashboard/events", roles: null },
       { icon: Tag, label: "Tracks", href: "/dashboard/tracks", roles: null },
-      { icon: Users, label: "Teams", href: "/dashboard/teams", roles: null },
-      {
-        icon: Search,
-        label: "Matchmaking",
-        href: "/dashboard/matchmaking",
-        roles: ["Member", "TeamLeader"],
-      },
-      {
-        icon: Send,
-        label: "Submissions",
-        href: "/dashboard/submissions",
-        roles: ["Member", "TeamLeader"],
-      },
     ],
   },
   {
     title: "Judging",
     items: [
-      { icon: FileText, label: "Criteria", href: "/admin/criteria", roles: ["Admin"] },
+      { icon: FileText, label: "Criteria", href: "/admin/events?tab=criteria", roles: ["Admin"] },
       { icon: Target, label: "Scoring", href: "/dashboard/judging", roles: ["Judge", "Admin"] },
       { icon: Trophy, label: "Rankings", href: "/dashboard/rankings", roles: null },
-      { icon: Star, label: "Prizes", href: "/dashboard/prizes", roles: null },
     ],
   },
   {
@@ -172,8 +155,6 @@ export default function Sidebar({
           items: [
             { icon: Calendar, label: "Events", href: "/admin/events", roles: ["Admin"] },
             { icon: Users, label: "Teams", href: "/admin/teams", roles: ["Admin"] },
-            { icon: Tag, label: "Tracks", href: "/admin/tracks", roles: ["Admin"] },
-            { icon: Star, label: "Prizes", href: "/admin/prizes", roles: ["Admin"] },
           ],
         };
       }
@@ -199,8 +180,6 @@ export default function Sidebar({
         return {
           ...section,
           items: [
-            { icon: FileText, label: "Criteria", href: "/admin/criteria", roles: ["Admin"] },
-            { icon: Target, label: "Assignments", href: "/admin/assignments", roles: ["Admin"] },
             {
               icon: Trophy,
               label: "Scoring Queue",
@@ -221,22 +200,8 @@ export default function Sidebar({
           items: [
             {
               icon: LayoutDashboard,
-              label: "Mentor Dashboard",
+              label: "Mentor Workspace",
               href: "/mentor",
-              roles: ["Mentor", "Admin"],
-            },
-          ],
-        };
-      }
-
-      if (section.title === "Events") {
-        return {
-          ...section,
-          items: [
-            {
-              icon: Users,
-              label: "My Teams",
-              href: "/mentor/teams",
               roles: ["Mentor", "Admin"],
             },
           ],
