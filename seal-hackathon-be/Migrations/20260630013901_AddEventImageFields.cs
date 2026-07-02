@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,19 +10,20 @@ namespace SEAL.NET.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "PosterUrl",
-                table: "Events",
-                type: "character varying(2048)",
-                maxLength: 2048,
-                nullable: true);
+            // Columns already exist in the database from a previous out-of-sync state
+            // migrationBuilder.AddColumn<string>(
+            //     name: "PosterUrl",
+            //     table: "Events",
+            //     type: "character varying(2048)",
+            //     maxLength: 2048,
+            //     nullable: true);
 
-            migrationBuilder.AddColumn<string>(
-                name: "WinnerImageUrl",
-                table: "Events",
-                type: "character varying(2048)",
-                maxLength: 2048,
-                nullable: true);
+            // migrationBuilder.AddColumn<string>(
+            //     name: "WinnerImageUrl",
+            //     table: "Events",
+            //     type: "character varying(2048)",
+            //     maxLength: 2048,
+            //     nullable: true);
         }
 
         /// <inheritdoc />

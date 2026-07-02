@@ -27,18 +27,22 @@ namespace SEAL.NET.Controllers
 
         [HttpGet]
         public async Task<IActionResult> GetDocuments()
-            => this.ToActionResult(await _documentService.GetDocumentsAsync());
+        {
+            var userId = TryGetCurrentUserId();
+            var roles = User.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToList();
+            return this.ToActionResult(await _documentService.GetDocumentsAsync(userId, roles));
+        }
 
         [HttpPost]
         [RequestSizeLimit(DocumentService.MaxFileSize)]
-        public async Task<IActionResult> Upload(IFormFile file)
+        public async Task<IActionResult> Upload(IFormFile file, [FromForm] Guid? eventId)
         {
             if (file == null || file.Length == 0)
                 return BadRequest(new { message = "No file uploaded." });
 
             using var stream = file.OpenReadStream();
             return this.ToActionResult(await _documentService.UploadAsync(
-                TryGetCurrentUserId(), file.FileName, file.ContentType, file.Length, stream));
+                TryGetCurrentUserId(), eventId, file.FileName, file.ContentType, file.Length, stream));
         }
 
         [HttpGet("{id:guid}/download")]

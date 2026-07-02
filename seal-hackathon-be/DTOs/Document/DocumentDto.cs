@@ -7,6 +7,10 @@ namespace SEAL.NET.DTOs.Document
         public string ContentType { get; set; } = string.Empty;
         public long Size { get; set; }
         public string? UploaderName { get; set; }
+        public Guid? EventId { get; set; }
+        public string? EventName { get; set; }
+        public Guid? TeamId { get; set; }
+        public string? TeamName { get; set; }
         public DateTime UploadedAt { get; set; }
     }
 }

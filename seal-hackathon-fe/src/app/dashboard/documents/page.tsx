@@ -1,16 +1,26 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FileText, Download, Upload, Trash2 } from "lucide-react";
 import { App } from "antd";
 import { apiRequest, apiUpload, apiDownload } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 
 interface DocumentDto {
   documentId: string;
   fileName: string;
   contentType: string;
-  size: number;
-  uploaderName?: string | null;
+  eventId?: string;
+  eventName?: string;
   uploadedAt: string;
+  uploaderName?: string;
+  size: number;
+  teamId?: string;
+  teamName?: string;
+}
+
+interface MentorTeam {
+  teamId: string;
+  teamName: string;
 }
 
 function formatSize(bytes: number) {
@@ -25,11 +35,35 @@ function formatDate(value: string) {
 }
 
 export default function DocumentsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.roles?.includes("Admin");
+  const isMentor = user?.roles?.includes("Mentor");
+
   const { message, modal } = App.useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [docs, setDocs] = useState<DocumentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [events, setEvents] = useState<{eventId: string, eventName: string}[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>("global");
+
+  const [mentorTeams, setMentorTeams] = useState<MentorTeam[]>([]);
+  const [viewContext, setViewContext] = useState<string>("official");
+
+  const loadEvents = useCallback(async () => {
+    try {
+      const data = await apiRequest<any[]>("/Events");
+      setEvents(data.map(e => ({ eventId: e.eventId, eventName: e.eventName })));
+    } catch { }
+  }, []);
+
+  const loadMentorTeams = useCallback(async () => {
+    if (!isMentor) return;
+    try {
+      const data = await apiRequest<MentorTeam[]>("/mentor/teams");
+      setMentorTeams(data);
+    } catch { }
+  }, [isMentor]);
 
   const loadDocs = useCallback(async () => {
     try {
@@ -47,8 +81,12 @@ export default function DocumentsPage() {
     // Defer the load out of the synchronous effect body (react-hooks/set-state-in-effect):
     // loadDocs only sets state after an awaited fetch, and the microtask hop keeps that
     // off the render-commit path without changing observable behavior.
-    void Promise.resolve().then(loadDocs);
-  }, [loadDocs]);
+    void Promise.resolve().then(async () => {
+      await loadEvents();
+      await loadDocs();
+      await loadMentorTeams();
+    });
+  }, [loadDocs, loadEvents, loadMentorTeams]);
 
   const handleUploadClick = () => fileInputRef.current?.click();
 
@@ -59,6 +97,9 @@ export default function DocumentsPage() {
       try {
         const fd = new FormData();
         fd.append("file", file);
+        if (selectedEventId !== "global") {
+          fd.append("eventId", selectedEventId);
+        }
         await apiUpload("/Documents", fd);
         message.success("File uploaded successfully!");
         await loadDocs();
@@ -104,15 +145,48 @@ export default function DocumentsPage() {
       },
     });
   };
+  const filteredDocs = useMemo(() => {
+    if (isAdmin || !isMentor) return docs;
+    if (viewContext === "official") {
+      return docs.filter(d => !d.teamId);
+    }
+    return docs.filter(d => d.teamId === viewContext);
+  }, [docs, isAdmin, isMentor, viewContext]);
 
   return (
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Documents Library</h1>
-          <p className="page-subtitle">Manage official hackathon resources</p>
+          <p className="page-subtitle">{isAdmin ? "Manage official hackathon resources" : isMentor ? "View official resources and team documents" : "Manage your team's documents"}</p>
         </div>
-        <div>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          {isAdmin && (
+            <select
+              className="form-input"
+              style={{ width: "200px" }}
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+            >
+              <option value="global">Global (No Event)</option>
+              {events.map(e => (
+                <option key={e.eventId} value={e.eventId}>{e.eventName}</option>
+              ))}
+            </select>
+          )}
+          {isMentor && !isAdmin && mentorTeams.length > 0 && (
+            <select
+              className="form-input"
+              style={{ width: "250px" }}
+              value={viewContext}
+              onChange={(e) => setViewContext(e.target.value)}
+            >
+              <option value="official">Official Resources</option>
+              {mentorTeams.map(t => (
+                <option key={t.teamId} value={t.teamId}>Team: {t.teamName}</option>
+              ))}
+            </select>
+          )}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
           <button className="btn btn-primary" onClick={handleUploadClick} disabled={uploading}>
             {uploading ? <span className="spinner" /> : <><Upload size={15} style={{ marginRight: "0.5rem" }} /> Upload File</>}
@@ -125,14 +199,21 @@ export default function DocumentsPage() {
         <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
           {loading ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "var(--color-text-3)" }}>Loading documents…</div>
-          ) : docs.length === 0 ? (
+          ) : filteredDocs.length === 0 ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "var(--color-text-3)" }}>No documents found. Upload one to get started.</div>
-          ) : docs.map((d, i) => (
-            <div key={d.documentId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.5rem", borderBottom: i === docs.length - 1 ? "none" : "1px solid var(--color-border-1)", transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+          ) : filteredDocs.map((d, i) => (
+            <div key={d.documentId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.5rem", borderBottom: i === filteredDocs.length - 1 ? "none" : "1px solid var(--color-border-1)", transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
               <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                 <FileText size={18} style={{ color: "var(--color-primary-2)" }} />
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--color-text-1)" }}>{d.fileName}</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--color-text-1)" }}>
+                    {d.fileName}
+                    {d.eventName && (
+                      <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", padding: "0.1rem 0.4rem", background: "rgba(99,102,241,0.1)", color: "var(--color-primary-2)", borderRadius: "4px" }}>
+                        {d.eventName}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
                     {formatSize(d.size)} · Uploaded {formatDate(d.uploadedAt)}{d.uploaderName ? ` · ${d.uploaderName}` : ""}
                   </div>
@@ -142,7 +223,9 @@ export default function DocumentsPage() {
                 <button className="btn btn-sm" onClick={() => handleDownload(d)} style={{ background: "rgba(99,102,241,0.1)", color: "var(--color-primary-2)", padding: "0.4rem 0.8rem", border: "1px solid rgba(99,102,241,0.2)" }}>
                   <Download size={14} style={{ marginRight: 4 }} /> Download
                 </button>
-                <button className="btn btn-ghost btn-sm btn-icon" onClick={() => handleDelete(d)} aria-label={`Delete ${d.fileName}`}><Trash2 size={14} /></button>
+                {isAdmin && (
+                  <button className="btn btn-ghost btn-sm btn-icon" onClick={() => handleDelete(d)} aria-label={`Delete ${d.fileName}`}><Trash2 size={14} /></button>
+                )}
               </div>
             </div>
           ))}

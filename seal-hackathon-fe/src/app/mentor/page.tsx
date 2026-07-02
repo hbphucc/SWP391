@@ -202,6 +202,27 @@ export default function MentorWorkspacePage() {
         okText="Save Notes"
       >
         <div style={{ marginBottom: "1rem" }}>
+          {selectedTeam?.latestSubmission && (
+            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--color-border-2)", borderRadius: "var(--radius-md)", padding: "1rem", marginBottom: "1.25rem" }}>
+              <h4 style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                Latest Submission Documents
+              </h4>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                {selectedTeam.latestSubmission.repositoryUrl && (
+                  <a href={selectedTeam.latestSubmission.repositoryUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Repo ↗</a>
+                )}
+                {selectedTeam.latestSubmission.demoUrl && (
+                  <a href={selectedTeam.latestSubmission.demoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Demo ↗</a>
+                )}
+                {selectedTeam.latestSubmission.slideUrl && (
+                  <a href={selectedTeam.latestSubmission.slideUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Slides ↗</a>
+                )}
+                {!selectedTeam.latestSubmission.repositoryUrl && !selectedTeam.latestSubmission.demoUrl && !selectedTeam.latestSubmission.slideUrl && (
+                  <span style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>No links provided by the team.</span>
+                )}
+              </div>
+            </div>
+          )}
           <p style={{ color: "var(--color-text-2)", marginBottom: "1rem" }}>
             <Clipboard size={14} style={{ marginRight: 6, verticalAlign: 'middle', display: 'inline' }} />
             Record your advice, comments, and guidance for this team.

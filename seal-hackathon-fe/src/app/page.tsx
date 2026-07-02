@@ -42,12 +42,12 @@ interface WinnerDto {
 
 const STATUS_LABEL: Record<string, string> = {
   Ongoing: "Ongoing",
-  Upcoming: "Coming Soon",
+  Published: "Coming Soon",
   Completed: "Completed",
   Cancelled: "Cancelled",
 };
 
-const FEATURED_STATUS_ORDER = ["Ongoing", "Upcoming", "Completed"] as const;
+const FEATURED_STATUS_ORDER = ["Ongoing", "Published", "Completed"] as const;
 
 function getFeaturedEvents(events: EventDto[]) {
   return FEATURED_STATUS_ORDER.flatMap((status) => {
@@ -64,7 +64,7 @@ function getFeaturedEvents(events: EventDto[]) {
 
 function badgeClass(status: string) {
   if (status === "Ongoing") return "badge-success";
-  if (status === "Upcoming") return "badge-primary";
+  if (status === "Published") return "badge-primary";
   return "badge-neutral";
 }
 
@@ -82,7 +82,7 @@ export default function LandingPage() {
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedComp, setSelectedComp] = useState<EventDto | null>(null);
-  const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Upcoming" | "Completed">("featured");
+  const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Published" | "Completed">("featured");
   const [winners, setWinners] = useState<WinnerDto[]>([]);
   const [loadingWinners, setLoadingWinners] = useState(false);
 
@@ -232,7 +232,7 @@ export default function LandingPage() {
             >
               <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>
                 <Globe style={{ color: "var(--color-primary-2)" }} />
-                {activeTab === "featured" ? "Featured Events" : activeTab === "Ongoing" ? "Ongoing Events" : activeTab === "Upcoming" ? "Upcoming Events" : "Past Events"}
+                {activeTab === "featured" ? "Featured Events" : activeTab === "Ongoing" ? "Ongoing Events" : activeTab === "Published" ? "Coming Soon" : "Past Events"}
               </h2>
             </motion.div>
 
@@ -248,8 +248,8 @@ export default function LandingPage() {
               <button className={`tab-btn ${activeTab === "Ongoing" ? "active" : ""}`} onClick={() => setActiveTab("Ongoing")}>
                 Ongoing
               </button>
-              <button className={`tab-btn ${activeTab === "Upcoming" ? "active" : ""}`} onClick={() => setActiveTab("Upcoming")}>
-                Upcoming
+              <button className={`tab-btn ${activeTab === "Published" ? "active" : ""}`} onClick={() => setActiveTab("Published")}>
+                Coming Soon
               </button>
               <button className={`tab-btn ${activeTab === "Completed" ? "active" : ""}`} onClick={() => setActiveTab("Completed")}>
                 Past Events

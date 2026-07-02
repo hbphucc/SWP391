@@ -80,7 +80,7 @@ type DateTimePickerFieldProps = {
 };
 
 function DateTimePickerField({ value, onChange, disabled = false }: DateTimePickerFieldProps) {
-  const pickerValue = value && dayjs(value).isValid() ? dayjs(value) : null;
+  const pickerValue = useMemo(() => value && dayjs(value).isValid() ? dayjs(value) : null, [value]);
 
   return (
     <DatePicker
@@ -129,7 +129,7 @@ const INITIAL_ROUND = () => ({
   deadline: "",
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
-  criteria: [{ id: Date.now(), name: "Technical", weight: "40", maxScore: "10" }],
+  criteria: [],
 });
 const INITIAL_PRIZE = () => ({
   id: Date.now(),
@@ -237,7 +237,7 @@ export default function AdminEventsPage() {
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
+  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] }]);
   const [prizes, setPrizes] = useState<ReturnType<typeof INITIAL_PRIZE>[]>([]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   // Active section anchor for the sticky TOC sidebar. Used purely for the
@@ -642,6 +642,13 @@ export default function AdminEventsPage() {
     if (rounds.some((r) => !r.name.trim() || !r.deadline)) { message.error("Every round needs a name and submission deadline."); return; }
     if (rounds.some((r) => r.criteria.length === 0)) { message.error("Every round must have at least one scoring criteria."); return; }
     if (rounds.some((r) => r.criteria.some(c => !c.name.trim()))) { message.error("Every criteria needs a name."); return; }
+    if (rounds.some((r) => {
+      const totalWeight = r.criteria.reduce((sum, c) => sum + (Number(c.weight) || 0), 0);
+      return totalWeight !== 100;
+    })) {
+      message.error("The total weight (%) of criteria for each round must equal exactly 100.");
+      return;
+    }
 
     if (prizes.some((p) => !p.title.trim())) { message.error("Every prize needs a title."); return; }
 
@@ -677,7 +684,7 @@ export default function AdminEventsPage() {
             promptDocumentId: r.promptDocumentId || null,
             criteria: r.criteria.map((c) => ({
               criteriaName: c.name.trim(),
-              maxScore: Number(c.maxScore) || 10,
+              maxScore: 100,
               weight: Number(c.weight) || 1,
             })),
           })),
@@ -694,7 +701,7 @@ export default function AdminEventsPage() {
 
       message.success("Event created successfully.");
       setEventForm({ ...INITIAL_EVENT_FORM });
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [{ id: 1, name: "General Score", weight: "100", maxScore: "100" }] }]);
+      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] }]);
       setPrizes([]);
       setSelectedTracks([]);
       setActiveSection("general");
@@ -1454,23 +1461,16 @@ export default function AdminEventsPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="1"
+                              max="100"
                               style={{ flex: 1, padding: "0.4rem 0.6rem" }}
                               placeholder="Weight (%)"
                               value={c.weight}
                               onChange={(e) => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.map(cx => cx.id === c.id ? { ...cx, weight: e.target.value } : cx) } : x))}
                             />
-                            <input
-                              className="form-input"
-                              type="number"
-                              style={{ flex: 1, padding: "0.4rem 0.6rem" }}
-                              placeholder="Max Score"
-                              value={c.maxScore}
-                              onChange={(e) => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.map(cx => cx.id === c.id ? { ...cx, maxScore: e.target.value } : cx) } : x))}
-                            />
                             <button
                               type="button"
                               className="btn btn-danger btn-icon"
-                              disabled={(r.criteria || []).length <= 1}
                               onClick={() => setRounds(rounds.map(x => x.id === r.id ? { ...x, criteria: x.criteria.filter(cx => cx.id !== c.id) } : x))}
                             >
                               <Trash2 size={13} />

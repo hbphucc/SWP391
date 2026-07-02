@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
-import { Upload, Download, Link as LinkIcon, GitBranch, Play, FileText, CheckCircle, AlertCircle, RefreshCw, Award, MessageSquare } from "lucide-react";
+import { Upload, Download, Link as LinkIcon, GitBranch, Play, FileText, CheckCircle, AlertCircle, RefreshCw, Award, MessageSquare, Trophy } from "lucide-react";
 import { App } from "antd";
 import { apiRequest, fetchCurrentUser, apiDownload } from "@/lib/api";
 
@@ -23,6 +23,8 @@ type TeamDto = {
   promptDocumentId?: string | null;
   promptFileName?: string | null;
   eventStatus?: string | null;
+  finalRank?: number | null;
+  finalPrize?: string | null;
 };
 
 type CriterionFeedbackDto = {
@@ -115,7 +117,6 @@ export default function SubmissionsView() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     void loadSubmissionContext();
   }, []);
@@ -222,6 +223,25 @@ export default function SubmissionsView() {
         {isSubmitted && <span className="badge badge-success"><CheckCircle size={14} style={{ marginRight: 4 }} /> Submitted</span>}
       </div>
 
+      {(team?.finalRank || team?.finalPrize) && (
+        <div className="glass-card" style={{ marginBottom: "1.5rem", border: "1px solid rgba(245,158,11,0.3)", background: "linear-gradient(45deg, rgba(245,158,11,0.05), transparent)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <div style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", padding: "0.75rem", borderRadius: "50%" }}>
+              <Trophy size={24} />
+            </div>
+            <div>
+              <h3 style={{ margin: "0 0 0.25rem 0", color: "var(--color-warning)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                Final Results
+              </h3>
+              <div style={{ fontSize: "0.95rem", color: "var(--color-text-1)", display: "flex", gap: "1rem" }}>
+                {team.finalRank && <span><strong>Rank:</strong> #{team.finalRank}</span>}
+                {team.finalPrize && <span><strong>Prize:</strong> {team.finalPrize}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {evaluation && (
         <div className="glass-card" style={{ marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
@@ -298,14 +318,28 @@ export default function SubmissionsView() {
                 {team.currentRound.submissionDeadline
                   ? new Intl.DateTimeFormat("en-US", {
                       month: "short",
-                      day: "2-digit",
+                      day: "numeric",
                       year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
+                      hour: "numeric",
+                      minute: "numeric",
                     }).format(new Date(team.currentRound.submissionDeadline))
-                  : "No deadline set"}
+                  : "N/A"}
               </div>
             </div>
+            {team.promptDocumentId && (
+              <div>
+                <span style={{ fontSize: "0.75rem", color: "var(--color-text-3)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>Round Prompt</span>
+                <div style={{ marginTop: "0.25rem" }}>
+                  <button
+                    onClick={() => handleDownloadPrompt()}
+                    className="btn btn-sm"
+                    style={{ background: "rgba(99,102,241,0.1)", color: "var(--color-primary-2)", padding: "0.25rem 0.75rem", border: "1px solid rgba(99,102,241,0.2)" }}
+                  >
+                    <Download size={14} style={{ marginRight: "0.35rem" }} /> {team.promptFileName || "Download Prompt"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
