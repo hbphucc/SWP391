@@ -19,6 +19,9 @@ namespace SEAL.NET.Models.Entities
         public Guid? UploaderId { get; set; }
         public ApplicationUser? Uploader { get; set; }
 
+        public Guid? EventId { get; set; }
+        public Event? Event { get; set; }
+
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     }
 }

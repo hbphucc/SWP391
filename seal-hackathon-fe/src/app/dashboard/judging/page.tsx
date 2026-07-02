@@ -85,8 +85,8 @@ type StatusFilter = "all" | "judged" | "notjudged" | "submitted" | "notsubmitted
 
 const FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "judged", label: "Judged" },
-  { key: "notjudged", label: "Not Judged" },
+  { key: "judged", label: "Scored" },
+  { key: "notjudged", label: "Not Scored" },
   { key: "submitted", label: "Submitted" },
   { key: "notsubmitted", label: "Not Submitted" },
 ];
@@ -237,7 +237,7 @@ export default function JudgingPortalPage() {
       <div>
         <div className="page-header">
           <div>
-            <h1 className="page-title">Judging Portal</h1>
+            <h1 className="page-title">Scoring Portal</h1>
             <p className="page-subtitle">Score and review submissions</p>
           </div>
         </div>
@@ -361,7 +361,7 @@ export default function JudgingPortalPage() {
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "var(--color-text-3)", marginBottom: 5 }}>
-                  <span>{ev.judgedTeams}/{ev.assignedTeams - ev.notSubmittedTeams} judged</span>
+                  <span>{ev.judgedTeams}/{ev.assignedTeams - ev.notSubmittedTeams} scored</span>
                   <span>{formatScore(ev.progressPercentage, "0")}%</span>
                 </div>
                 <div className="progress">
@@ -369,13 +369,13 @@ export default function JudgingPortalPage() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.74rem", color: "var(--color-text-3)" }}>
-                <span><CheckCircle size={11} style={{ color: "#10b981", verticalAlign: -1, marginRight: 3 }} />{ev.judgedTeams} judged</span>
+                <span><CheckCircle size={11} style={{ color: "#10b981", verticalAlign: -1, marginRight: 3 }} />{ev.judgedTeams} scored</span>
                 <span><Hourglass size={11} style={{ color: "#f59e0b", verticalAlign: -1, marginRight: 3 }} />{ev.notJudgedTeams} pending</span>
                 <span><XCircle size={11} style={{ color: "#94a3b8", verticalAlign: -1, marginRight: 3 }} />{ev.notSubmittedTeams} no submission</span>
               </div>
               <button className="btn btn-sm btn-primary" style={{ marginTop: "auto" }}
                 onClick={() => continueJudging(ev.eventId)}>
-                Continue Judging <ChevronRight size={13} />
+                Continue Scoring <ChevronRight size={13} />
               </button>
             </div>
           );
@@ -388,7 +388,7 @@ export default function JudgingPortalPage() {
     <div>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h1 className="page-title">Judging Workspace</h1>
+          <h1 className="page-title">Scoring Workspace</h1>
           <p className="page-subtitle">Your assigned events, rounds and teams — at a glance</p>
         </div>
         <button className="btn btn-secondary" onClick={loadJudgeData} disabled={loading}>
@@ -412,8 +412,8 @@ export default function JudgingPortalPage() {
           {/* ─── Stats (always visible) ─────────────────────────── */}
           <div className="grid-4" style={{ marginBottom: "1.5rem" }}>
             <StatCard value={stats?.totalAssignedTeams ?? 0} label="Assigned Teams" color="#6366f1" Icon={ListChecks}
-              hint="Total teams across all rounds you are assigned to judge." />
-            <StatCard value={stats?.judgedTeams ?? 0} label="Judged" color="#10b981" Icon={CheckCircle}
+              hint="Total teams across all rounds you are assigned to score." />
+            <StatCard value={stats?.judgedTeams ?? 0} label="Scored" color="#10b981" Icon={CheckCircle}
               hint="Teams whose scores you have finalized (locked)." />
             <StatCard value={stats?.notJudgedTeams ?? 0} label="Awaiting Your Score" color="#f59e0b" Icon={Hourglass}
               hint="Submitted teams you have not finished scoring." />
@@ -502,7 +502,7 @@ function actionFor(t: AssignedTeam): { label: string; variant: string; disabled:
   }
   if (t.judgingStatus === "Judged") return { label: "View Score", variant: "btn-secondary", disabled: false };
   if (t.judgingStatus === "InProgress") return { label: "Continue", variant: "btn-primary", disabled: false };
-  return { label: "Judge", variant: "btn-primary", disabled: false };
+  return { label: "Score", variant: "btn-primary", disabled: false };
 }
 
 function SkeletonDashboard() {

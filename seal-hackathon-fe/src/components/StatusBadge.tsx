@@ -25,9 +25,9 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   // Submission / judging lifecycle (judge views)
   Submitted: { label: "Submitted", badge: "badge-cyan", Icon: FileCheck2 },
   NotSubmitted: { label: "Not Submitted", badge: "badge-neutral", Icon: FileX2 },
-  NotJudged: { label: "Not Judged", badge: "badge-warning", Icon: Clock },
+  NotJudged: { label: "Not Scored", badge: "badge-warning", Icon: Clock },
   InProgress: { label: "In Progress", badge: "badge-primary", Icon: Loader2 },
-  Judged: { label: "Judged", badge: "badge-success", Icon: CheckCircle2 },
+  Judged: { label: "Scored", badge: "badge-success", Icon: CheckCircle2 },
 
   // Score persistence state
   Draft: { label: "Draft", badge: "badge-warning", Icon: PencilLine },

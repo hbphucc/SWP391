@@ -18,10 +18,51 @@ namespace SEAL.NET.Services.Implementations
             _context = context;
         }
 
-        public async Task<ServiceResult> GetDocumentsAsync()
+        public async Task<ServiceResult> GetDocumentsAsync(Guid? currentUserId, IList<string> roles)
         {
-            var documents = await _context.Documents.AsNoTracking()
+            var query = _context.Documents.AsNoTracking()
                 .Include(d => d.Uploader)
+                .Include(d => d.Event)
+                .AsQueryable();
+
+            if (!roles.Contains("Admin") && currentUserId.HasValue)
+            {
+                if (roles.Contains("Mentor") || roles.Contains("Judge"))
+                {
+                    var participatedEventIds = await _context.Events
+                        .Where(e => e.RegisteredMentors.Any(m => m.Id == currentUserId) || e.RegisteredJudges.Any(j => j.Id == currentUserId))
+                        .Select(e => e.EventId)
+                        .ToListAsync();
+
+                    var adminRoleId = await _context.Roles.Where(r => r.Name == "Admin").Select(r => r.Id).FirstOrDefaultAsync();
+                    var adminUserIds = await _context.UserRoles.Where(ur => ur.RoleId == adminRoleId).Select(ur => ur.UserId).ToListAsync();
+
+                    var mentoredTeamMemberIds = await _context.MentorAssignments
+                        .Where(ma => ma.MentorUserId == currentUserId && ma.IsActive)
+                        .SelectMany(ma => ma.Team.Members.Select(tm => tm.UserId))
+                        .ToListAsync();
+
+                    query = query.Where(d =>
+                        (d.EventId == null && d.UploaderId.HasValue && adminUserIds.Contains(d.UploaderId.Value)) ||
+                        (d.EventId != null && participatedEventIds.Contains(d.EventId.Value)) ||
+                        (d.UploaderId.HasValue && mentoredTeamMemberIds.Contains(d.UploaderId.Value))
+                    );
+                }
+                else
+                {
+                    // Regular users: Only see documents uploaded by their team members
+                    var teamMemberIds = await _context.TeamMembers
+                        .Where(tm => _context.TeamMembers.Any(myTm => myTm.TeamId == tm.TeamId && myTm.UserId == currentUserId))
+                        .Select(tm => tm.UserId)
+                        .ToListAsync();
+
+                    teamMemberIds.Add(currentUserId.Value);
+
+                    query = query.Where(d => d.UploaderId != null && teamMemberIds.Contains(d.UploaderId.Value));
+                }
+            }
+
+            var documents = await query
                 .OrderByDescending(d => d.UploadedAt)
                 .Select(d => new DocumentDto
                 {
@@ -30,6 +71,10 @@ namespace SEAL.NET.Services.Implementations
                     ContentType = d.ContentType,
                     Size = d.Size,
                     UploaderName = d.Uploader != null ? d.Uploader.FullName : null,
+                    EventId = d.EventId,
+                    EventName = d.Event != null ? d.Event.EventName : null,
+                    TeamId = _context.TeamMembers.Where(tm => tm.UserId == d.UploaderId).Select(tm => (Guid?)tm.TeamId).FirstOrDefault(),
+                    TeamName = _context.TeamMembers.Where(tm => tm.UserId == d.UploaderId).Select(tm => tm.Team.TeamName).FirstOrDefault(),
                     UploadedAt = d.UploadedAt
                 })
                 .ToListAsync();
@@ -37,7 +82,7 @@ namespace SEAL.NET.Services.Implementations
             return ServiceResult.Ok(documents);
         }
 
-        public async Task<ServiceResult> UploadAsync(Guid? uploaderId, string fileName, string? contentType, long length, Stream content)
+        public async Task<ServiceResult> UploadAsync(Guid? uploaderId, Guid? eventId, string fileName, string? contentType, long length, Stream content)
         {
             if (length <= 0)
                 return ServiceResult.BadRequest("No file uploaded.");
@@ -54,7 +99,8 @@ namespace SEAL.NET.Services.Implementations
                 ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
                 Size = length,
                 Content = ms.ToArray(),
-                UploaderId = uploaderId
+                UploaderId = uploaderId,
+                EventId = eventId
             };
 
             _context.Documents.Add(document);

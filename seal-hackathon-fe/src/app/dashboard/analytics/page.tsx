@@ -101,7 +101,10 @@ export default function AnalyticsPage() {
     return row;
   });
 
-  const radarData = data.criterionAverages.map(c => ({ criterion: c.criterion, avgScore: c.avgScore }));
+  const radarData = data.criterionAverages.map(c => ({
+    criterion: c.criterion.includes("(") ? c.criterion.split("(")[1].split(")")[0] : c.criterion.length > 15 ? c.criterion.substring(0, 15) + "..." : c.criterion,
+    avgScore: c.avgScore
+  }));
 
   return (
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>

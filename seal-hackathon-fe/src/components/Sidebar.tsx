@@ -60,7 +60,7 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     title: "Content",
     items: [
       { icon: FileText, label: "Documents", href: "/dashboard/documents", roles: null },
-      { icon: Cloud, label: "Storage", href: "/dashboard/storage", roles: null },
+      { icon: Cloud, label: "Storage", href: "/dashboard/storage", roles: ["Admin"] },
       {
         icon: BookOpen,
         label: "Analytics",
