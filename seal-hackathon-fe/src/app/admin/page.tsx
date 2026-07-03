@@ -1,36 +1,20 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import {
-  Users, Shield, FileText, Calendar, CheckCircle, XCircle,
-  UserCheck, ChevronRight, RefreshCw,
+  Users, Shield, Calendar, UserCheck, RefreshCw,
 } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 import StatCardRow from "@/components/workspace/StatCardRow";
-
-interface BackendUser {
-  id: string;
-  fullName: string;
-  email: string;
-  roles?: string[];
-  isApproved: boolean;
-  schoolName?: string | null;
-}
+import PendingUsersPanel, { type BackendUser } from "@/components/admin/PendingUsersPanel";
+import PendingTeamsPanel, { type AdminTeam } from "@/components/admin/PendingTeamsPanel";
+import AdminQuickLinks from "@/components/admin/AdminQuickLinks";
 
 interface RoleRequest {
   id: string;
   fullName: string;
   email: string;
   requestedRole?: string;
-}
-
-interface AdminTeam {
-  teamId: string;
-  teamName: string;
-  status: string;
-  category?: { categoryName: string } | null;
-  members: { userId: string }[];
 }
 
 interface EventDto {
@@ -125,120 +109,9 @@ export default function AdminDashboardPage() {
         ]}
       />
 
-      {/* ─── Pending user approvals ───────────────────────────── */}
-      <div className="section" style={{ marginBottom: "2rem" }}>
-        <div className="section-header">
-          <span className="section-title">
-            <Users size={16} style={{ color: "var(--color-primary)" }} /> Pending User Approvals
-          </span>
-          <Link href="/admin/users">
-            <button className="btn btn-ghost btn-sm">Manage Users <ChevronRight size={14} /></button>
-          </Link>
-        </div>
-        {pendingUsers.length === 0 ? (
-          <div style={{ padding: "1rem", color: "var(--color-text-3)", fontSize: "0.85rem" }}>
-            {loading ? "Loading…" : "No users waiting for approval."}
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {pendingUsers.slice(0, 5).map((u) => (
-              <div key={u.id} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.85rem 1.25rem", flexWrap: "wrap" }}>
-                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--color-text-1)" }}>{u.fullName}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>
-                    {u.email}{u.schoolName ? ` · ${u.schoolName}` : ""}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}
-                    onClick={() => handleUserAction(u.id, "approve")} disabled={busyAction !== null}>
-                    <CheckCircle size={14} style={{ marginRight: 4 }} /> Approve
-                  </button>
-                  <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e", border: "1px solid rgba(244,63,94,0.3)" }}
-                    onClick={() => handleUserAction(u.id, "reject")} disabled={busyAction !== null}>
-                    <XCircle size={14} style={{ marginRight: 4 }} /> Reject
-                  </button>
-                </div>
-              </div>
-            ))}
-            {pendingUsers.length > 5 && (
-              <Link href="/admin/users" style={{ fontSize: "0.82rem" }}>
-                +{pendingUsers.length - 5} more pending users →
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ─── Pending team approvals ───────────────────────────── */}
-      <div className="section" style={{ marginBottom: "2rem" }}>
-        <div className="section-header">
-          <span className="section-title">
-            <UserCheck size={16} style={{ color: "#8b5cf6" }} /> Pending Team Approvals
-          </span>
-          <Link href="/admin/teams">
-            <button className="btn btn-ghost btn-sm">Manage Teams <ChevronRight size={14} /></button>
-          </Link>
-        </div>
-        {pendingTeams.length === 0 ? (
-          <div style={{ padding: "1rem", color: "var(--color-text-3)", fontSize: "0.85rem" }}>
-            {loading ? "Loading…" : "No teams waiting for approval."}
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {pendingTeams.slice(0, 5).map((t) => (
-              <div key={t.teamId} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.85rem 1.25rem", flexWrap: "wrap" }}>
-                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--color-text-1)" }}>{t.teamName}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>
-                    {t.category?.categoryName ?? "No track"} · {t.members.length} member(s)
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}
-                    onClick={() => handleTeamAction(t.teamId, "approve")} disabled={busyAction !== null}>
-                    <CheckCircle size={14} style={{ marginRight: 4 }} /> Approve
-                  </button>
-                  <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e", border: "1px solid rgba(244,63,94,0.3)" }}
-                    onClick={() => handleTeamAction(t.teamId, "reject")} disabled={busyAction !== null}>
-                    <XCircle size={14} style={{ marginRight: 4 }} /> Reject
-                  </button>
-                </div>
-              </div>
-            ))}
-            {pendingTeams.length > 5 && (
-              <Link href="/admin/teams" style={{ fontSize: "0.82rem" }}>
-                +{pendingTeams.length - 5} more pending teams →
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ─── Quick links ──────────────────────────────────────── */}
-      <div className="grid-3" style={{ marginBottom: "2rem" }}>
-        <Link href="/admin/events" className="stat-card" style={{ textDecoration: "none" }}>
-          <div className="stat-icon" style={{ background: "rgba(99,102,241,0.15)", color: "var(--color-primary)" }}><Calendar size={24} /></div>
-          <div>
-            <div className="stat-value">Events</div>
-            <div className="stat-label">Create and manage events</div>
-          </div>
-        </Link>
-        <Link href="/admin/events?tab=criteria" className="stat-card" style={{ textDecoration: "none" }}>
-          <div className="stat-icon" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}><FileText size={24} /></div>
-          <div>
-            <div className="stat-value">Criteria Templates</div>
-            <div className="stat-label">Configure scoring rubrics</div>
-          </div>
-        </Link>
-        <Link href="/admin/system-notifications" className="stat-card" style={{ textDecoration: "none" }}>
-          <div className="stat-icon" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}><Shield size={24} /></div>
-          <div>
-            <div className="stat-value">System Notifications</div>
-            <div className="stat-label">Broadcast announcements to users</div>
-          </div>
-        </Link>
-      </div>
+      <PendingUsersPanel users={pendingUsers} loading={loading} busyAction={busyAction} onAction={handleUserAction} />
+      <PendingTeamsPanel teams={pendingTeams} loading={loading} busyAction={busyAction} onAction={handleTeamAction} />
+      <AdminQuickLinks />
     </div>
   );
 }
