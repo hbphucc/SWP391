@@ -5,6 +5,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import Link from "next/link";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import styles from "./ScoreSubmissionForm.module.css";
 
 type CriterionItem = {
   criteriaId: string;
@@ -129,7 +130,7 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
         <AlertCircle size={48} className="empty-icon" />
         <div className="empty-title">Evaluation not available</div>
         <div className="empty-desc">Could not load evaluation data. You may not be assigned as a judge for this submission.</div>
-        <Link href={backHref}><button className="btn btn-secondary" style={{ marginTop: "1rem" }}>← Back to Queue</button></Link>
+        <Link href={backHref}><button className={`btn btn-secondary ${styles.backButtonSpacing}`}>← Back to Queue</button></Link>
       </div>
     );
   }
@@ -156,47 +157,30 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
   const hasCriteria = data.criteria.length > 0;
 
   return (
-    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto" }}>
+    <div className={styles.wrapper}>
       {/* Sticky page header — back link, team identity, status badges */}
-      <div
-        className="page-header"
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-          background: "var(--color-bg)",
-          paddingBottom: "1rem",
-          marginBottom: "1rem",
-        }}
-      >
+      <div className={`page-header ${styles.stickyHeader}`}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+          <div className={styles.headerTitleRow}>
             <Link href={backHref}><button className="btn btn-ghost btn-sm btn-icon" aria-label="Back to queue"><ChevronLeft size={16} /></button></Link>
             <h1 className="page-title">Score Submission</h1>
           </div>
           <p className="page-subtitle">{data.team?.teamName ?? "Unknown Team"} · {data.team?.category ?? ""} · {data.round?.roundName ?? ""}</p>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          {readOnly && <span className="badge badge-neutral" style={{ padding: "0.4rem 0.8rem", background: "rgba(56,189,248,0.1)", color: "#38bdf8", border: "1px solid rgba(56,189,248,0.2)" }}>Read-Only</span>}
-          {locked && <span className="badge badge-success" style={{ padding: "0.4rem 0.8rem" }}><Lock size={12} style={{ marginRight: 4 }} /> Scores Locked</span>}
+        <div className={styles.headerBadges}>
+          {readOnly && <span className={`badge badge-neutral ${styles.readOnlyBadge}`}>Read-Only</span>}
+          {locked && <span className={`badge badge-success ${styles.lockedBadge}`}><Lock size={12} className={styles.lockedBadgeIcon} /> Scores Locked</span>}
         </div>
       </div>
 
       {/* Split-screen body */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) clamp(360px, 38%, 460px)",
-          gap: "1.5rem",
-          alignItems: "start",
-        }}
-      >
+      <div className={styles.splitBody}>
         {/* LEFT — submission context + per-criterion comments */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", minWidth: 0 }}>
+        <div className={styles.leftColumn}>
           {/* Submission links + metadata */}
           <div className="glass-card">
-            <h4 style={{ fontSize: "0.9rem", marginBottom: "1rem", color: "var(--color-text-2)" }}>SUBMISSION LINKS</h4>
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <h4 className={styles.cardLabel}>SUBMISSION LINKS</h4>
+            <div className={styles.linksRow}>
               {data.repositoryUrl && (
                 <a href={data.repositoryUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
                   GitHub Repository ↗
@@ -213,11 +197,11 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
                 </a>
               )}
               {!data.repositoryUrl && !data.demoUrl && !data.slideUrl && (
-                <span style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>No links provided</span>
+                <span className={styles.noLinksText}>No links provided</span>
               )}
             </div>
-            <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "var(--color-text-3)" }}>
-              <Clock size={11} style={{ marginRight: 4 }} />Submitted: {new Date(data.submittedAt).toLocaleString()}
+            <div className={styles.submittedAtRow}>
+              <Clock size={11} className={styles.inlineIconSpacing} />Submitted: {new Date(data.submittedAt).toLocaleString()}
             </div>
           </div>
 
@@ -225,13 +209,13 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
               submission artefacts and type feedback at the same time. */}
           {hasCriteria && (
             <div className="glass-card">
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-                <MessageSquare size={16} style={{ color: "var(--color-primary)" }} />
-                <h4 style={{ fontSize: "0.95rem" }}>Feedback &amp; Comments</h4>
+              <div className={styles.feedbackHeader}>
+                <MessageSquare size={16} className={styles.feedbackHeaderIcon} />
+                <h4 className={styles.feedbackHeaderTitle}>Feedback &amp; Comments</h4>
               </div>
               {data.criteria.map(c => (
-                <div key={c.criteriaId} style={{ marginBottom: "1rem" }}>
-                  <label style={{ fontWeight: 600, fontSize: "0.82rem", display: "block", marginBottom: "0.35rem" }}>{c.criteriaName}</label>
+                <div key={c.criteriaId} className={styles.feedbackItem}>
+                  <label className={styles.feedbackLabel}>{c.criteriaName}</label>
                   <textarea
                     className="form-textarea"
                     rows={3}
@@ -247,33 +231,20 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
         </div>
 
         {/* RIGHT — scoring rubric (sticky on desktop) */}
-        <div
-          style={{
-            position: "sticky",
-            top: 96,
-            display: "flex",
-            flexDirection: "column",
-            gap: "1rem",
-            // Cap the column height so the rubric scrolls internally instead of
-            // pushing the page when the criteria list is long.
-            maxHeight: "calc(100vh - 110px)",
-            overflowY: "auto",
-            paddingRight: "0.25rem",
-          }}
-        >
+        <div className={styles.rightColumn}>
           <div className="glass-card">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-              <h4 style={{ fontSize: "0.95rem" }}>Scoring Rubric</h4>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "1.6rem", fontWeight: 800, fontFamily: "var(--font-display)", color: getScoreColor(weightedTotal) }}>
+            <div className={styles.rubricHeader}>
+              <h4 className={styles.rubricHeaderTitle}>Scoring Rubric</h4>
+              <div className={styles.weightedTotalWrap}>
+                <div className={styles.weightedTotalValue} style={{ color: getScoreColor(weightedTotal) }}>
                   {weightedTotal.toFixed(1)}
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "var(--color-text-3)" }}>Weighted total</div>
+                <div className={styles.weightedTotalLabel}>Weighted total</div>
               </div>
             </div>
 
             {isLocked && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: readOnly ? "rgba(56,189,248,0.08)" : "rgba(16,185,129,0.08)", border: readOnly ? "1px solid rgba(56,189,248,0.2)" : "1px solid rgba(16,185,129,0.2)", borderRadius: "var(--radius-md)", padding: "0.6rem 0.85rem", marginBottom: "1rem" }}>
+              <div className={styles.lockNotice} style={{ background: readOnly ? "rgba(56,189,248,0.08)" : "rgba(16,185,129,0.08)", border: readOnly ? "1px solid rgba(56,189,248,0.2)" : "1px solid rgba(16,185,129,0.2)" }}>
                 {readOnly ? <AlertCircle size={14} style={{ color: "#38bdf8" }} /> : <CheckCircle size={14} style={{ color: "#34d399" }} />}
                 <span style={{ fontSize: "0.8rem", color: readOnly ? "#38bdf8" : "#34d399" }}>
                   {readOnly ? "Admin read-only view" : "Scores have been finalized."}
@@ -282,27 +253,27 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
             )}
 
             {!hasCriteria ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem 1rem", textAlign: "center" }}>
-                <AlertCircle size={32} style={{ color: "#f59e0b", marginBottom: "0.75rem" }} />
-                <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--color-text-1)", marginBottom: "0.4rem" }}>
+              <div className={styles.noCriteriaState}>
+                <AlertCircle size={32} className={styles.noCriteriaIcon} />
+                <div className={styles.noCriteriaTitle}>
                   No criteria configured
                 </div>
-                <p style={{ fontSize: "0.78rem", color: "var(--color-text-3)", margin: 0 }}>
+                <p className={styles.noCriteriaDesc}>
                   Admin must define round criteria before scoring can begin.
                 </p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+              <div className={styles.criteriaList}>
                 {data.criteria.map(c => (
                   <div key={c.criteriaId}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.4rem", gap: "0.5rem" }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{c.criteriaName}</div>
-                        {c.description && <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: "0.1rem" }}>{c.description}</div>}
+                    <div className={styles.criterionRow}>
+                      <div className={styles.criterionInfo}>
+                        <div className={styles.criterionName}>{c.criteriaName}</div>
+                        {c.description && <div className={styles.criterionDesc}>{c.description}</div>}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
+                      <div className={styles.criterionScoreGroup}>
                         <span className="badge badge-neutral">{Number(c.weight)}%</span>
-                        <div style={{ minWidth: 44, textAlign: "center", fontSize: "1.15rem", fontWeight: 800, fontFamily: "var(--font-display)", color: getScoreColor(scores[c.criteriaId] ?? 0) }}>
+                        <div className={styles.criterionScoreValue} style={{ color: getScoreColor(scores[c.criteriaId] ?? 0) }}>
                           {scores[c.criteriaId] ?? 0}
                         </div>
                       </div>
@@ -316,7 +287,7 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
                       onChange={e => setScores({ ...scores, [c.criteriaId]: +e.target.value })}
                       style={{ background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) 100%)` }}
                     />
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.65rem", color: "var(--color-text-3)", marginTop: "0.2rem" }}>
+                    <div className={styles.sliderScale}>
                       <span>0 – Poor</span><span>{Math.round(Number(c.maxScore) / 2)} – Average</span><span>{Number(c.maxScore)} – Excellent</span>
                     </div>
                   </div>
@@ -328,9 +299,9 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
           {/* Radar tucks under the sliders so the judge sees its shape change
               while scoring; small enough to share the sticky column. */}
           {hasCriteria && (
-            <div className="glass-card" style={{ padding: "1rem" }}>
-              <h4 style={{ fontSize: "0.78rem", color: "var(--color-text-2)", marginBottom: "0.75rem" }}>SCORE DISTRIBUTION</h4>
-              <div style={{ width: "100%", height: 220 }}>
+            <div className={`glass-card ${styles.chartCard}`}>
+              <h4 className={styles.chartLabel}>SCORE DISTRIBUTION</h4>
+              <div className={styles.chartWrap}>
                 <ResponsiveContainer width="100%" height="100%">
                   {data.criteria.length <= 2 ? (
                     <BarChart data={data.criteria.map(c => ({
@@ -368,16 +339,16 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
 
           {/* Sticky action bar at the bottom of the right column */}
           {hasCriteria && (!isLocked ? (
-            <div className="glass-card" style={{ display: "flex", gap: "0.5rem", padding: "0.85rem", position: "sticky", bottom: 0 }}>
-              <button className="btn btn-secondary" style={{ flex: 1, justifyContent: "center" }} onClick={() => handleSave(false)} disabled={saving}>
+            <div className={`glass-card ${styles.actionBar}`}>
+              <button className={`btn btn-secondary ${styles.actionBtn}`} onClick={() => handleSave(false)} disabled={saving}>
                 {savingAction === "draft" ? <span className="spinner" /> : <><Send size={14} /> Save Draft</>}
               </button>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} onClick={confirmFinalize} disabled={saving}>
+              <button className={`btn btn-primary ${styles.actionBtn}`} onClick={confirmFinalize} disabled={saving}>
                 {savingAction === "final" ? <span className="spinner" /> : <><Lock size={14} /> Finalize</>}
               </button>
             </div>
           ) : (
-            <div className="glass-card" style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.85rem", color: "var(--color-text-3)", fontSize: "0.8rem" }}>
+            <div className={`glass-card ${styles.lockedActionBar}`}>
               <AlertCircle size={14} />
               {readOnly ? "Read-only view" : "Scores locked"}
             </div>
