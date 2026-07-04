@@ -93,7 +93,6 @@ export default function AdminDashboardPage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
         <div>
           <h1 className="page-title">Admin Overview</h1>
-          <p className="page-subtitle">Everything that needs your attention, in one place</p>
         </div>
         <button className="btn btn-secondary" onClick={loadAll} disabled={loading}>
           <RefreshCw size={15} className={loading ? "spin" : undefined} /> Refresh

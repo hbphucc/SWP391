@@ -336,7 +336,6 @@ export default function UsersPage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="page-title"><Users size={28} /> User Management</h1>
-          <p className="page-subtitle">Approve participants and manage guest judges</p>
         </div>
         <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
           <UserPlus size={16} /> Create Guest Judge

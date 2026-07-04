@@ -158,7 +158,6 @@ export default function DocumentsPage() {
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Documents Library</h1>
-          <p className="page-subtitle">{isAdmin ? "Manage official hackathon resources" : isMentor ? "View official resources and team documents" : "Manage your team's documents"}</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           {isAdmin && (

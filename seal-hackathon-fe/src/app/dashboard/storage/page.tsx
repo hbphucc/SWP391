@@ -84,7 +84,6 @@ export default function StoragePage() {
           <h1 className="page-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Cloud size={28} /> Cloud Storage
           </h1>
-          <p className="page-subtitle">Real-time system storage usage and limits</p>
         </div>
         <button className="btn btn-secondary btn-icon" onClick={loadStats} disabled={loading} title="Refresh Statistics">
           <RefreshCw size={15} />

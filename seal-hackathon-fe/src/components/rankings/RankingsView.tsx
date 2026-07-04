@@ -148,9 +148,6 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
         {!embedded && (
           <div>
             <h1 className="page-title">Rankings & Leaderboard</h1>
-            <p className="page-subtitle">
-              {selectedEvent?.eventName ?? "Select an event"} {roundId === "overall" ? "- Overall standings" : roundId ? "- Backend ranking" : ""}
-            </p>
           </div>
         )}
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>

@@ -47,7 +47,6 @@ export default function PrizesView() {
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Hackathon Prizes</h1>
-          <p className="page-subtitle">Rewards and categories for winning teams</p>
         </div>
       </div>
 

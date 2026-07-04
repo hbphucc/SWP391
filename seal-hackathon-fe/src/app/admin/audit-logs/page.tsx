@@ -148,7 +148,6 @@ export default function AuditLogsPage() {
           <h1 className="page-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <FileText size={28} /> System Audit Logs
           </h1>
-          <p className="page-subtitle">View and audit system activity logs</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           <Input

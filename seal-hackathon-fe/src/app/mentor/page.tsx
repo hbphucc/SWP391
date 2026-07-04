@@ -238,7 +238,6 @@ export default function MentorWorkspacePage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Mentor Workspace</h1>
-          <p className="page-subtitle">View and evaluate the teams you are mentoring</p>
         </div>
       </div>
 

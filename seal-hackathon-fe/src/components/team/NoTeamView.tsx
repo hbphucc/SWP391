@@ -44,7 +44,6 @@ export default function NoTeamView({
           <Users size={32} className={styles.headerIcon} />
         </div>
         <h1 className={`page-title ${styles.headerTitle}`}>You are not in a team</h1>
-        <p className="page-subtitle">Register a team through the backend approval flow.</p>
       </div>
 
       <PendingInvitesBanner

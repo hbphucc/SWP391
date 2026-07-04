@@ -161,7 +161,6 @@ export default function ProfilePage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">My Profile</h1>
-          <p className="page-subtitle">Manage your account through the backend profile API</p>
         </div>
       </div>
 

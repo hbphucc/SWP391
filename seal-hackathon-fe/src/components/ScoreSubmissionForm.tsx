@@ -165,7 +165,6 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
             <Link href={backHref}><button className="btn btn-ghost btn-sm btn-icon" aria-label="Back to queue"><ChevronLeft size={16} /></button></Link>
             <h1 className="page-title">Score Submission</h1>
           </div>
-          <p className="page-subtitle">{data.team?.teamName ?? "Unknown Team"} · {data.team?.category ?? ""} · {data.round?.roundName ?? ""}</p>
         </div>
         <div className={styles.headerBadges}>
           {readOnly && <span className={`badge badge-neutral ${styles.readOnlyBadge}`}>Read-Only</span>}

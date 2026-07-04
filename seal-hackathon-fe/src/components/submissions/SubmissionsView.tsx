@@ -200,9 +200,6 @@ export default function SubmissionsView() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Project Submission</h1>
-          <p className="page-subtitle">
-            {team?.teamName} {team?.currentRound ? `- ${team.currentRound.roundName}` : ""}
-          </p>
         </div>
         {isSubmitted && <span className="badge badge-success"><CheckCircle size={14} style={{ marginRight: 4 }} /> Submitted</span>}
       </div>

@@ -88,7 +88,6 @@ export default function AdminSystemNotifications() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">System Notifications</h1>
-          <p className="page-subtitle">Broadcast messages to all users</p>
         </div>
         <button className="btn btn-secondary" onClick={loadHistory} disabled={loading}>
           <RefreshCw size={15} /> Refresh

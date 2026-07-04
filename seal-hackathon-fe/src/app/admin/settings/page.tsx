@@ -11,7 +11,6 @@ export default function AdminSettingsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Global Settings</h1>
-          <p className="page-subtitle">System-wide preferences and configuration</p>
         </div>
       </div>
 

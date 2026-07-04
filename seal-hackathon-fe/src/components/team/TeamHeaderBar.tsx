@@ -18,10 +18,6 @@ export default function TeamHeaderBar({ myTeam, isLeader, loading, submitting, o
     <div className="page-header">
       <div>
         <h1 className="page-title">{myTeam.teamName}</h1>
-        <p className="page-subtitle">
-          {myTeam.category.categoryName}
-          {myTeam.currentRound ? ` · ${myTeam.currentRound.roundName}` : ""}
-        </p>
         {(myTeam.mentor || myTeam.judge) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", marginTop: "0.75rem", fontSize: "0.95rem" }}>
             {myTeam.mentor && (

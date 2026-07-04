@@ -111,7 +111,6 @@ export default function AnalyticsPage() {
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Research & Analytics</h1>
-          <p className="page-subtitle">Inter-Rater Reliability (ICC) Analysis</p>
         </div>
         <button className="btn btn-secondary" onClick={exportAnalyticsCSV}><Download size={15} style={{ marginRight: "0.5rem" }} /> Export CSV</button>
       </div>

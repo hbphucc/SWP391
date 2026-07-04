@@ -353,6 +353,12 @@ export default function LandingPage() {
                     <h3 className={styles.cardTitle}>
                       {comp.eventName}
                     </h3>
+                    <div className={styles.cardDateRow}>
+                      <Calendar size={14} className={styles.calendarIcon} />
+                      <span title={dateRange(comp.startDate, comp.endDate)}>
+                        {formatDate(comp.startDate)} — {formatDate(comp.endDate)}
+                      </span>
+                    </div>
                     <p className={styles.cardDesc}>
                       {comp.description || "No description available for this event."}
                     </p>
@@ -377,16 +383,7 @@ export default function LandingPage() {
                         <div className={styles.statLabel}>
                           <Layers size={12} /> Rounds
                         </div>
-                        <div className={styles.statValue}>{comp.rounds.length} Round{comp.rounds.length !== 1 ? "s" : ""}</div>
-                      </div>
-
-                      <div className={styles.statItem}>
-                        <div className={styles.statLabel}>
-                          <Calendar size={12} /> Dates
-                        </div>
-                        <div className={`${styles.statValue} ${styles.dateValue}`} title={dateRange(comp.startDate, comp.endDate)}>
-                          {formatDate(comp.startDate)} — {formatDate(comp.endDate)}
-                        </div>
+                        <div className={styles.statValue}>{comp.rounds.length}</div>
                       </div>
                     </div>
 
