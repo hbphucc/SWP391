@@ -4,89 +4,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import {
-  LayoutDashboard,
-  Calendar,
-  Users,
-  FileText,
-  Trophy,
-  Settings,
-  ChevronLeft,
-  LogOut,
-  BookOpen,
-  Cloud,
-  Tag,
-  Target,
-  Menu,
-  Bell,
-} from "lucide-react";
+import { ChevronLeft, LogOut, Menu, Trophy } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { useAuth } from "./AuthProvider";
-
-type NavItem = {
-  icon: React.ElementType;
-  label: string;
-  href: string;
-  roles: string[] | null;
-};
-
-type NavSection = {
-  title: string;
-  items: NavItem[];
-};
-
-const ALL_NAV_SECTIONS: NavSection[] = [
-  {
-    title: "Main",
-    items: [
-      { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: null },
-    ],
-  },
-  {
-    title: "Events",
-    items: [
-      { icon: Calendar, label: "Events", href: "/dashboard/events", roles: null },
-      { icon: Tag, label: "Tracks", href: "/dashboard/tracks", roles: null },
-    ],
-  },
-  {
-    title: "Judging",
-    items: [
-      { icon: FileText, label: "Criteria", href: "/admin/events?tab=criteria", roles: ["Admin"] },
-      { icon: Target, label: "Scoring", href: "/dashboard/judging", roles: ["Judge", "Admin"] },
-      { icon: Trophy, label: "Rankings", href: "/dashboard/rankings", roles: null },
-    ],
-  },
-  {
-    title: "Content",
-    items: [
-      { icon: FileText, label: "Documents", href: "/dashboard/documents", roles: null },
-      { icon: Cloud, label: "Storage", href: "/dashboard/storage", roles: ["Admin"] },
-      {
-        icon: BookOpen,
-        label: "Analytics",
-        href: "/dashboard/analytics",
-        roles: ["Admin", "Judge"],
-      },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
-      { icon: FileText, label: "Audit Logs", href: "/admin/audit-logs", roles: ["Admin"] },
-      {
-        icon: Bell,
-        label: "System Notifications",
-        href: "/admin/system-notifications",
-        roles: ["Admin"],
-      },
-      { icon: Settings, label: "Settings", href: "/dashboard/settings", roles: null },
-    ],
-  },
-];
+import { getVisibleNav } from "./shell/navigationConfig";
+import type { Portal } from "./shell/routePolicies";
 
 interface SidebarProps {
+  portal: Portal;
   collapsed: boolean;
   onToggle: () => void;
   mobileOpen: boolean;
@@ -94,6 +19,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
+  portal,
   collapsed,
   onToggle,
   mobileOpen,
@@ -102,8 +28,6 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { user: currentUser, logout } = useAuth();
-
-  const isAdminPortal = pathname.startsWith("/admin");
 
   const [avatar, setAvatar] = useState<string | null>(null);
 
@@ -134,101 +58,7 @@ export default function Sidebar({
       ? [currentUser.role]
       : [];
 
-  const visibleSections = ALL_NAV_SECTIONS.map((section): NavSection | null => {
-    if (isAdminPortal) {
-      if (section.title === "Main") {
-        return {
-          ...section,
-          items: [
-            {
-              icon: LayoutDashboard,
-              label: "Admin Dashboard",
-              href: "/admin",
-              roles: ["Admin"],
-            },
-          ],
-        };
-      }
-
-      if (section.title === "Events") {
-        return {
-          ...section,
-          items: [
-            { icon: Calendar, label: "Events", href: "/admin/events", roles: ["Admin"] },
-            { icon: Users, label: "Teams", href: "/admin/teams", roles: ["Admin"] },
-          ],
-        };
-      }
-
-      if (section.title === "System") {
-        return {
-          ...section,
-          items: [
-            { icon: Users, label: "User Approvals", href: "/admin/users", roles: ["Admin"] },
-            { icon: FileText, label: "Audit Logs", href: "/admin/audit-logs", roles: ["Admin"] },
-            {
-              icon: Bell,
-              label: "System Notifications",
-              href: "/admin/system-notifications",
-              roles: ["Admin"],
-            },
-            { icon: Settings, label: "Settings", href: "/admin/settings", roles: ["Admin"] },
-          ],
-        };
-      }
-
-      if (section.title === "Judging") {
-        return {
-          ...section,
-          items: [
-            {
-              icon: Trophy,
-              label: "Scoring Queue",
-              href: "/admin/judging",
-              roles: ["Admin"],
-            },
-          ],
-        };
-      }
-
-      return null;
-    }
-
-    if (pathname.startsWith("/mentor")) {
-      if (section.title === "Main") {
-        return {
-          ...section,
-          items: [
-            {
-              icon: LayoutDashboard,
-              label: "Mentor Workspace",
-              href: "/mentor",
-              roles: ["Mentor", "Admin"],
-            },
-          ],
-        };
-      }
-
-      return null;
-    }
-
-    const filteredItems = section.items.filter((item) => {
-      const isAdmin = userRoles.includes("Admin");
-
-      if (!isAdmin) {
-        if (section.title === "System" && item.label !== "Settings") return false;
-        if (section.title === "Judging" && item.label === "Criteria") return false;
-      }
-
-      if (item.roles && !item.roles.some((role) => userRoles.includes(role))) {
-        return false;
-      }
-
-      return true;
-    });
-
-    return { ...section, items: filteredItems };
-  }).filter((section): section is NavSection => Boolean(section && section.items.length > 0));
+  const visibleSections = getVisibleNav(portal, userRoles);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";

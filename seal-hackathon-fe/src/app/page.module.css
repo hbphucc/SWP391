@@ -40,6 +40,18 @@
   box-shadow: var(--shadow-sm);
 }
 
+.logoIconGlyph {
+  color: #fff;
+}
+
+.logoAccent {
+  color: var(--color-primary-2);
+}
+
+.sectionTitleIcon {
+  color: var(--color-primary-2);
+}
+
 .logoText {
   font-family: var(--font-display);
   font-weight: 800;
@@ -89,18 +101,131 @@
 }
 
 .heroTitle {
-  font-size: clamp(2.5rem, 6vw, 4rem);
-  font-weight: 800;
+  text-align: left;
+  margin-top: 0;
+  font-size: clamp(3rem, 5vw, 4.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 900;
   font-family: var(--font-display);
-  line-height: 1.15;
+  color: var(--color-primary);
   margin-bottom: 1.5rem;
 }
 
 .heroDesc {
-  font-size: 1.1rem;
+  text-align: left;
+  max-width: 100%;
+  margin-bottom: 2.5rem;
+  font-size: 1.25rem;
+  line-height: 1.7;
   color: var(--color-text-2);
-  max-width: 600px;
-  line-height: 1.6;
+}
+
+.heroRow {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3rem;
+  width: 100%;
+  margin-bottom: 4rem;
+}
+
+.heroTextCol {
+  flex: 1 1 500px;
+}
+
+.heroCtaRow {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.heroBtn {
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  border-radius: 99px;
+}
+
+.heroBtnOutline {
+  border: 1px solid var(--color-border);
+}
+
+.heroImageCol {
+  flex: 1 1 500px;
+  position: relative;
+  height: 400px;
+  border-radius: 2rem;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.heroImageOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top right, rgba(99, 102, 241, 0.1), transparent);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.aboutSection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3rem;
+  margin: 4rem auto;
+  max-width: 1200px;
+  padding: 2rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.aboutImageCol {
+  flex: 1 1 400px;
+  position: relative;
+  height: 350px;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.aboutTextCol {
+  flex: 1 1 400px;
+  padding: 1rem;
+}
+
+.aboutHeading {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+}
+
+.aboutParagraph {
+  color: var(--color-text-2);
+  font-size: 1.1rem;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.aboutList {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.aboutListItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-text-1);
+}
+
+.aboutListIcon {
+  color: var(--color-primary);
 }
 
 /* --- Cinematic Hero Enhancements --- */
@@ -300,6 +425,14 @@
   min-width: 0;
   height: 100%;
   padding: 1.75rem;
+  overflow: hidden;
+}
+
+.eventThumbnailWrap {
+  height: 180px;
+  position: relative;
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+  background: #f1f5f9;
 }
 
 .sectionTitle {
@@ -309,7 +442,28 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  margin-bottom: 0;
+}
+
+.competitionsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
   margin-bottom: 2rem;
+}
+
+.eventsStateMessage {
+  text-align: center;
+  padding: 3rem;
+  color: var(--color-text-3);
+}
+
+.emptyStateImage {
+  opacity: 0.9;
+  margin-bottom: 1rem;
+  border-radius: 1rem;
 }
 
 .cardHeader {
@@ -324,6 +478,17 @@
   padding: 0.5rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-2);
+}
+
+.cardIconWrapper svg {
+  color: var(--color-amber);
+}
+
+.cardFooter {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .cardTitle {
@@ -395,7 +560,17 @@
 }
 
 .cardActionIcon {
+  margin-left: 0.5rem;
   transition: transform var(--transition-fast);
+}
+
+.cardActionBtn {
+  width: 100%;
+  justify-content: center;
+}
+
+.badgeIcon {
+  margin-right: 4px;
 }
 
 .bgBlob1 {
@@ -439,6 +614,7 @@
   width: 100%;
   border-radius: 50%;
   opacity: 0.75;
+  background-color: var(--color-emerald);
 }
 .pingDot {
   position: relative;
@@ -973,4 +1149,207 @@
     padding-top: 1.25rem;
     border-top: 1px solid rgba(148, 163, 184, 0.14);
   }
+}
+
+/* ─── Event Details Modal ─────────────────────────────────── */
+/* Page-scoped modifiers layered on top of the shared global
+   .modal-content/.modal-header/.modal-title classes — only the
+   properties that differ from the global defaults live here. */
+.eventModalContent {
+  background: var(--color-bg-2);
+  box-shadow: var(--shadow-xl);
+}
+
+.eventModalHeader {
+  margin-bottom: 1rem;
+}
+
+.eventModalTitle {
+  color: var(--color-text);
+  font-size: 1.5rem;
+}
+
+.closeButton {
+  padding: 0.25rem;
+}
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.modalEventName {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: var(--color-primary-2);
+  margin-bottom: 0.5rem;
+}
+
+.modalEventDesc {
+  color: var(--color-text-2);
+  font-size: 0.95rem;
+}
+
+.modalBadgeRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.winnersPanel {
+  background: rgba(245, 158, 11, 0.06);
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.winnersPanelTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: var(--color-amber);
+  margin-bottom: 1rem;
+  font-size: 1.05rem;
+}
+
+.winnersLoading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-3);
+  font-size: 0.9rem;
+}
+
+.winnersEmpty {
+  font-size: 0.9rem;
+  color: var(--color-text-3);
+}
+
+.winnersList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.winnerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.winnerLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.winnerRankBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.winnerName {
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.winnerTrack {
+  font-size: 0.8rem;
+  color: var(--color-text-3);
+}
+
+.winnerScoreWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.winnerScore {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: var(--color-primary-2);
+}
+
+.roundsPanel {
+  background: rgba(99, 102, 241, 0.05);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+}
+
+.roundsPanelTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.75rem;
+}
+
+.roundsPanelIcon {
+  color: var(--color-primary-2);
+}
+
+.roundsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.roundItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.roundItemIcon {
+  margin-top: 2px;
+  color: var(--color-cyan);
+}
+
+.roundItemName {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.roundItemDeadline {
+  font-size: 0.85rem;
+  color: var(--color-text-3);
+}
+
+.tracksPanel {
+  background: rgba(16, 185, 129, 0.05);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.tracksPanelTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+.tracksPanelIcon {
+  color: var(--color-emerald);
+}
+
+.tracksBadgeRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }

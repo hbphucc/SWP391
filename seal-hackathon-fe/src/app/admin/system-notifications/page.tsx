@@ -84,7 +84,7 @@ export default function AdminSystemNotifications() {
   };
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">System Notifications</h1>

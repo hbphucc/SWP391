@@ -442,9 +442,9 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> GetMentoringTeamsAsync(Guid currentUserId)
         {
-            var mentoredTeams = await _context.MentorAssignments
-                .Where(ma => ma.MentorUserId == currentUserId && ma.IsActive)
-                .Select(ma => ma.Team)
+            var mentoredTeams = await _context.Teams
+                .Where(t => _context.MentorAssignments.Any(ma =>
+                    ma.TeamId == t.TeamId && ma.MentorUserId == currentUserId && ma.IsActive))
                 .Include(t => t.Category)
                     .ThenInclude(c => c.Event)
                 .Include(t => t.CurrentRound)

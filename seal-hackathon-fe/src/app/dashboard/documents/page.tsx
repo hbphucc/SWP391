@@ -154,7 +154,7 @@ export default function DocumentsPage() {
   }, [docs, isAdmin, isMentor, viewContext]);
 
   return (
-    <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Documents Library</h1>

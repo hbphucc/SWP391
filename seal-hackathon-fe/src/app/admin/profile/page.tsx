@@ -130,7 +130,7 @@ export default function AdminProfilePage() {
   if (!user) return null;
 
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Admin Profile</h1>

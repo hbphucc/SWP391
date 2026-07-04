@@ -26,12 +26,12 @@ namespace SEAL.NET.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetUsers()
-            => this.ToActionResult(await _adminUserService.GetUsersAsync());
+        public async Task<IActionResult> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 200)
+            => this.ToActionResult(await _adminUserService.GetUsersAsync(page, pageSize));
 
         [HttpGet("pending")]
-        public async Task<IActionResult> GetPendingUsers()
-            => this.ToActionResult(await _adminUserService.GetPendingUsersAsync());
+        public async Task<IActionResult> GetPendingUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 200)
+            => this.ToActionResult(await _adminUserService.GetPendingUsersAsync(page, pageSize));
 
         [HttpPut("{userId}/approve")]
         public async Task<IActionResult> ApproveUser(Guid userId)

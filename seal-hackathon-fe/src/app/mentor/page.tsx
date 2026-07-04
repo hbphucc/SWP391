@@ -1,9 +1,12 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Users, FileEdit, MessageSquare, Clipboard, Send } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Users, FileEdit, MessageSquare, Clipboard, Send, Eye, Mail } from "lucide-react";
 import { App, Modal, Input, Spin, Empty, Tag } from "antd";
 import { apiRequest } from "@/lib/api";
 import StatCardRow from "@/components/workspace/StatCardRow";
+import WorkspaceTabs, { WorkspaceTab } from "@/components/workspace/WorkspaceTabs";
+import MentorInvitationsPanel, { MentorInvitationDto } from "@/components/mentor/MentorInvitationsPanel";
+import MentorTeamDetailDrawer from "@/components/mentor/MentorTeamDetailDrawer";
 
 interface SubmissionData {
   submissionId: string;
@@ -31,6 +34,8 @@ export default function MentorWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<MentorTeam | null>(null);
+  const [detailTeamId, setDetailTeamId] = useState<string | null>(null);
+  const [pendingInvitationCount, setPendingInvitationCount] = useState(0);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,13 +51,35 @@ export default function MentorWorkspacePage() {
     }
   }, [message]);
 
+  // Monotonic sequence so an older in-flight count fetch can never overwrite
+  // a newer count (e.g. the panel reporting fresh data after accept/reject).
+  const invitationCountSeqRef = useRef(0);
+
+  const loadInvitationCount = useCallback(async () => {
+    const seq = ++invitationCountSeqRef.current;
+    try {
+      const data = await apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations");
+      if (seq === invitationCountSeqRef.current) setPendingInvitationCount(data.length);
+    } catch {
+      if (seq === invitationCountSeqRef.current) setPendingInvitationCount(0);
+    }
+  }, []);
+
+  const reportInvitationCount = useCallback((count: number) => {
+    // The panel's report reflects the freshest server state — invalidate any
+    // older page-level fetch still in flight.
+    invitationCountSeqRef.current++;
+    setPendingInvitationCount(count);
+  }, []);
+
   useEffect(() => {
     const trigger = async () => {
       await Promise.resolve();
       void loadTeams();
+      void loadInvitationCount();
     };
     void trigger();
-  }, [loadTeams]);
+  }, [loadTeams, loadInvitationCount]);
 
   const stats = useMemo(
     () => [
@@ -97,6 +124,106 @@ export default function MentorWorkspacePage() {
     }
   };
 
+  const handleInvitationsChanged = useCallback(() => {
+    void loadTeams();
+    void loadInvitationCount();
+  }, [loadTeams, loadInvitationCount]);
+
+  const renderTeamsTab = () => (
+    teams.length === 0 ? (
+      <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
+        <Empty description="You have not been assigned to mentor any teams yet." />
+      </div>
+    ) : (
+      <div className="table-wrapper">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Team Name</th>
+              <th>Track / Event</th>
+              <th>Members</th>
+              <th>Status</th>
+              <th>Submission Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teams.map((t) => (
+              <tr key={t.teamId} onClick={() => setDetailTeamId(t.teamId)} style={{ cursor: "pointer" }}>
+                <td className="table-cell-primary">
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                    <div className="avatar-placeholder" style={{ width: 30, height: 30, fontSize: "0.72rem" }}>
+                      {t.teamName.substring(0, 2).toUpperCase()}
+                    </div>
+                    {t.teamName}
+                  </div>
+                </td>
+                <td>
+                  <div>{t.categoryName}</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{t.eventName}</div>
+                </td>
+                <td>
+                  <span className="badge badge-neutral">
+                    <Users size={10} style={{ marginRight: 4 }} /> {t.membersCount}
+                  </span>
+                </td>
+                <td>
+                  <span className={`badge ${t.status === "Approved" ? "badge-success" : t.status === "Eliminated" ? "badge-danger" : "badge-warning"}`}>
+                    {t.status.toUpperCase()}
+                  </span>
+                </td>
+                <td>
+                  {t.latestSubmission ? (
+                    <div>
+                      <Tag color="cyan">Submitted ({t.latestSubmission.roundName})</Tag>
+                      <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: 2 }}>
+                        {new Date(t.latestSubmission.submittedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ) : (
+                    <Tag color="default">No submissions</Tag>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button className="btn btn-secondary btn-sm" onClick={(event) => { event.stopPropagation(); setDetailTeamId(t.teamId); }}>
+                      <Eye size={13} style={{ marginRight: 4 }} />
+                      <span> View Details</span>
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={(event) => { event.stopPropagation(); openReview(t); }}>
+                      {t.notes ? (
+                        <>
+                          <MessageSquare size={13} style={{ marginRight: 4 }} />
+                          <span> Edit Note</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileEdit size={13} style={{ marginRight: 4 }} />
+                          <span> Add Note</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  );
+
+  const tabs: WorkspaceTab[] = [
+    { id: "teams", label: "Teams", icon: Users, render: renderTeamsTab },
+    {
+      id: "invitations",
+      label: "Invitations",
+      icon: Mail,
+      badge: pendingInvitationCount,
+      render: () => <MentorInvitationsPanel onChange={handleInvitationsChanged} onCountChange={reportInvitationCount} />,
+    },
+  ];
+
   if (loading) {
     return (
       <div className="empty-state">
@@ -117,81 +244,7 @@ export default function MentorWorkspacePage() {
 
       <StatCardRow items={stats} />
 
-      {teams.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-          <Empty description="You have not been assigned to mentor any teams yet." />
-        </div>
-      ) : (
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Team Name</th>
-                <th>Track / Event</th>
-                <th>Members</th>
-                <th>Status</th>
-                <th>Submission Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teams.map((t) => (
-                <tr key={t.teamId}>
-                  <td className="table-cell-primary">
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                      <div className="avatar-placeholder" style={{ width: 30, height: 30, fontSize: "0.72rem" }}>
-                        {t.teamName.substring(0, 2).toUpperCase()}
-                      </div>
-                      {t.teamName}
-                    </div>
-                  </td>
-                  <td>
-                    <div>{t.categoryName}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{t.eventName}</div>
-                  </td>
-                  <td>
-                    <span className="badge badge-neutral">
-                      <Users size={10} style={{ marginRight: 4 }} /> {t.membersCount}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge ${t.status === "Approved" ? "badge-success" : t.status === "Eliminated" ? "badge-danger" : "badge-warning"}`}>
-                      {t.status.toUpperCase()}
-                    </span>
-                  </td>
-                  <td>
-                    {t.latestSubmission ? (
-                      <div>
-                        <Tag color="cyan">Submitted ({t.latestSubmission.roundName})</Tag>
-                        <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: 2 }}>
-                          {new Date(t.latestSubmission.submittedAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    ) : (
-                      <Tag color="default">No submissions</Tag>
-                    )}
-                  </td>
-                  <td>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openReview(t)}>
-                      {t.notes ? (
-                        <>
-                          <MessageSquare size={13} style={{ marginRight: 4 }} />
-                          <span> Edit Note</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileEdit size={13} style={{ marginRight: 4 }} />
-                          <span> Add Note</span>
-                        </>
-                      )}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <WorkspaceTabs defaultTab="teams" tabs={tabs} />
 
       <Modal
         title={`Review Notes for ${selectedTeam?.teamName}`}
@@ -235,6 +288,12 @@ export default function MentorWorkspacePage() {
           />
         </div>
       </Modal>
+
+      <MentorTeamDetailDrawer
+        open={Boolean(detailTeamId)}
+        teamId={detailTeamId}
+        onClose={() => setDetailTeamId(null)}
+      />
     </div>
   );
 }

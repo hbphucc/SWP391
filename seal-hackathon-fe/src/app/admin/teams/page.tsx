@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Users, Search, CheckCircle, XCircle, Shield, Filter, RefreshCw, CalendarDays, UserCheck } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import styles from "./page.module.css";
 
 type AdminTeam = {
   teamId: string;
@@ -141,16 +142,15 @@ export default function AdminTeamsPage() {
   }, [eventTeams, filter, search]);
 
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <h1 className="page-title">Team Management</h1>
           <p className="page-subtitle">Select an event to review its teams and assigned judges</p>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+        <div className={styles.headerActions}>
           <select
-            className="form-input"
-            style={{ width: 280 }}
+            className={`form-input ${styles.eventSelect}`}
             value={selectedEventId}
             onChange={(event) => setSelectedEventId(event.target.value)}
             disabled={loading || events.length === 0}
@@ -176,30 +176,29 @@ export default function AdminTeamsPage() {
         ].map((stat) => (
           <div
             key={stat.label}
-            className="glass-card"
-            style={{ display: "flex", flexDirection: "column", gap: "0.5rem", padding: "1.25rem", cursor: "pointer", border: filter === stat.filterValue ? `1px solid ${stat.color}` : undefined }}
+            className={`glass-card ${styles.statCard}`}
+            style={{ border: filter === stat.filterValue ? `1px solid ${stat.color}` : undefined }}
             onClick={() => setFilter(stat.filterValue)}
           >
-            <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: stat.color, lineHeight: 1 }}>{stat.val}</div>
-            <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)", fontWeight: 500 }}>{stat.label}</div>
+            <div className={styles.statValue} style={{ color: stat.color }}>{stat.val}</div>
+            <div className={styles.statLabel}>{stat.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="glass-card" style={{ marginBottom: "2rem", display: "flex", gap: "1rem", alignItems: "center" }}>
-        <div className="input-with-icon" style={{ flex: 1 }}>
+      <div className={`glass-card ${styles.filterBar}`}>
+        <div className={styles.searchWrap}>
           <input
-            className="form-input"
+            className={`form-input ${styles.searchInput}`}
             placeholder="Search by team, category, or round..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ paddingLeft: "2.5rem" }}
           />
-          <Search size={16} style={{ position: "absolute", left: "0.8rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-3)" }} />
+          <Search size={16} className={styles.searchIcon} />
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <Filter size={16} style={{ color: "var(--color-text-3)" }} />
-          <select className="form-input" style={{ width: "auto" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
+        <div className={styles.filterControls}>
+          <Filter size={16} className={styles.mutedIcon} />
+          <select className={`form-input ${styles.statusSelect}`} value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="All">All Statuses</option>
             <option value="Pending">Pending</option>
             <option value="Approved">Approved</option>
@@ -208,7 +207,7 @@ export default function AdminTeamsPage() {
         </div>
       </div>
 
-      <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className={`glass-card ${styles.tableCard}`}>
         {loading ? (
           <div className="empty-state">
             <span className="spinner" />
@@ -221,61 +220,60 @@ export default function AdminTeamsPage() {
             <div className="empty-desc">Choose an event above to view its participating teams and judges.</div>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+          <table className={styles.teamTable}>
             <thead>
-              <tr style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--color-border-1)" }}>
-                <th style={{ padding: "1.25rem 1.5rem" }}>Team</th>
-                <th style={{ padding: "1.25rem 1.5rem" }}>Category</th>
-                <th style={{ padding: "1.25rem 1.5rem" }}>Members</th>
-                <th style={{ padding: "1.25rem 1.5rem" }}>Judge(s)</th>
-                <th style={{ padding: "1.25rem 1.5rem" }}>Status</th>
-                <th style={{ padding: "1.25rem 1.5rem", textAlign: "right" }}>Actions</th>
+              <tr className={styles.tableHeaderRow}>
+                <th className={styles.cell}>Team</th>
+                <th className={styles.cell}>Category</th>
+                <th className={styles.cell}>Members</th>
+                <th className={styles.cell}>Judge(s)</th>
+                <th className={styles.cell}>Status</th>
+                <th className={styles.cellRight}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredTeams.map((team) => (
-                <tr key={team.teamId} style={{ borderBottom: "1px solid var(--color-border-1)" }}>
-                  <td style={{ padding: "1.25rem 1.5rem" }}>
-                    <div style={{ fontWeight: 600 }}>{team.teamName}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{team.currentRound?.roundName ?? "No round assigned"}</div>
+                <tr key={team.teamId} className={styles.teamRow}>
+                  <td className={styles.cell}>
+                    <div className={styles.teamName}>{team.teamName}</div>
+                    <div className={styles.teamMeta}>{team.currentRound?.roundName ?? "No round assigned"}</div>
                   </td>
-                  <td style={{ padding: "1.25rem 1.5rem" }}>
+                  <td className={styles.cell}>
                     <span className="badge badge-neutral">{team.category?.categoryName ?? "Uncategorized"}</span>
                   </td>
-                  <td style={{ padding: "1.25rem 1.5rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <Users size={16} style={{ color: "var(--color-text-3)" }} />
+                  <td className={styles.cell}>
+                    <div className={styles.memberCount}>
+                      <Users size={16} className={styles.mutedIcon} />
                       <span>{team.members.length}/5</span>
                     </div>
                   </td>
-                  <td style={{ padding: "1.25rem 1.5rem", minWidth: 190 }}>
+                  <td className={styles.judgeCell}>
                     {(judgesByTeam.get(team.teamId) ?? []).length === 0 ? (
-                      <span style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>Not assigned</span>
+                      <span className={styles.teamMeta}>Not assigned</span>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                      <div className={styles.judgeList}>
                         {(judgesByTeam.get(team.teamId) ?? []).map((judge) => (
-                          <div key={judge.key} style={{ display: "flex", alignItems: "flex-start", gap: "0.4rem" }} title={judge.email}>
-                            <UserCheck size={14} style={{ color: "var(--color-primary)", marginTop: 2, flexShrink: 0 }} />
+                          <div key={judge.key} className={styles.judgeItem} title={judge.email}>
+                            <UserCheck size={14} className={styles.judgeIcon} />
                             <div>
-                              <div style={{ fontSize: "0.82rem", fontWeight: 600 }}>{judge.name}</div>
-                              <div style={{ fontSize: "0.7rem", color: "var(--color-text-3)" }}>{judge.roundName}</div>
+                              <div className={styles.judgeName}>{judge.name}</div>
+                              <div className={styles.judgeRound}>{judge.roundName}</div>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: "1.25rem 1.5rem" }}>
+                  <td className={styles.cell}>
                     <span className={`badge ${team.status === "Approved" ? "badge-success" : team.status === "Pending" ? "badge-warning" : "badge-danger"}`}>
                       {team.status}
                     </span>
                   </td>
-                  <td style={{ padding: "1.25rem 1.5rem", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                  <td className={styles.cellRight}>
+                    <div className={styles.rowActions}>
                       {team.status !== "Approved" && (
                         <button
-                          className="btn btn-sm"
-                          style={{ background: "rgba(16,185,129,0.1)", color: "#34d399", padding: "0.4rem 0.8rem", border: "1px solid rgba(16,185,129,0.2)" }}
+                          className={`btn btn-sm ${styles.approveBtn}`}
                           disabled={busyAction !== null}
                           onClick={() => handleUpdateStatus(team.teamId, "approve")}
                         >
@@ -284,8 +282,7 @@ export default function AdminTeamsPage() {
                       )}
                       {team.status !== "Eliminated" && (
                         <button
-                          className="btn btn-sm"
-                          style={{ background: "rgba(239,68,68,0.1)", color: "#fb7185", padding: "0.4rem 0.8rem", border: "1px solid rgba(239,68,68,0.2)" }}
+                          className={`btn btn-sm ${styles.rejectBtn}`}
                           disabled={busyAction !== null}
                           onClick={() => confirmReject(team)}
                         >
@@ -298,8 +295,8 @@ export default function AdminTeamsPage() {
               ))}
               {filteredTeams.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: "3rem 1.5rem", textAlign: "center", color: "var(--color-text-3)" }}>
-                    <Shield size={48} style={{ margin: "0 auto 1rem", opacity: 0.3 }} />
+                  <td colSpan={6} className={styles.emptyCell}>
+                    <Shield size={48} className={styles.emptyIcon} />
                     <div>No teams in this event match the current filter.</div>
                   </td>
                 </tr>

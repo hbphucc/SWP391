@@ -14,11 +14,16 @@ namespace SEAL.NET.Services.Implementations
     {
         private readonly ApplicationDbContext _context;
         private readonly INotificationService _notificationService;
+        private readonly ILogger<MatchmakingService> _logger;
 
-        public MatchmakingService(ApplicationDbContext context, INotificationService notificationService)
+        public MatchmakingService(
+            ApplicationDbContext context,
+            INotificationService notificationService,
+            ILogger<MatchmakingService> logger)
         {
             _context = context;
             _notificationService = notificationService;
+            _logger = logger;
         }
 
         private async Task<Team?> GetCurrentUserTeamAsync(Guid userId)
@@ -428,6 +433,10 @@ namespace SEAL.NET.Services.Implementations
                 }
                 catch (DbUpdateException ex) when (IsSerializationFailure(ex) && attempt < maxAttempts)
                 {
+                    _logger.LogWarning(ex,
+                        "Serialization conflict accepting invitation {InvitationId} for user {UserId} (attempt {Attempt}/{MaxAttempts}); retrying.",
+                        id, currentUserId, attempt, maxAttempts);
+
                     // Reset change tracker before the next attempt so stale entities
                     // from the failed transaction don't poison the retry.
                     foreach (var entry in _context.ChangeTracker.Entries().ToList())
@@ -435,6 +444,9 @@ namespace SEAL.NET.Services.Implementations
                 }
                 catch (DbUpdateException ex) when (IsSerializationFailure(ex))
                 {
+                    _logger.LogWarning(ex,
+                        "Serialization conflict accepting invitation {InvitationId} for user {UserId} persisted after {MaxAttempts} attempts; returning conflict.",
+                        id, currentUserId, maxAttempts);
                     return ServiceResult.Conflict("Concurrent update", "Could not complete the request due to a concurrent change. Please try again.");
                 }
             }
