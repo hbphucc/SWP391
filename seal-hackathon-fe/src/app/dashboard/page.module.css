@@ -66,20 +66,23 @@
   flex-direction: column;
   gap: 0;
   background: var(--color-surface);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm), var(--shadow-glass);
 }
 .deadlineItem {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid rgba(148,163,184,0.05);
+  border-bottom: 1px solid var(--color-border-2);
   transition: background var(--transition-fast);
 }
 .deadlineItem:last-child { border-bottom: none; }
-.deadlineItem:hover { background: rgba(99,102,241,0.04); }
+.deadlineItem:hover { background: rgba(99,102,241,0.06); }
 .deadlineDot {
   width: 8px; height: 8px;
   border-radius: 50%;
@@ -132,16 +135,21 @@
   flex-direction: column;
   gap: 0;
   background: var(--color-surface);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm), var(--shadow-glass);
 }
 .activityItem {
   display: flex;
   gap: 0.75rem;
   padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid rgba(148,163,184,0.05);
+  border-bottom: 1px solid var(--color-border-2);
+  transition: background var(--transition-fast);
 }
+.activityItem:hover { background: rgba(99,102,241,0.03); }
 .activityItem:last-child { border-bottom: none; }
 .activityIcon {
   width: 28px; height: 28px;

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare } from "lucide-react";
+import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare, Shield, Star } from "lucide-react";
 import styles from "./page.module.css";
 import { apiRequest } from "@/lib/api";
 
@@ -165,38 +165,83 @@ export default function LandingPage() {
         </div>
       </motion.header>
 
-      {/* Main Content */}
-      <main className={styles.main}>
+      {/* Cinematic Hero Section */}
+      <div className={styles.heroWrapper}>
+        <div className={styles.heroBg}>
+          <div className={styles.cyberGrid} />
+          <div className={styles.auroraLayer} />
+          <div className={styles.scanline} />
+        </div>
 
-        {/* Hero Section */}
         <motion.div
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className={styles.heroRow}
+          className={styles.heroContentWrapper}
         >
-          <div className={styles.heroTextCol}>
-            <div className={styles.heroTag}>
+          {/* Hero Text */}
+          <div style={{ flex: '1 1 500px' }}>
+            <motion.div 
+              className={styles.heroTag} 
+              style={{ marginBottom: '1.5rem' }}
+              animate={{ boxShadow: ['0 0 0px rgba(99,102,241,0)', '0 0 15px rgba(99,102,241,0.4)', '0 0 0px rgba(99,102,241,0)'] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
               <Rocket size={16} />
               <span>Unleash Your Creative Potential</span>
-            </div>
-            <h1 className={styles.heroTitle}>
+            </motion.div>
+            
+            <h1 className={`${styles.heroTitle} ${styles.heroTitleGradient}`} style={{ textAlign: 'left', marginTop: 0, lineHeight: 1.1, letterSpacing: '-0.02em', fontWeight: 900 }}>
               Explore & Compete in <br/>
               <span>World-Class Hackathons</span>
             </h1>
-            <p className={styles.heroDesc}>
+            <p className={styles.heroDesc} style={{ textAlign: 'left', marginBottom: '2.5rem' }}>
               Connect with top talent, showcase your skills, and build outstanding software solutions in globally recognized Hackathon competitions.
             </p>
-            <div className={styles.heroCtaRow}>
-              <Link href="/auth/register" className={`btn btn-primary ${styles.heroBtn}`}>Get Started</Link>
-              <Link href="#featured-events" className={`btn btn-ghost ${styles.heroBtn} ${styles.heroBtnOutline}`}>View Events</Link>
+            
+            <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+              <Link href="/auth/register" className="btn btn-primary" style={{ padding: '0.9rem 1.8rem', fontSize: '1.1rem', borderRadius: '99px', boxShadow: '0 8px 25px rgba(99,102,241,0.4)' }}>
+                Get Started
+              </Link>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('featured-events')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="btn btn-ghost" 
+                style={{ padding: '0.9rem 1.8rem', fontSize: '1.1rem', borderRadius: '99px', border: '1px solid var(--color-border)', backdropFilter: 'blur(10px)', cursor: 'pointer' }}
+              >
+                View Events
+              </button>
             </div>
           </div>
-          <div className={styles.heroImageCol}>
-            <div className={styles.heroImageOverlay} />
-            <Image src="/images/hero_banner.png" alt="Hero Banner" fill sizes="(max-width: 768px) 100vw, 500px" style={{ objectFit: 'cover' }} priority />
+
+          {/* Cinematic Hero Image */}
+          <div style={{ flex: '1 1 500px', display: 'flex', justifyContent: 'center' }}>
+            <div className={styles.posterFrame}>
+              <div className={styles.posterImageContainer}>
+                <Image src="/images/hero_banner.png" alt="Hero Banner" fill style={{ objectFit: 'cover' }} priority />
+                <div className={styles.hologramSweep} />
+              </div>
+              
+              {/* Floating Badges */}
+              <div className={`${styles.floatingBadge} ${styles.badge1}`}>
+                <Zap size={16} style={{ color: 'var(--color-cyan)' }} /> Live Coding
+              </div>
+              <div className={`${styles.floatingBadge} ${styles.badge2}`}>
+                <Shield style={{ color: 'var(--color-emerald)' }} /> Team Battle
+              </div>
+              <div className={`${styles.floatingBadge} ${styles.badge3}`}>
+                <Star size={16} style={{ color: 'var(--color-amber)' }} /> AI Challenge
+              </div>
+            </div>
           </div>
         </motion.div>
+      </div>
+
+      {/* Main Content */}
+      <main className={styles.main}>
+
 
         {/* About Us Section */}
         <motion.div
@@ -223,7 +268,7 @@ export default function LandingPage() {
         </motion.div>
 
         {/* Competitions Section */}
-        <div className={styles.competitionsSection}>
+        <div id="featured-events" className={styles.competitionsSection}>
           <div className={styles.competitionsHeader}>
             <motion.div
               initial={{ opacity: 0 }}

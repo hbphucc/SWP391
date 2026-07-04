@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useRef, useEffect, useContext, useCallback } from "react";
 import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, Languages } from "lucide-react";

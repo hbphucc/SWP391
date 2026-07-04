@@ -52,7 +52,7 @@ export default function DocumentsPage() {
 
   const loadEvents = useCallback(async () => {
     try {
-      const data = await apiRequest<any[]>("/Events");
+      const data = await apiRequest<{eventId: string, eventName: string}[]>("/Events");
       setEvents(data.map(e => ({ eventId: e.eventId, eventName: e.eventName })));
     } catch { }
   }, []);

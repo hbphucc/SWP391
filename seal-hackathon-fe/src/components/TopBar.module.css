@@ -61,14 +61,14 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  background: var(--color-surface-2);
+  background: rgba(15, 23, 42, 0.4);
   border: 1px solid var(--color-border-2);
   border-radius: var(--radius-md);
   padding: 0.3rem 0.75rem 0.3rem 0.4rem;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
-.userBtn:hover { border-color: var(--color-primary); background: rgba(99,102,241,0.06); }
+.userBtn:hover { border-color: var(--color-primary); background: rgba(99,102,241,0.08); box-shadow: var(--shadow-glow); }
 
 .userInfo { display: flex; flex-direction: column; align-items: flex-start; }
 .userName { font-size: 0.82rem; font-weight: 600; color: var(--color-text); line-height: 1.2; }
@@ -80,6 +80,11 @@
   right: 0;
   padding: 0;
   overflow: hidden;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md), var(--shadow-glass);
 }
 
 .notifHeader {

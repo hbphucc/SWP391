@@ -35,6 +35,23 @@ export type TrackOption = {
   description?: string | null;
 };
 
+type CriteriaDraft = {
+  id: number;
+  name: string;
+  weight: string;
+  maxScore: string;
+};
+
+type RoundDraft = {
+  id: number;
+  name: string;
+  topN: string;
+  deadline: string;
+  promptDocumentId: string | null;
+  promptFileName: string | null;
+  criteria: CriteriaDraft[];
+};
+
 /* ─── Create-form defaults ─── */
 const INITIAL_EVENT_FORM = {
   eventName: "",
@@ -60,7 +77,7 @@ const INITIAL_ROUND_EDIT_FORM = {
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
 };
-const INITIAL_ROUND = () => ({
+const INITIAL_ROUND = (): RoundDraft => ({
   id: Date.now(),
   name: "",
   topN: "5",
@@ -149,7 +166,7 @@ export function useAdminEventsData() {
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] }]);
+  const [rounds, setRounds] = useState<RoundDraft[]>([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
   const [prizes, setPrizes] = useState<ReturnType<typeof INITIAL_PRIZE>[]>([]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   // Active section anchor for the sticky TOC sidebar. Used purely for the
@@ -613,7 +630,7 @@ export function useAdminEventsData() {
 
       message.success("Event created successfully.");
       setEventForm({ ...INITIAL_EVENT_FORM });
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] }]);
+      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
       setPrizes([]);
       setSelectedTracks([]);
       setActiveSection("general");
