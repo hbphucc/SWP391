@@ -1,13 +1,1 @@
-"use client";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-export default function SystemNotificationsRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/dashboard/notifications");
-  }, [router]);
-
-  return null;
-}
+export { default } from "@/components/dashboard/system-notifications/SystemNotificationsRedirect";

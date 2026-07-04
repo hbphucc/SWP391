@@ -3,7 +3,7 @@ import { CurrentUser } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import CreateTeamDrawer from "@/components/team/CreateTeamDrawer";
 import PendingInvitesBanner from "@/components/dashboard/PendingInvitesBanner";
-import type { TeamDto, MentorInvitationDto, InvitationResponse } from "./useTeamsData";
+import type { TeamDto, MentorInvitationDto, InvitationResponse } from "./teamTypes";
 import styles from "./NoTeamView.module.css";
 
 interface CategoryOption {

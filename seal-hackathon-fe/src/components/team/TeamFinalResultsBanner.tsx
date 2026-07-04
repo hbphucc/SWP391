@@ -1,5 +1,5 @@
 import { Crown } from "lucide-react";
-import type { TeamDto } from "./useTeamsData";
+import type { TeamDto } from "./teamTypes";
 
 interface TeamFinalResultsBannerProps {
   myTeam: TeamDto;

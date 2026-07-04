@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import AccessGate from "./AccessGate";
 import { routePolicies, type Portal } from "./routePolicies";
-import shellStyles from "@/app/dashboard/layout.module.css";
+import shellStyles from "./AppShell.module.css";
 
 interface AppShellProps {
   portal: Portal;

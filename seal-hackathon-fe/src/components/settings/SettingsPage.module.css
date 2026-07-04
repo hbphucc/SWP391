@@ -1,0 +1,62 @@
+.adminRoot {
+  max-width: 900px;
+}
+
+.root {
+  max-width: 800px;
+}
+
+.cardSpacing {
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-1);
+}
+
+.primaryIcon {
+  color: var(--color-primary);
+}
+
+.body {
+  font-size: 0.9rem;
+  color: var(--color-text-2);
+  margin-bottom: 1rem;
+}
+
+.bodyTight {
+  margin: 0;
+}
+
+.soonBadge {
+  margin-left: 0.25rem;
+}
+
+.disabledList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  opacity: 0.5;
+}
+
+.disabledItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-text-1);
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+}
+
+.inlineIcon {
+  display: inline;
+  vertical-align: middle;
+  margin-right: 4px;
+}

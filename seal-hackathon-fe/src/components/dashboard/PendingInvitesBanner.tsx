@@ -1,15 +1,9 @@
 import { Users } from "lucide-react";
-import type { InvitationResponse } from "@/app/dashboard/useDashboardData";
-
-interface TeamDto {
-  teamId: string;
-  teamName: string;
-  leaderId: string;
-}
+import type { DashboardTeamSummary, InvitationResponse } from "./dashboardTypes";
 
 interface PendingInvitesBannerProps {
   invites: InvitationResponse[];
-  myTeam: TeamDto | null;
+  myTeam: DashboardTeamSummary | null;
   currentUserId: string | null;
   onAccept: (id: string, teamName: string) => void;
   onDecline: (id: string) => void;

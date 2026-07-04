@@ -1,5 +1,5 @@
 import { Calendar, Users, Award, Target, TrendingUp, TrendingDown } from "lucide-react";
-import type { DashboardMetrics } from "@/app/dashboard/useDashboardData";
+import type { DashboardMetrics } from "./dashboardTypes";
 
 interface DashboardStatsGridProps {
   metrics: DashboardMetrics | null;

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Calendar, ArrowRight, Zap, Users, Target, Clock, Trophy, TrendingUp } from "lucide-react";
-import styles from "@/app/dashboard/page.module.css";
-import type { MappedEvent, DeadlineItem, ActivityItem } from "@/app/dashboard/useDashboardData";
+import styles from "./DashboardPage.module.css";
+import type { MappedEvent, DeadlineItem, ActivityItem } from "./dashboardTypes";
 
 const STATUS_BADGE: Record<string, string> = {
   Active:    "badge-success",

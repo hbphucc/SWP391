@@ -1,0 +1,87 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.eventSelect {
+  width: 260px;
+}
+
+.searchInput {
+  width: 250px;
+  border-radius: 20px;
+}
+
+.trackCard {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.trackHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.trackIconBox {
+  width: 48px;
+  height: 48px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trackTitle {
+  font-size: 1.1rem;
+  margin: 0;
+  font-weight: 700;
+}
+
+.categoryBadge {
+  margin-top: 4px;
+}
+
+.description {
+  color: var(--color-text-2);
+  font-size: 0.9rem;
+  flex-grow: 1;
+  margin-bottom: 1.5rem;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.blueIcon {
+  color: #3b82f6;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3rem;
+  color: var(--color-text-3);
+}

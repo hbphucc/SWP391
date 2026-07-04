@@ -15,15 +15,15 @@ export default function FloatingThemeToggle() {
   const [mounted, setMounted] = useState(false);
   const [hover, setHover] = useState(false);
 
-  // Defer the icon's first render to after mount so SSR (which always picks
-  // the default-dark Sun) doesn't briefly contradict the client when light
-  // mode was chosen. The container itself is fine to render server-side.
+  // Defer this path-dependent control until after mount. During SSR,
+  // usePathname can disagree with the browser's first render and shift the
+  // following dynamic chatbot placeholder into the wrong hydration slot.
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 0);
     return () => clearTimeout(timer);
   }, []);
 
-  if (!pathname) return null;
+  if (!mounted || !pathname) return null;
   if (ROUTES_WITH_TOPBAR_TOGGLE.some((prefix) => pathname.startsWith(prefix))) {
     return null;
   }
@@ -55,7 +55,7 @@ export default function FloatingThemeToggle() {
         transform: hover ? "translateY(-2px)" : "none",
       }}
     >
-      {mounted ? (isDarkMode ? <Sun size={18} /> : <Moon size={18} />) : null}
+      {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
     </button>
   );
 }
