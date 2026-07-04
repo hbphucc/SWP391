@@ -105,17 +105,14 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
 
   // The event the selected category belongs to. Mentors are scoped to a single
   // event server-side, so we pass this with the /teams/mentors fetch.
-  const effectiveEventId = useMemo(
-    () => categories.find((c) => c.categoryId === effectiveCategoryId)?.eventId ?? "",
-    [categories, effectiveCategoryId],
-  );
+  const effectiveEventId = categories.find((c) => c.categoryId === effectiveCategoryId)?.eventId ?? "";
 
   // Fetch mentors whenever the selected event changes. The backend now scopes
   // the response to mentors registered for that event, so a stale list from a
   // different event would mislead the leader.
   useEffect(() => {
     if (!open || !effectiveEventId) {
-      setMentors([]);
+      void Promise.resolve().then(() => setMentors([]));
       return;
     }
     let cancelled = false;

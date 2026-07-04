@@ -129,7 +129,7 @@ const INITIAL_ROUND = () => ({
   deadline: "",
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
-  criteria: [],
+  criteria: [] as { id: number; name: string; weight: string; maxScore: string }[],
 });
 const INITIAL_PRIZE = () => ({
   id: Date.now(),
@@ -237,7 +237,7 @@ export default function AdminEventsPage() {
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] }]);
+  const [rounds, setRounds] = useState([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] as { id: number; name: string; weight: string; maxScore: string }[] }]);
   const [prizes, setPrizes] = useState<ReturnType<typeof INITIAL_PRIZE>[]>([]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   // Active section anchor for the sticky TOC sidebar. Used purely for the
@@ -701,7 +701,7 @@ export default function AdminEventsPage() {
 
       message.success("Event created successfully.");
       setEventForm({ ...INITIAL_EVENT_FORM });
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] }]);
+      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null as string | null, promptFileName: null as string | null, criteria: [] as { id: number; name: string; weight: string; maxScore: string }[] }]);
       setPrizes([]);
       setSelectedTracks([]);
       setActiveSection("general");

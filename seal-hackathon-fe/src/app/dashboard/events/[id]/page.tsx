@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 import { use, useState, useEffect, useCallback } from "react";
 import { ChevronLeft, Users, Target, Clock, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
