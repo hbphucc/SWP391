@@ -18,6 +18,11 @@ interface CriteriaRow {
   criteria: CriteriaDto[];
 }
 
+type SavedCriteria = Pick<CriteriaDto, "criteriaId" | "criteriaName" | "maxScore" | "weight">;
+
+const CRITERIA_TOTAL_WEIGHT = 100;
+const DEFAULT_CRITERIA_WEIGHT = 10;
+
 export default function AdminCriteriaView({
   eventName,
   rounds,
@@ -77,18 +82,18 @@ export default function AdminCriteriaView({
     const newCriterion: CriteriaDto = {
       criteriaId: tempId,
       criteriaName: "",
-      weight: 10,
-      maxScore: 100,
+      weight: DEFAULT_CRITERIA_WEIGHT,
+      maxScore: CRITERIA_TOTAL_WEIGHT,
       roundId: selectedRound?.roundId ?? "",
     };
-    setEditingCriteria([...editingCriteria, newCriterion]);
+    setEditingCriteria((current) => [...current, newCriterion]);
   };
 
   const handleRemoveCriterion = (index: number, criteriaId: string) => {
     if (!criteriaId.startsWith("temp-")) {
-      setDeletedCriteriaIds([...deletedCriteriaIds, criteriaId]);
+      setDeletedCriteriaIds((current) => [...current, criteriaId]);
     }
-    setEditingCriteria(editingCriteria.filter((_, i) => i !== index));
+    setEditingCriteria((current) => current.filter((_, i) => i !== index));
   };
 
   const handleSaveCriteria = async () => {
@@ -99,15 +104,15 @@ export default function AdminCriteriaView({
         message.error("Please enter a name for all criteria.");
         return;
       }
-      if (c.weight === null || c.weight === undefined || c.weight < 0 || c.weight > 100) {
-        message.error("Criteria weight must be between 0 and 100.");
+      if (c.weight === null || c.weight === undefined || c.weight < 0 || c.weight > CRITERIA_TOTAL_WEIGHT) {
+        message.error(`Criteria weight must be between 0 and ${CRITERIA_TOTAL_WEIGHT}.`);
         return;
       }
     }
 
     const totalWeight = editingCriteria.reduce((sum, c) => sum + (c.weight || 0), 0);
-    if (totalWeight !== 100) {
-      message.error(`Total weight must be exactly 100%. Current: ${totalWeight}%.`);
+    if (totalWeight !== CRITERIA_TOTAL_WEIGHT) {
+      message.error(`Total weight must be exactly ${CRITERIA_TOTAL_WEIGHT}%. Current: ${totalWeight}%.`);
       return;
     }
 
@@ -119,28 +124,40 @@ export default function AdminCriteriaView({
 
       // Set all weights to 0 first to bypass backend "must total 100%" check
       // while criteria are being individually created/updated.
-      const savedCriteriaList: { criteriaId: string; criteriaName: string; maxScore: number; weight: number }[] = [];
+      const savedCriteriaList = await editingCriteria.reduce<Promise<SavedCriteria[]>>(
+        async (savedCriteriaPromise, criterion) => {
+          const savedCriteria = await savedCriteriaPromise;
+          const criteriaName = criterion.criteriaName.trim();
 
-      for (const c of editingCriteria) {
-        if (c.criteriaId.startsWith("temp-")) {
-          const res = await apiRequest<{ criteriaId: string }>(`/rounds/${selectedRound.roundId}/criteria`, {
-            method: "POST",
-            body: JSON.stringify({ criteriaName: c.criteriaName.trim(), maxScore: 100, weight: 0 }),
-          });
-          savedCriteriaList.push({ criteriaId: res.criteriaId, criteriaName: c.criteriaName.trim(), maxScore: 100, weight: c.weight });
-        } else {
-          await apiRequest(`/rounds/${selectedRound.roundId}/criteria/${c.criteriaId}`, {
+          if (criterion.criteriaId.startsWith("temp-")) {
+            const res = await apiRequest<{ criteriaId: string }>(`/rounds/${selectedRound.roundId}/criteria`, {
+              method: "POST",
+              body: JSON.stringify({ criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: 0 }),
+            });
+
+            return [
+              ...savedCriteria,
+              { criteriaId: res.criteriaId, criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: criterion.weight },
+            ];
+          }
+
+          await apiRequest(`/rounds/${selectedRound.roundId}/criteria/${criterion.criteriaId}`, {
             method: "PUT",
-            body: JSON.stringify({ criteriaName: c.criteriaName.trim(), maxScore: 100, weight: 0 }),
+            body: JSON.stringify({ criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: 0 }),
           });
-          savedCriteriaList.push({ criteriaId: c.criteriaId, criteriaName: c.criteriaName.trim(), maxScore: 100, weight: c.weight });
-        }
-      }
+
+          return [
+            ...savedCriteria,
+            { criteriaId: criterion.criteriaId, criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: criterion.weight },
+          ];
+        },
+        Promise.resolve([]),
+      );
 
       for (const c of savedCriteriaList) {
         await apiRequest(`/rounds/${selectedRound.roundId}/criteria/${c.criteriaId}`, {
           method: "PUT",
-          body: JSON.stringify({ criteriaName: c.criteriaName, maxScore: 100, weight: c.weight }),
+          body: JSON.stringify({ criteriaName: c.criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: c.weight }),
         });
       }
 
@@ -208,7 +225,7 @@ export default function AdminCriteriaView({
           <Button key="cancel" onClick={() => setModalOpen(false)} disabled={savingModal}>
             Cancel
           </Button>,
-          <Button key="save" type="primary" onClick={handleSaveCriteria} loading={savingModal} disabled={modalTotalWeight !== 100}>
+          <Button key="save" type="primary" onClick={handleSaveCriteria} loading={savingModal} disabled={modalTotalWeight !== CRITERIA_TOTAL_WEIGHT}>
             Save Changes
           </Button>,
         ]}
@@ -216,8 +233,8 @@ export default function AdminCriteriaView({
       >
         <div style={{ marginTop: "1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <span style={{ fontWeight: 600, color: modalTotalWeight === 100 ? "var(--color-emerald, #10b981)" : "var(--color-rose, #f43f5e)" }}>
-              Total Weight: {modalTotalWeight}% {modalTotalWeight === 100 ? "✓" : "(must equal 100%)"}
+            <span style={{ fontWeight: 600, color: modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "var(--color-emerald, #10b981)" : "var(--color-rose, #f43f5e)" }}>
+              Total Weight: {modalTotalWeight}% {modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "OK" : `(must equal ${CRITERIA_TOTAL_WEIGHT}%)`}
             </span>
             <Button size="small" type="dashed" onClick={handleAddCriterion} icon={<Plus size={12} />}>
               Add Criterion
@@ -244,7 +261,7 @@ export default function AdminCriteriaView({
                   value={c.criteriaName}
                   onChange={(e) =>
                     setEditingCriteria(
-                      editingCriteria.map((x, i) => (i === index ? { ...x, criteriaName: e.target.value } : x))
+                      (current) => current.map((x, i) => (i === index ? { ...x, criteriaName: e.target.value } : x))
                     )
                   }
                   disabled={savingModal}
@@ -252,13 +269,13 @@ export default function AdminCriteriaView({
                 <InputNumber
                   style={{ width: 80 }}
                   min={0}
-                  max={100}
+                  max={CRITERIA_TOTAL_WEIGHT}
                   formatter={(value) => `${value}%`}
                   parser={(value) => value ? parseInt(value.replace("%", ""), 10) : 0}
                   value={c.weight}
                   onChange={(val) =>
                     setEditingCriteria(
-                      editingCriteria.map((x, i) => (i === index ? { ...x, weight: val ?? 0 } : x))
+                      (current) => current.map((x, i) => (i === index ? { ...x, weight: val ?? 0 } : x))
                     )
                   }
                   disabled={savingModal}

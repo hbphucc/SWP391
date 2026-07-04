@@ -1,0 +1,177 @@
+.headerActions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.eventSelect {
+  width: 280px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  cursor: pointer;
+}
+
+.statValue {
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.85rem;
+  color: var(--color-text-3);
+  font-weight: 500;
+}
+
+.filterBar {
+  margin-bottom: 2rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1;
+}
+
+.searchInput {
+  padding-left: 2.5rem;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-3);
+}
+
+.filterControls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.mutedIcon {
+  color: var(--color-text-3);
+}
+
+.statusSelect {
+  width: auto;
+}
+
+.tableCard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.teamTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tableHeaderRow {
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.teamRow {
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.cell {
+  padding: 1.25rem 1.5rem;
+}
+
+.cellRight {
+  padding: 1.25rem 1.5rem;
+  text-align: right;
+}
+
+.judgeCell {
+  padding: 1.25rem 1.5rem;
+  min-width: 190px;
+}
+
+.teamName {
+  font-weight: 600;
+}
+
+.teamMeta {
+  font-size: 0.8rem;
+  color: var(--color-text-3);
+}
+
+.memberCount {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.judgeList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.judgeItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.judgeIcon {
+  color: var(--color-primary);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.judgeName {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.judgeRound {
+  font-size: 0.7rem;
+  color: var(--color-text-3);
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.approveBtn {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.rejectBtn {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fb7185;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.emptyCell {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--color-text-3);
+}
+
+.emptyIcon {
+  margin: 0 auto 1rem;
+  opacity: 0.3;
+}

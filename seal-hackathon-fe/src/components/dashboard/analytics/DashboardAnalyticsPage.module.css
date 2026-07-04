@@ -1,0 +1,168 @@
+.root {
+  max-width: 1100px;
+  height: calc(100vh - 100px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  flex-shrink: 0;
+}
+
+.buttonIcon {
+  margin-right: 0.5rem;
+}
+
+.scrollArea {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 0.5rem;
+}
+
+.emptyHint {
+  color: var(--color-text-3);
+  margin-top: 0.5rem;
+}
+
+.rqBanner {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.rqLayout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.rqIcon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.rqTitle {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: var(--color-text-1);
+}
+
+.rqText {
+  font-size: 0.875rem;
+  color: var(--color-text-2);
+}
+
+.rqPrefix {
+  color: var(--color-text-1);
+}
+
+.summaryGrid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summaryCard {
+  transition: transform 0.2s;
+}
+
+.summaryCard:hover {
+  transform: translateY(-2px);
+}
+
+.summaryValue {
+  font-size: 1.8rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+  color: var(--metric-color);
+}
+
+.summaryLabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  color: var(--color-text-1);
+}
+
+.summarySub {
+  font-size: 0.75rem;
+  color: var(--color-text-3);
+  margin-top: 0.15rem;
+}
+
+.chartGrid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.chartTitle {
+  margin-bottom: 1.25rem;
+  color: var(--color-text-1);
+}
+
+.iconTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.primaryIcon {
+  color: var(--color-primary);
+}
+
+.smallMuted {
+  color: var(--color-text-3);
+  font-size: 0.85rem;
+}
+
+.criteriaStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.criteriaHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  margin-bottom: 0.5rem;
+}
+
+.criterionName {
+  font-weight: 500;
+  color: var(--color-text-2);
+}
+
+.agreementGroup {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.scoreValue {
+  color: var(--color-text-1);
+}
+
+.criterionProgress {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.criterionProgressFill {
+  width: var(--progress-width);
+  background: var(--progress-bg);
+}
+
+.avgScore {
+  font-size: 0.72rem;
+  color: var(--color-text-3);
+  margin-top: 0.4rem;
+}
+
+.varianceCard {
+  margin-bottom: 1rem;
+}

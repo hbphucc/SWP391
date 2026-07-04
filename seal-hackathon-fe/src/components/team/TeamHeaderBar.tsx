@@ -1,6 +1,6 @@
 import { useRouter } from "next/navigation";
 import { Users, RefreshCw, GraduationCap } from "lucide-react";
-import type { TeamDto } from "./useTeamsData";
+import type { TeamDto } from "./teamTypes";
 
 interface TeamHeaderBarProps {
   myTeam: TeamDto;

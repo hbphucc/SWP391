@@ -1,7 +1,7 @@
 import { Search, GraduationCap, Check } from "lucide-react";
 import { Modal } from "antd";
 import StatusBadge from "@/components/StatusBadge";
-import type { TeamDto, MentorOption } from "./useTeamsData";
+import type { TeamDto, MentorOption } from "./teamTypes";
 
 interface InviteMentorModalProps {
   open: boolean;

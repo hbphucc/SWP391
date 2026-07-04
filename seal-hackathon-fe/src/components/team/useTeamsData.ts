@@ -1,97 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { App } from "antd";
 import { CurrentUser, apiRequest, fetchCurrentUser, ApiError } from "@/lib/api";
-
-export type TeamMember = {
-  userId: string;
-  fullName: string;
-  email: string;
-  studentCode?: string | null;
-  role?: string;
-  isKickPending?: boolean;
-};
-
-export type TeamDto = {
-  teamId: string;
-  teamName: string;
-  status: string;
-  leaderId: string;
-  category: {
-    categoryId: string;
-    categoryName: string;
-    eventName?: string;
-  };
-  eventStatus?: string | null;
-  finalRank?: number | null;
-  finalPrize?: string | null;
-  currentRound: {
-    roundId: string;
-    roundName: string;
-  } | null;
-  members: TeamMember[];
-  mentor?: {
-    id: string;
-    fullName: string;
-    email: string;
-    schoolName?: string | null;
-  } | null;
-  pendingMentorInvite?: {
-    assignmentId: string;
-    mentorName: string;
-    invitedAt: string;
-  } | null;
-  judge?: {
-    id: string;
-    fullName: string;
-    email: string;
-  } | null;
-};
-
-export type MentorInvitationDto = {
-  assignmentId: string;
-  teamId: string;
-  teamName: string;
-  categoryName: string;
-  eventName: string;
-  invitedAt: string;
-};
-
-export type MentorOption = {
-  id: string;
-  fullName: string;
-  email: string;
-  schoolName?: string | null;
-  developerRole?: string | null;
-  skills: string[];
-  teamsMentored: number;
-  availability: string;
-};
-
-export type EventDto = {
-  eventId: string;
-  eventName: string;
-  registrationEndDate: string;
-  categories: {
-    categoryId: string;
-    categoryName: string;
-    teamCount: number;
-  }[];
-};
-
-export type InvitationResponse = {
-  id: string;
-  teamId: string;
-  teamName: string;
-  inviterUserId: string;
-  inviterUserName: string;
-  inviteeUserId: string;
-  inviteeUserName: string;
-  inviteeUserEmail: string;
-  status: string;
-  message?: string;
-  createdAt: string;
-};
+import type { EventDto, InvitationResponse, MentorInvitationDto, MentorOption, TeamDto, TeamMember } from "./teamTypes";
 
 export function useTeamsData() {
   const { message, modal } = App.useApp();
@@ -193,7 +104,7 @@ export function useTeamsData() {
     });
   }, [myTeam, currentUser, canKickMembers]);
 
-  const loadPage = async () => {
+  const loadPage = useCallback(async () => {
     setLoading(true);
     try {
       const [user, eventData] = await Promise.all([
@@ -263,9 +174,9 @@ export function useTeamsData() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [message]);
 
-  const reloadTeamOnly = async () => {
+  const reloadTeamOnly = useCallback(async () => {
     if (!hasTeamRef.current) {
       try {
         const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
@@ -321,7 +232,7 @@ export function useTeamsData() {
         }
       }
     }
-  };
+  }, []);
 
   const handleAcceptInvite = async (id: string, teamName: string) => {
     try {
@@ -366,7 +277,7 @@ export function useTeamsData() {
 
   useEffect(() => {
     loadPage();
-  }, []);
+  }, [loadPage]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -383,7 +294,7 @@ export function useTeamsData() {
       clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [reloadTeamOnly]);
 
   // Team creation is now driven by CreateTeamDrawer, which posts to /teams with
   // an optional MentorId and handles the EventNotPublished branching itself.

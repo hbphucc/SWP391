@@ -1,5 +1,5 @@
 import { GraduationCap, Users } from "lucide-react";
-import type { TeamDto } from "./useTeamsData";
+import type { TeamDto } from "./teamTypes";
 
 interface MentorJudgePanelsProps {
   myTeam: TeamDto;

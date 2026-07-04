@@ -1,0 +1,234 @@
+"use client";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { FileText, Download, Upload, Trash2 } from "lucide-react";
+import { App } from "antd";
+import { apiRequest, apiUpload, apiDownload } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
+import styles from "./DocumentsPage.module.css";
+
+interface DocumentDto {
+  documentId: string;
+  fileName: string;
+  contentType: string;
+  eventId?: string;
+  eventName?: string;
+  uploadedAt: string;
+  uploaderName?: string;
+  size: number;
+  teamId?: string;
+  teamName?: string;
+}
+
+interface MentorTeam {
+  teamId: string;
+  teamName: string;
+}
+
+function formatSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return bytes + " B";
+}
+
+function formatDate(value: string) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export default function DocumentsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.roles?.includes("Admin");
+  const isMentor = user?.roles?.includes("Mentor");
+
+  const { message, modal } = App.useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [docs, setDocs] = useState<DocumentDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [events, setEvents] = useState<{eventId: string, eventName: string}[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>("global");
+
+  const [mentorTeams, setMentorTeams] = useState<MentorTeam[]>([]);
+  const [viewContext, setViewContext] = useState<string>("official");
+
+  const loadEvents = useCallback(async () => {
+    try {
+      const data = await apiRequest<{eventId: string, eventName: string}[]>("/Events");
+      setEvents(data.map(e => ({ eventId: e.eventId, eventName: e.eventName })));
+    } catch { }
+  }, []);
+
+  const loadMentorTeams = useCallback(async () => {
+    if (!isMentor) return;
+    try {
+      const data = await apiRequest<MentorTeam[]>("/mentor/teams");
+      setMentorTeams(data);
+    } catch { }
+  }, [isMentor]);
+
+  const loadDocs = useCallback(async () => {
+    try {
+      const data = await apiRequest<DocumentDto[]>("/Documents");
+      setDocs(data);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not load documents.");
+      setDocs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    // Defer the load out of the synchronous effect body (react-hooks/set-state-in-effect):
+    // loadDocs only sets state after an awaited fetch, and the microtask hop keeps that
+    // off the render-commit path without changing observable behavior.
+    void Promise.resolve().then(async () => {
+      await loadEvents();
+      await loadDocs();
+      await loadMentorTeams();
+    });
+  }, [loadDocs, loadEvents, loadMentorTeams]);
+
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        if (selectedEventId !== "global") {
+          fd.append("eventId", selectedEventId);
+        }
+        await apiUpload("/Documents", fd);
+        message.success("File uploaded successfully!");
+        await loadDocs();
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setUploading(false);
+      }
+    }
+    if (e.target) e.target.value = "";
+  };
+
+  const handleDownload = async (doc: DocumentDto) => {
+    try {
+      const blob = await apiDownload(`/Documents/${doc.documentId}/download`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Download failed.");
+    }
+  };
+
+  const handleDelete = (doc: DocumentDto) => {
+    modal.confirm({
+      title: `Delete "${doc.fileName}"?`,
+      content: "This permanently removes the file for everyone. This cannot be undone.",
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await apiRequest(`/Documents/${doc.documentId}`, { method: "DELETE" });
+          message.success("Document deleted.");
+          await loadDocs();
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : "Delete failed.");
+        }
+      },
+    });
+  };
+  const filteredDocs = useMemo(() => {
+    if (isAdmin || !isMentor) return docs;
+    if (viewContext === "official") {
+      return docs.filter(d => !d.teamId);
+    }
+    return docs.filter(d => d.teamId === viewContext);
+  }, [docs, isAdmin, isMentor, viewContext]);
+
+  return (
+    <div className={styles.root}>
+      <div className={`page-header ${styles.header}`}>
+        <div>
+          <h1 className="page-title">Documents Library</h1>
+        </div>
+        <div className={styles.toolbar}>
+          {isAdmin && (
+            <select
+              className={`form-input ${styles.adminSelect}`}
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+            >
+              <option value="global">Global (No Event)</option>
+              {events.map(e => (
+                <option key={e.eventId} value={e.eventId}>{e.eventName}</option>
+              ))}
+            </select>
+          )}
+          {isMentor && !isAdmin && mentorTeams.length > 0 && (
+            <select
+              className={`form-input ${styles.mentorSelect}`}
+              value={viewContext}
+              onChange={(e) => setViewContext(e.target.value)}
+            >
+              <option value="official">Official Resources</option>
+              {mentorTeams.map(t => (
+                <option key={t.teamId} value={t.teamId}>Team: {t.teamName}</option>
+              ))}
+            </select>
+          )}
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className={styles.hiddenInput} />
+          <button className="btn btn-primary" onClick={handleUploadClick} disabled={uploading}>
+            {uploading ? <span className="spinner" /> : <><Upload size={15} className={styles.buttonIcon} /> Upload File</>}
+          </button>
+        </div>
+      </div>
+
+      <div className={`glass-card ${styles.card}`}>
+        <h4 className={styles.cardTitle}>All Files</h4>
+        <div className={styles.list}>
+          {loading ? (
+            <div style={{ padding: "2rem", textAlign: "center", color: "var(--color-text-3)" }}>Loading documents…</div>
+          ) : filteredDocs.length === 0 ? (
+            <div className={styles.emptyState}>No documents found. Upload one to get started.</div>
+          ) : filteredDocs.map((d, i) => (
+            <div key={d.documentId} className={`${styles.row} ${i === filteredDocs.length - 1 ? styles.lastRow : ""}`}>
+              <div className={styles.fileInfo}>
+                <FileText size={18} className={styles.fileIcon} />
+                <div>
+                  <div className={styles.fileName}>
+                    {d.fileName}
+                    {d.eventName && (
+                      <span className={styles.eventTag}>
+                        {d.eventName}
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.fileMeta}>
+                    {formatSize(d.size)} · Uploaded {formatDate(d.uploadedAt)}{d.uploaderName ? ` · ${d.uploaderName}` : ""}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.actions}>
+                <button className={`btn btn-sm ${styles.downloadButton}`} onClick={() => handleDownload(d)}>
+                  <Download size={14} className={styles.downloadIcon} /> Download
+                </button>
+                {isAdmin && (
+                  <button className="btn btn-ghost btn-sm btn-icon" onClick={() => handleDelete(d)} aria-label={`Delete ${d.fileName}`}><Trash2 size={14} /></button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

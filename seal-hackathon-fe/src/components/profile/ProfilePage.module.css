@@ -1,0 +1,168 @@
+.layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.profileCard {
+  flex: 1 1 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.mainCard {
+  flex: 2 1 420px;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--color-primary);
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.avatarPlaceholder {
+  width: 120px;
+  height: 120px;
+  font-size: 3rem;
+  border-radius: 50%;
+}
+
+.name {
+  font-size: 1.2rem;
+  margin: 0.25rem 0;
+}
+
+.uploadLabel {
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.roleActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.pendingBox {
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--color-primary);
+  background: rgba(255, 107, 0, 0.05);
+  font-size: 0.85rem;
+  color: var(--color-text-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pendingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.smallSpinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  margin: 0;
+}
+
+.pendingText {
+  font-weight: 500;
+  color: var(--color-warning, #f59e0b);
+}
+
+.pendingMeta {
+  font-size: 0.75rem;
+  color: var(--color-text-3);
+}
+
+.fullButton {
+  width: 100%;
+}
+
+.formStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.labelIcon {
+  display: inline;
+  margin-right: 4px;
+}
+
+.developerSection {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1.25rem;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.sectionDescription {
+  color: var(--color-text-3);
+  font-size: 0.82rem;
+  margin: 0 0 1rem;
+}
+
+.languageList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.languageButton {
+  cursor: pointer;
+  border: none;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.passwordCard {
+  margin-top: 2rem;
+}
+
+.passwordTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.narrowField {
+  max-width: 380px;
+}
+
+.endActions {
+  display: flex;
+  justify-content: flex-end;
+}

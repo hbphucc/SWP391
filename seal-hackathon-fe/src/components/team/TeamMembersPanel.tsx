@@ -1,6 +1,6 @@
 import { ArrowRightLeft, Users, Shield, AlertCircle, LogOut, Trash2 } from "lucide-react";
 import { CurrentUser } from "@/lib/api";
-import type { TeamDto, TeamMember } from "./useTeamsData";
+import type { TeamDto, TeamMember } from "./teamTypes";
 
 interface TeamMembersPanelProps {
   myTeam: TeamDto;
