@@ -28,19 +28,22 @@ namespace SEAL.NET.Services.Implementations
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole<Guid>> roleManager,
             IConfiguration configuration,
             IEmailService emailService,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            ILogger<AuthService> logger)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
             _emailService = emailService;
             _httpContextAccessor = httpContextAccessor;
+            _logger = logger;
         }
 
         public async Task<ServiceResult> RegisterAsync(RegisterRequest model)
@@ -231,12 +234,14 @@ namespace SEAL.NET.Services.Implementations
                     }
                 });
             }
-            catch (InvalidJwtException)
+            catch (InvalidJwtException ex)
             {
+                _logger.LogWarning(ex, "Google login rejected: invalid JWT.");
                 return ServiceResult.BadRequest("Invalid Google JWT format.");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Google authentication failed.");
                 return ServiceResult.ServerError($"An error occurred during Google authentication: {ex.Message}");
             }
         }
@@ -373,11 +378,13 @@ namespace SEAL.NET.Services.Implementations
             }
             catch (InvalidOperationException ex)
             {
+                _logger.LogError(ex, "Password-reset OTP email could not be sent (configuration error).");
                 await ClearPasswordResetOtpAsync(user);
                 return ServiceResult.ServerError(ex.Message);
             }
-            catch (SmtpException)
+            catch (SmtpException ex)
             {
+                _logger.LogError(ex, "Password-reset OTP email could not be sent (SMTP failure).");
                 await ClearPasswordResetOtpAsync(user);
                 return ServiceResult.ServerError("Could not send OTP email. Please check Gmail SMTP credentials.");
             }

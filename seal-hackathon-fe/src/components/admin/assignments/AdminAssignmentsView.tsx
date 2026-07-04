@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { UserCheck, Shield, RefreshCw, XCircle, Target } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import styles from "./AdminAssignmentsView.module.css";
 
 type MentorAssignment = {
   id: string;
@@ -329,28 +330,22 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.75rem" }}>
+      <div className={styles.refreshRow}>
         <button className="btn btn-secondary btn-sm" onClick={handleRefresh} disabled={loading}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: "1.5rem", borderBottom: "1px solid var(--color-border-2)", marginBottom: "2rem", paddingBottom: "0.5rem" }}>
+      <div className={styles.tabBar}>
         {(["mentor", "judge", "summary"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
+            className={styles.tabButton}
             style={{
-              background: "none",
-              border: "none",
               color: activeTab === tab ? "var(--color-primary)" : "var(--color-text-3)",
-              fontSize: "1.05rem",
               fontWeight: activeTab === tab ? 600 : 500,
-              cursor: "pointer",
-              padding: "0.5rem 1rem",
               borderBottom: activeTab === tab ? "2px solid var(--color-primary)" : "2px solid transparent",
-              marginBottom: "-0.6rem",
-              transition: "all 0.2s",
             }}
           >
             {tab === "mentor" ? "Mentor Assignments" : tab === "judge" ? "Judge Assignments" : "Round Summary"}
@@ -360,37 +355,37 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
 
       {activeTab === "summary" ? (
         <div className="glass-card">
-          <h3 style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Target size={18} style={{ color: "var(--color-primary)" }} /> Per-Round Summary
+          <h3 className={styles.panelTitle}>
+            <Target size={18} className={styles.primaryIcon} /> Per-Round Summary
           </h3>
 
           {roundSummary.length === 0 ? (
-            <p style={{ color: "var(--color-text-3)" }}>No rounds in this event yet.</p>
+            <p className={styles.mutedText}>No rounds in this event yet.</p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+            <div className={styles.tableScroll}>
+              <table className={styles.summaryTable}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid var(--color-border-2)", textAlign: "left" }}>
-                    <th style={{ padding: "0.6rem 0.75rem" }}>Round</th>
-                    <th style={{ padding: "0.6rem 0.75rem" }}>Teams</th>
-                    <th style={{ padding: "0.6rem 0.75rem" }}>Judges</th>
-                    <th style={{ padding: "0.6rem 0.75rem" }}>Mentors</th>
+                  <tr className={styles.summaryTableHeadRow}>
+                    <th className={styles.summaryCell}>Round</th>
+                    <th className={styles.summaryCell}>Teams</th>
+                    <th className={styles.summaryCell}>Judges</th>
+                    <th className={styles.summaryCell}>Mentors</th>
                   </tr>
                 </thead>
                 <tbody>
                   {roundSummary.map((r) => (
-                    <tr key={r.roundId} style={{ borderBottom: "1px solid var(--color-border-2)" }}>
-                      <td style={{ padding: "0.6rem 0.75rem", fontWeight: 500 }}>
+                    <tr key={r.roundId} className={styles.summaryTableRow}>
+                      <td className={styles.summaryCellStrong}>
                         Round {r.roundOrder}: {r.roundName}
                       </td>
-                      <td style={{ padding: "0.6rem 0.75rem" }}>{r.teamsInRound}</td>
-                      <td style={{ padding: "0.6rem 0.75rem" }}>{r.activeJudgeCount}</td>
-                      <td style={{ padding: "0.6rem 0.75rem" }}>{r.activeMentorCount}</td>
+                      <td className={styles.summaryCell}>{r.teamsInRound}</td>
+                      <td className={styles.summaryCell}>{r.activeJudgeCount}</td>
+                      <td className={styles.summaryCell}>{r.activeMentorCount}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="form-hint" style={{ marginTop: "0.75rem" }}>
+              <p className={`form-hint ${styles.summaryHint}`}>
                 Mentor counts attribute mentors via the teams they are coaching in each round.
                 A mentor assigned to two teams in the same round is counted once.
                 Mentor assignments are not round-scoped in the schema — they last for the whole event.
@@ -401,24 +396,24 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
       ) : (
       <div className="grid-2">
         {activeTab === "mentor" ? (
-          <div className="glass-card" style={{ gridColumn: "1 / -1" }}>
-            <h3 style={{ marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Shield size={18} style={{ color: "var(--color-emerald)" }} /> Mentor Assignments
+          <div className={`glass-card ${styles.mentorPanel}`}>
+            <h3 className={styles.panelTitleTight}>
+              <Shield size={18} className={styles.emeraldIcon} /> Mentor Assignments
             </h3>
-            <p className="form-hint" style={{ marginBottom: "1.25rem" }}>
+            <p className={`form-hint ${styles.hintSpacing}`}>
               Mentors are invited by team leaders and become active once they accept.
               Admin cannot assign a mentor directly here, but can remove an active mentor from a team.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className={styles.assignmentList}>
               {mentorAssignments.length === 0 ? (
-                <p style={{ color: "var(--color-text-3)" }}>No mentor assignments for this event yet.</p>
+                <p className={styles.mutedText}>No mentor assignments for this event yet.</p>
               ) : (
                 mentorAssignments.map((a) => (
-                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
-                    <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem" }}>{a.mentorName.charAt(0)}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{a.mentorName}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>{a.teamName} · {a.status}</div>
+                  <div key={a.id} className={styles.assignmentRow}>
+                    <div className={`avatar-placeholder ${styles.rowAvatar}`}>{a.mentorName.charAt(0)}</div>
+                    <div className={styles.rowInfo}>
+                      <div className={styles.rowName}>{a.mentorName}</div>
+                      <div className={styles.rowMeta}>{a.teamName} · {a.status}</div>
                     </div>
                     {a.isActive && (
                       <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivateMentor(a)} disabled={busyAction !== null}>
@@ -433,10 +428,10 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         ) : (
           <>
             <div className="glass-card">
-              <h3 style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Target size={18} style={{ color: "var(--color-primary)" }} /> Assign Judge
+              <h3 className={styles.panelTitle}>
+                <Target size={18} className={styles.primaryIcon} /> Assign Judge
               </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div className={styles.formColumn}>
                 <div className="form-group">
                   <label className="form-label">Round</label>
                   <select className="form-select" value={selectedRoundId} onChange={(e) => setSelectedRoundId(e.target.value)}>
@@ -460,44 +455,36 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                 </div>
 
                 {selectedCategoryId && (
-                  <div style={{ borderTop: "1px solid var(--color-border-2)", paddingTop: "1rem" }}>
-                    <div style={{ fontSize: "0.85rem", color: "var(--color-text-2)", marginBottom: "0.5rem", fontWeight: 500 }}>
+                  <div className={styles.teamsSection}>
+                    <div className={styles.teamsSectionLabel}>
                       Teams to manage{" "}
-                      <span style={{ color: "var(--color-text-3)", fontWeight: 400 }}>
+                      <span className={styles.teamsSectionHint}>
                         ({selectedTeamIds.length === 0 ? "leave empty = all teams in category" : `${selectedTeamIds.length} selected`})
                       </span>
                     </div>
                     {currentCategoryTeams.length === 0 ? (
-                      <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", fontStyle: "italic" }}>
+                      <div className={styles.teamsEmptyNote}>
                         No teams registered in this category.
                       </div>
                     ) : (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div className={styles.teamChipRow}>
                         {currentCategoryTeams.map((team) => {
                           const isChecked = selectedTeamIds.includes(team.teamId);
                           return (
                             <label
                               key={team.teamId}
+                              className={styles.teamChip}
                               style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.5rem",
                                 background: isChecked ? "rgba(99, 102, 241, 0.15)" : "var(--color-surface-2)",
-                                padding: "0.35rem 0.75rem",
-                                borderRadius: "20px",
-                                fontSize: "0.8rem",
                                 color: isChecked ? "var(--color-primary)" : "var(--color-text-2)",
                                 border: isChecked ? "1px solid var(--color-primary)" : "1px solid var(--color-border-2)",
-                                cursor: "pointer",
-                                userSelect: "none",
-                                transition: "all 0.15s",
                               }}
                             >
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => toggleTeamSelection(team.teamId)}
-                                style={{ accentColor: "var(--color-primary)", cursor: "pointer" }}
+                                className={styles.teamChipCheckbox}
                               />
                               {team.teamName}
                             </label>
@@ -515,28 +502,28 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
             </div>
 
             <div className="glass-card">
-              <h3 style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Shield size={18} style={{ color: "var(--color-emerald)" }} /> Active Judge Assignments
+              <h3 className={styles.panelTitle}>
+                <Shield size={18} className={styles.emeraldIcon} /> Active Judge Assignments
               </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div className={styles.assignmentList}>
                 {judgeAssignments.length === 0 ? (
-                  <p style={{ color: "var(--color-text-3)" }}>No active judge assignments.</p>
+                  <p className={styles.mutedText}>No active judge assignments.</p>
                 ) : (
                   judgeAssignments.map((a) => {
                     const managedTeams = a.isCategoryWide
                       ? "All teams"
                       : a.category.teams?.map((t) => t.teamName).join(", ") || "All teams";
                     return (
-                      <div key={a.assignmentId} style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)" }}>
-                        <div className="avatar-placeholder" style={{ width: 32, height: 32, fontSize: "0.8rem", flexShrink: 0 }}>
+                      <div key={a.assignmentId} className={styles.assignmentRowStart}>
+                        <div className={`avatar-placeholder ${styles.rowAvatarShrink}`}>
                           {a.judge.fullName.charAt(0)}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{a.judge.fullName}</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
+                        <div className={styles.rowInfoMinW0}>
+                          <div className={styles.rowName}>{a.judge.fullName}</div>
+                          <div className={styles.rowMetaSpaced}>
                             {a.category.categoryName} · {a.round.roundName}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--color-text-2)", marginTop: "0.35rem" }}>
+                          <div className={styles.rowTeamsLine}>
                             <strong>Teams:</strong> {managedTeams}
                           </div>
                         </div>

@@ -148,10 +148,10 @@ export default function LandingPage() {
       >
         <div className={styles.logo}>
           <div className={styles.logoIcon}>
-            <Zap style={{ color: "#fff" }} size={20} />
+            <Zap className={styles.logoIconGlyph} size={20} />
           </div>
           <span className={styles.logoText}>
-            SEAL <span style={{ color: "var(--color-primary-2)" }}>Hackathons</span>
+            SEAL <span className={styles.logoAccent}>Hackathons</span>
           </span>
         </div>
 
@@ -173,28 +173,28 @@ export default function LandingPage() {
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          style={{ display: 'flex', flexWrap: 'wrap-reverse', alignItems: 'center', justifyContent: 'space-between', gap: '3rem', width: '100%', marginBottom: '4rem' }}
+          className={styles.heroRow}
         >
-          <div style={{ flex: '1 1 500px' }}>
-            <div className={styles.heroTag} style={{ marginBottom: '1.5rem' }}>
+          <div className={styles.heroTextCol}>
+            <div className={styles.heroTag}>
               <Rocket size={16} />
               <span>Unleash Your Creative Potential</span>
             </div>
-            <h1 className={styles.heroTitle} style={{ textAlign: 'left', marginTop: 0, fontSize: 'clamp(3rem, 5vw, 4.5rem)', lineHeight: 1.1, letterSpacing: '-0.02em', fontWeight: 900, color: 'var(--color-primary)' }}>
+            <h1 className={styles.heroTitle}>
               Explore & Compete in <br/>
               <span>World-Class Hackathons</span>
             </h1>
-            <p className={styles.heroDesc} style={{ textAlign: 'left', maxWidth: '100%', marginBottom: '2.5rem', fontSize: '1.25rem', lineHeight: 1.7, color: 'var(--color-text-2)' }}>
+            <p className={styles.heroDesc}>
               Connect with top talent, showcase your skills, and build outstanding software solutions in globally recognized Hackathon competitions.
             </p>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <Link href="/auth/register" className="btn btn-primary" style={{ padding: '0.8rem 1.5rem', fontSize: '1.1rem', borderRadius: '99px' }}>Get Started</Link>
-              <Link href="#featured-events" className="btn btn-ghost" style={{ padding: '0.8rem 1.5rem', fontSize: '1.1rem', borderRadius: '99px', border: '1px solid var(--color-border)' }}>View Events</Link>
+            <div className={styles.heroCtaRow}>
+              <Link href="/auth/register" className={`btn btn-primary ${styles.heroBtn}`}>Get Started</Link>
+              <Link href="#featured-events" className={`btn btn-ghost ${styles.heroBtn} ${styles.heroBtnOutline}`}>View Events</Link>
             </div>
           </div>
-          <div style={{ flex: '1 1 500px', position: 'relative', height: '400px', borderRadius: '2rem', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(99,102,241,0.25)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top right, rgba(99,102,241,0.1), transparent)', zIndex: 1, pointerEvents: 'none' }} />
-            <Image src="/images/hero_banner.png" alt="Hero Banner" fill style={{ objectFit: 'cover' }} priority />
+          <div className={styles.heroImageCol}>
+            <div className={styles.heroImageOverlay} />
+            <Image src="/images/hero_banner.png" alt="Hero Banner" fill sizes="(max-width: 768px) 100vw, 500px" style={{ objectFit: 'cover' }} priority />
           </div>
         </motion.div>
 
@@ -204,34 +204,34 @@ export default function LandingPage() {
           whileInView={{ y: 0, opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          style={{ display: 'flex', flexWrap: 'wrap', gap: '3rem', margin: '4rem auto', maxWidth: '1200px', padding: '2rem', alignItems: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}
+          className={styles.aboutSection}
         >
-          <div style={{ flex: '1 1 400px', position: 'relative', height: '350px', borderRadius: '1rem', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
-            <Image src="/images/about_us_image.png" alt="About SEAL Hackathon" fill style={{ objectFit: 'cover' }} />
+          <div className={styles.aboutImageCol}>
+            <Image src="/images/about_us_image.png" alt="About SEAL Hackathon" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} />
           </div>
-          <div style={{ flex: '1 1 400px', padding: '1rem' }}>
-            <h2 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1.5rem' }}>Why Join <span className="gradient-text">SEAL?</span></h2>
-            <p style={{ color: 'var(--color-text-2)', fontSize: '1.1rem', lineHeight: 1.7, marginBottom: '1.5rem' }}>
+          <div className={styles.aboutTextCol}>
+            <h2 className={styles.aboutHeading}>Why Join <span className="gradient-text">SEAL?</span></h2>
+            <p className={styles.aboutParagraph}>
               SEAL is the ultimate platform for aspiring software engineers to collaborate, build, and showcase their talents. We bring together university students and tech enthusiasts from across the globe to solve real-world problems.
             </p>
-            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-text-1)' }}><CheckCircle2 style={{ color: 'var(--color-primary)' }} size={20} /> Connect with top tech companies and mentors</li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-text-1)' }}><CheckCircle2 style={{ color: 'var(--color-primary)' }} size={20} /> Build your portfolio with real-world projects</li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-text-1)' }}><CheckCircle2 style={{ color: 'var(--color-primary)' }} size={20} /> Win massive prizes and recognition</li>
+            <ul className={styles.aboutList}>
+              <li className={styles.aboutListItem}><CheckCircle2 className={styles.aboutListIcon} size={20} /> Connect with top tech companies and mentors</li>
+              <li className={styles.aboutListItem}><CheckCircle2 className={styles.aboutListIcon} size={20} /> Build your portfolio with real-world projects</li>
+              <li className={styles.aboutListItem}><CheckCircle2 className={styles.aboutListIcon} size={20} /> Win massive prizes and recognition</li>
             </ul>
           </div>
         </motion.div>
 
         {/* Competitions Section */}
         <div className={styles.competitionsSection}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "2rem" }}>
+          <div className={styles.competitionsHeader}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.3 }}
             >
-              <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>
-                <Globe style={{ color: "var(--color-primary-2)" }} />
+              <h2 className={styles.sectionTitle}>
+                <Globe className={styles.sectionTitleIcon} />
                 {activeTab === "featured" ? "Featured Events" : activeTab === "Ongoing" ? "Ongoing Events" : activeTab === "Published" ? "Coming Soon" : "Past Events"}
               </h2>
             </motion.div>
@@ -258,10 +258,10 @@ export default function LandingPage() {
           </div>
 
           {loading ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>Loading events…</div>
+            <div className={styles.eventsStateMessage}>Loading events…</div>
           ) : displayedEvents.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-3)" }}>
-              <Image src="/images/empty_state.png" alt="Empty" width={250} height={250} style={{ opacity: 0.9, marginBottom: '1rem', borderRadius: '1rem' }} />
+            <div className={styles.eventsStateMessage}>
+              <Image src="/images/empty_state.png" alt="Empty" width={250} height={250} className={styles.emptyStateImage} />
               <br />
               No {activeTab === "featured" ? "featured" : activeTab === "Completed" ? "past" : activeTab.toLowerCase()} events available at the moment.
             </div>
@@ -277,14 +277,14 @@ export default function LandingPage() {
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
                     className={`glass-card ${styles.eventCard}`}
-                    style={{ overflow: 'hidden' }}
                   >
-                    <div style={{ height: '180px', position: 'relative', margin: '-1.5rem -1.5rem 1.5rem -1.5rem', background: '#f1f5f9' }}>
+                    <div className={styles.eventThumbnailWrap}>
                       <Image 
                         src={["https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800", "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=800", "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=800", "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800", "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800"][comp.eventId.charCodeAt(0) % 5]} 
-                        alt="Event Thumbnail" 
-                        fill 
-                        style={{ objectFit: 'cover' }} 
+                        alt="Event Thumbnail"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 960px) 50vw, 33vw"
+                        style={{ objectFit: 'cover' }}
                         priority={index < 3}
                       />
                     </div>
@@ -293,7 +293,7 @@ export default function LandingPage() {
                       <span className={`badge ${badgeClass(comp.status)}`}>
                         <span className={styles.pingBadge}>
                           {comp.status === "Ongoing" && (
-                            <span className={styles.pingAnim} style={{ backgroundColor: "var(--color-emerald)" }}></span>
+                            <span className={styles.pingAnim}></span>
                           )}
                           <span className={styles.pingDot} style={{ backgroundColor: comp.status === "Ongoing" ? "var(--color-emerald)" : comp.status === "Completed" ? "var(--color-text-3)" : "var(--color-primary-2)" }}></span>
                         </span>
@@ -301,7 +301,7 @@ export default function LandingPage() {
                       </span>
 
                       <div className={styles.cardIconWrapper}>
-                        <Trophy size={16} style={{ color: "var(--color-amber)" }} />
+                        <Trophy size={16} />
                       </div>
                     </div>
 
@@ -345,10 +345,10 @@ export default function LandingPage() {
                       </div>
                     </div>
 
-                    <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    <div className={styles.cardFooter}>
                       <div className={styles.cardAction}>
-                        <button className="btn btn-secondary w-full" style={{ width: "100%", justifyContent: "center" }} onClick={() => setSelectedComp(comp)}>
-                          View Details <ArrowRight size={16} style={{ marginLeft: "0.5rem" }} />
+                        <button className={`btn btn-secondary ${styles.cardActionBtn}`} onClick={() => setSelectedComp(comp)}>
+                          View Details <ArrowRight size={16} className={styles.cardActionIcon} />
                         </button>
                       </div>
                     </div>
@@ -482,7 +482,7 @@ export default function LandingPage() {
           <div className={styles.footerBrand}>
             <div className={styles.footerLogoRow}>
               <div className={styles.logoIcon}>
-                <Zap style={{ color: "#fff" }} size={18} />
+                <Zap className={styles.logoIconGlyph} size={18} />
               </div>
               <div>
                 <div className={styles.footerTitle}>SEAL Hackathons</div>
@@ -547,71 +547,58 @@ export default function LandingPage() {
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="modal-content"
-              style={{ background: "var(--color-bg-2)", border: "1px solid var(--color-border)", boxShadow: "var(--shadow-xl)" }}
+              className={`modal-content ${styles.eventModalContent}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="modal-header" style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h2 className="modal-title" style={{ color: "var(--color-text)", fontSize: "1.5rem" }}>Event Details</h2>
-                <button onClick={() => setSelectedComp(null)} className="btn-icon btn-ghost" style={{ padding: "0.25rem" }}>
+              <div className={`modal-header ${styles.eventModalHeader}`}>
+                <h2 className={`modal-title ${styles.eventModalTitle}`}>Event Details</h2>
+                <button onClick={() => setSelectedComp(null)} className={`btn-icon btn-ghost ${styles.closeButton}`}>
                   <X size={24} />
                 </button>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div className={styles.modalBody}>
                 <div>
-                  <h3 style={{ fontSize: "1.25rem", fontWeight: "bold", color: "var(--color-primary-2)", marginBottom: "0.5rem" }}>{selectedComp.eventName}</h3>
-                  <p style={{ color: "var(--color-text-2)", fontSize: "0.95rem" }}>{selectedComp.description || "No description available for this event."}</p>
+                  <h3 className={styles.modalEventName}>{selectedComp.eventName}</h3>
+                  <p className={styles.modalEventDesc}>{selectedComp.description || "No description available for this event."}</p>
                 </div>
 
-                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <div className={styles.modalBadgeRow}>
                   <span className={`badge ${badgeClass(selectedComp.status)}`}>
                     {STATUS_LABEL[selectedComp.status] || selectedComp.status}
                   </span>
-                  <span className="badge badge-neutral"><Users size={12} style={{ marginRight: "4px" }} /> {selectedComp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0)} team{selectedComp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0) !== 1 ? "s" : ""}</span>
-                  <span className="badge badge-neutral"><Calendar size={12} style={{ marginRight: "4px" }} /> {dateRange(selectedComp.startDate, selectedComp.endDate)}</span>
+                  <span className="badge badge-neutral"><Users size={12} className={styles.badgeIcon} /> {selectedComp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0)} team{selectedComp.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0) !== 1 ? "s" : ""}</span>
+                  <span className="badge badge-neutral"><Calendar size={12} className={styles.badgeIcon} /> {dateRange(selectedComp.startDate, selectedComp.endDate)}</span>
                 </div>
 
                 {selectedComp.status === "Completed" && (
-                  <div style={{ background: "rgba(245, 158, 11, 0.06)", padding: "1.25rem", borderRadius: "12px", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
-                    <h4 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 700, color: "var(--color-amber)", marginBottom: "1rem", fontSize: "1.05rem" }}>
+                  <div className={styles.winnersPanel}>
+                    <h4 className={styles.winnersPanelTitle}>
                       <Trophy size={20} /> Event Winners & Standings
                     </h4>
                     {loadingWinners ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-3)", fontSize: "0.9rem" }}>
+                      <div className={styles.winnersLoading}>
                         <span className="spinner" style={{ width: 16, height: 16 }}></span> Loading results...
                       </div>
                     ) : winners.length === 0 ? (
-                      <p style={{ fontSize: "0.9rem", color: "var(--color-text-3)" }}>No official results published yet.</p>
+                      <p className={styles.winnersEmpty}>No official results published yet.</p>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                      <div className={styles.winnersList}>
                         {winners.map((team) => {
                           const isChampion = team.rank === 1;
                           return (
                             <div
                               key={team.teamId}
+                              className={styles.winnerRow}
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                padding: "0.75rem 1rem",
-                                borderRadius: "8px",
                                 background: isChampion ? "rgba(245, 158, 11, 0.12)" : "var(--color-surface-2)",
                                 border: `1px solid ${isChampion ? "rgba(245, 158, 11, 0.35)" : "var(--color-border-2)"}`,
-                                transition: "all 0.2s"
                               }}
                             >
-                              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                              <div className={styles.winnerLeft}>
                                 <span
+                                  className={styles.winnerRankBadge}
                                   style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    width: "24px",
-                                    height: "24px",
-                                    borderRadius: "50%",
-                                    fontSize: "0.8rem",
-                                    fontWeight: "bold",
                                     background: isChampion ? "var(--color-amber)" : "var(--color-surface)",
                                     color: isChampion ? "#000" : "var(--color-text-2)",
                                     border: isChampion ? "none" : "1px solid var(--color-border)"
@@ -620,16 +607,16 @@ export default function LandingPage() {
                                   {team.rank}
                                 </span>
                                 <div>
-                                  <div style={{ fontWeight: 650, color: isChampion ? "var(--color-amber)" : "var(--color-text)", fontSize: "0.95rem" }}>
+                                  <div className={styles.winnerName} style={{ color: isChampion ? "var(--color-amber)" : "var(--color-text)" }}>
                                     {team.teamName} {isChampion && "🏆 (Champion)"}
                                   </div>
-                                  <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>
+                                  <div className={styles.winnerTrack}>
                                     Track: {team.categoryName}
                                   </div>
                                 </div>
                               </div>
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                                <div style={{ fontSize: "0.95rem", fontWeight: "bold", color: "var(--color-primary-2)" }}>
+                              <div className={styles.winnerScoreWrap}>
+                                <div className={styles.winnerScore}>
                                   {team.totalScore.toFixed(1)} pts
                                 </div>
                               </div>
@@ -642,17 +629,17 @@ export default function LandingPage() {
                 )}
 
                 {selectedComp.rounds.length > 0 && (
-                  <div style={{ background: "rgba(99, 102, 241, 0.05)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--color-border)" }}>
-                    <h4 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600, color: "var(--color-text)", marginBottom: "0.75rem" }}>
-                      <Layers size={18} style={{ color: "var(--color-primary-2)" }} /> Round Information
+                  <div className={styles.roundsPanel}>
+                    <h4 className={styles.roundsPanelTitle}>
+                      <Layers size={18} className={styles.roundsPanelIcon} /> Round Information
                     </h4>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <div className={styles.roundsList}>
                       {[...selectedComp.rounds].sort((a, b) => a.roundOrder - b.roundOrder).map((r) => (
-                        <div key={r.roundId} style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                          <div style={{ marginTop: "2px", color: "var(--color-cyan)" }}><CheckCircle2 size={16} /></div>
+                        <div key={r.roundId} className={styles.roundItem}>
+                          <div className={styles.roundItemIcon}><CheckCircle2 size={16} /></div>
                           <div>
-                            <div style={{ fontWeight: 500, color: "var(--color-text)" }}>{r.roundName}</div>
-                            <div style={{ fontSize: "0.85rem", color: "var(--color-text-3)" }}>Deadline: {formatDate(r.submissionDeadline)}</div>
+                            <div className={styles.roundItemName}>{r.roundName}</div>
+                            <div className={styles.roundItemDeadline}>Deadline: {formatDate(r.submissionDeadline)}</div>
                           </div>
                         </div>
                       ))}
@@ -661,11 +648,11 @@ export default function LandingPage() {
                 )}
 
                 {selectedComp.categories.length > 0 && (
-                  <div style={{ background: "rgba(16, 185, 129, 0.05)", padding: "1rem", borderRadius: "12px", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
-                    <h4 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600, color: "var(--color-text)", marginBottom: "0.5rem" }}>
-                      <Target size={18} style={{ color: "var(--color-emerald)" }} /> Competition Tracks
+                  <div className={styles.tracksPanel}>
+                    <h4 className={styles.tracksPanelTitle}>
+                      <Target size={18} className={styles.tracksPanelIcon} /> Competition Tracks
                     </h4>
-                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <div className={styles.tracksBadgeRow}>
                       {selectedComp.categories.map((c) => (
                         <span key={c.categoryId} className="badge badge-neutral">{c.categoryName} · {c.teamCount} team{c.teamCount !== 1 ? "s" : ""}</span>
                       ))}

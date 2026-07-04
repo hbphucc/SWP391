@@ -107,8 +107,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   return (
     <div>
       {/* Event Details Banner */}
-      <div style={{ position: 'relative', width: '100%', height: '280px', borderRadius: '1rem', overflow: 'hidden', marginBottom: '1.5rem', marginTop: '-1rem', background: '#f1f5f9' }}>
-        <Image src={["https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800", "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=800", "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=800", "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800", "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800"][event.eventId.charCodeAt(event.eventId.length - 1) % 5]} alt="Event Banner" fill style={{ objectFit: 'cover' }} priority />
+      <div style={{ position: 'relative', width: '100%', height: 'clamp(160px, 18vw, 320px)', borderRadius: '1rem', overflow: 'hidden', marginTop: '-1rem', marginBottom: '1.5rem', background: '#f1f5f9' }}>
+        <Image src={["https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800", "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=800", "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=800", "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800", "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800"][event.eventId.charCodeAt(event.eventId.length - 1) % 5]} alt="Event Banner" fill sizes="100vw" style={{ objectFit: 'cover' }} priority />
       </div>
       <div className="page-header">
         <div>

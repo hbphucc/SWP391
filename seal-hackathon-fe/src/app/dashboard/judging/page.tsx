@@ -13,6 +13,7 @@ import StatusBadge from "@/components/StatusBadge";
 import WorkspaceTabs from "@/components/workspace/WorkspaceTabs";
 import RankingsView from "@/components/rankings/RankingsView";
 import { formatDate, formatDateTime, formatScore, daysUntil } from "@/lib/format";
+import styles from "./page.module.css";
 
 // ─── Types (mirror backend DTOs) ───────────────────────────────────
 type JudgeStats = {
@@ -258,13 +259,13 @@ export default function JudgingPortalPage() {
 
   const renderQueueTab = () => (
     <div>
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem", alignItems: "center" }}>
-        <div style={{ position: "relative", flex: "1 1 220px", minWidth: 200 }}>
-          <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-3)" }} />
-          <input className="form-input" style={{ paddingLeft: 32, width: "100%" }} placeholder="Search team or project..."
+      <div className={styles.filterBar}>
+        <div className={styles.searchWrap}>
+          <Search size={15} className={styles.searchIcon} />
+          <input className={`form-input ${styles.searchInput}`} placeholder="Search team or project..."
             value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search teams" />
         </div>
-        <select className="form-input" style={{ width: 240 }} value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} aria-label="Filter by event">
+        <select className={`form-input ${styles.eventFilterSelect}`} value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} aria-label="Filter by event">
           <option value="">All events</option>
           {eventOptions.map((ev) => <option key={ev.id} value={ev.id}>{ev.label}</option>)}
         </select>
@@ -284,36 +285,36 @@ export default function JudgingPortalPage() {
           <div className="empty-desc">Try clearing the search or status filter.</div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div className={styles.teamList}>
           {visibleTeams.map((t) => {
             const action = actionFor(t);
             return (
-              <div key={`${t.roundId}-${t.teamId}`} className="glass-card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem", flexWrap: "wrap" }}>
-                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: "0.92rem", color: "var(--color-text-1)" }}>{t.teamName}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--color-text-3)", marginTop: "0.15rem" }}>
+              <div key={`${t.roundId}-${t.teamId}`} className={`glass-card ${styles.teamRow}`}>
+                <div className={styles.teamInfo}>
+                  <div className={styles.teamName}>{t.teamName}</div>
+                  <div className={styles.teamMeta}>
                     {t.projectName ? <>{t.projectName} · </> : null}{t.category} · {t.roundName}
                   </div>
                   {t.lastJudgedAt && (
-                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-3)", marginTop: 2 }}>
+                    <div className={styles.teamLastJudged}>
                       Last updated {formatDateTime(t.lastJudgedAt)}
                     </div>
                   )}
                 </div>
 
-                <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+                <div className={styles.badgeGroup}>
                   <StatusBadge status={t.judgingStatus} />
                   {t.scoreState === "Locked" && <StatusBadge status="Locked" />}
                 </div>
 
-                <div style={{ minWidth: 64, textAlign: "center" }} title="Your weighted score (0–100)">
-                  <div style={{ fontWeight: 800, fontSize: "1.05rem", color: t.myScore !== null ? "var(--color-text-1)" : "var(--color-text-3)" }}>
+                <div className={styles.scoreBlock} title="Your weighted score (0–100)">
+                  <div className={styles.scoreValue} style={{ color: t.myScore !== null ? "var(--color-text-1)" : "var(--color-text-3)" }}>
                     {formatScore(t.myScore)}
                   </div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-3)" }}>my score</div>
+                  <div className={styles.scoreLabel}>my score</div>
                 </div>
 
-                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                <div className={styles.actionsGroup}>
                   {t.repositoryUrl && <a className="btn btn-secondary btn-sm" href={t.repositoryUrl} target="_blank" rel="noopener noreferrer">Repo <ExternalLink size={12} /></a>}
                   {t.demoUrl && <a className="btn btn-secondary btn-sm" href={t.demoUrl} target="_blank" rel="noopener noreferrer">Demo <ExternalLink size={12} /></a>}
                   {t.slideUrl && <a className="btn btn-secondary btn-sm" href={t.slideUrl} target="_blank" rel="noopener noreferrer">Slides <ExternalLink size={12} /></a>}
@@ -345,22 +346,22 @@ export default function JudgingPortalPage() {
         {dashboard!.events.map((ev) => {
           const deadlineDays = daysUntil(ev.judgingDeadline);
           return (
-            <div key={ev.eventId} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.85rem", padding: "1.25rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text-1)" }}>{ev.eventName}</span>
+            <div key={ev.eventId} className={`glass-card ${styles.eventProgressCard}`}>
+              <div className={styles.eventProgressHeader}>
+                <span className={styles.eventProgressName}>{ev.eventName}</span>
                 <StatusBadge status={ev.eventStatus} />
               </div>
-              <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <span><Target size={12} style={{ marginRight: 5, verticalAlign: -1 }} />Round: <strong style={{ color: "var(--color-text-2)" }}>{ev.currentRoundName ?? "—"}</strong></span>
-                <span><CalendarDays size={12} style={{ marginRight: 5, verticalAlign: -1 }} />{formatDate(ev.eventStartDate)} – {formatDate(ev.eventEndDate)}</span>
+              <div className={styles.eventProgressMeta}>
+                <span><Target size={12} className={styles.metaIcon} />Round: <strong className={styles.metaStrong}>{ev.currentRoundName ?? "—"}</strong></span>
+                <span><CalendarDays size={12} className={styles.metaIcon} />{formatDate(ev.eventStartDate)} – {formatDate(ev.eventEndDate)}</span>
                 <span style={{ color: deadlineDays !== null && deadlineDays < 3 ? "var(--color-danger)" : undefined }}>
-                  <Clock size={12} style={{ marginRight: 5, verticalAlign: -1 }} />
+                  <Clock size={12} className={styles.metaIcon} />
                   Deadline: {ev.judgingDeadline ? formatDateTime(ev.judgingDeadline) : "—"}
                   {deadlineDays !== null && (deadlineDays < 0 ? " (overdue)" : deadlineDays < 7 ? ` (${deadlineDays}d)` : "")}
                 </span>
               </div>
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "var(--color-text-3)", marginBottom: 5 }}>
+                <div className={styles.progressRow}>
                   <span>{ev.judgedTeams}/{ev.assignedTeams - ev.notSubmittedTeams} scored</span>
                   <span>{formatScore(ev.progressPercentage, "0")}%</span>
                 </div>
@@ -368,12 +369,12 @@ export default function JudgingPortalPage() {
                   <div className="progress-fill green" style={{ width: `${Math.min(100, ev.progressPercentage)}%` }} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.74rem", color: "var(--color-text-3)" }}>
-                <span><CheckCircle size={11} style={{ color: "#10b981", verticalAlign: -1, marginRight: 3 }} />{ev.judgedTeams} scored</span>
-                <span><Hourglass size={11} style={{ color: "#f59e0b", verticalAlign: -1, marginRight: 3 }} />{ev.notJudgedTeams} pending</span>
-                <span><XCircle size={11} style={{ color: "#94a3b8", verticalAlign: -1, marginRight: 3 }} />{ev.notSubmittedTeams} no submission</span>
+              <div className={styles.miniStatsRow}>
+                <span><CheckCircle size={11} className={styles.scoredIcon} />{ev.judgedTeams} scored</span>
+                <span><Hourglass size={11} className={styles.pendingIcon} />{ev.notJudgedTeams} pending</span>
+                <span><XCircle size={11} className={styles.noSubmissionIcon} />{ev.notSubmittedTeams} no submission</span>
               </div>
-              <button className="btn btn-sm btn-primary" style={{ marginTop: "auto" }}
+              <button className={`btn btn-sm btn-primary ${styles.continueScoringBtn}`}
                 onClick={() => continueJudging(ev.eventId)}>
                 Continue Scoring <ChevronRight size={13} />
               </button>
@@ -386,7 +387,7 @@ export default function JudgingPortalPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+      <div className="page-header">
         <div>
           <h1 className="page-title">Scoring Workspace</h1>
           <p className="page-subtitle">Your assigned events, rounds and teams — at a glance</p>
@@ -400,17 +401,17 @@ export default function JudgingPortalPage() {
         <SkeletonDashboard />
       ) : errored ? (
         <div className="empty-state">
-          <AlertCircle size={48} className="empty-icon" style={{ color: "var(--color-danger)" }} />
+          <AlertCircle size={48} className={`empty-icon ${styles.errorIcon}`} />
           <div className="empty-title">Couldn&apos;t load your judging data</div>
           <div className="empty-desc">Something went wrong. Your session is still active.</div>
-          <button className="btn btn-primary" style={{ marginTop: "1rem" }} onClick={loadJudgeData}>
+          <button className={`btn btn-primary ${styles.retryBtn}`} onClick={loadJudgeData}>
             <RefreshCw size={14} /> Retry
           </button>
         </div>
       ) : (
         <>
           {/* ─── Stats (always visible) ─────────────────────────── */}
-          <div className="grid-4" style={{ marginBottom: "1.5rem" }}>
+          <div className={`grid-4 ${styles.statsGrid}`}>
             <StatCard value={stats?.totalAssignedTeams ?? 0} label="Assigned Teams" color="#6366f1" Icon={ListChecks}
               hint="Total teams across all rounds you are assigned to score." />
             <StatCard value={stats?.judgedTeams ?? 0} label="Scored" color="#10b981" Icon={CheckCircle}
@@ -426,37 +427,37 @@ export default function JudgingPortalPage() {
 
           {/* ─── Pending kick requests (always visible — urgent) ── */}
           {kickRequests.length > 0 && (
-            <div style={{ marginBottom: "2rem" }}>
-              <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--color-text-1)" }}>
-                <AlertCircle size={20} style={{ color: "var(--color-warning)" }} /> Pending Kick Requests
+            <div className={styles.kickSection}>
+              <h3 className={styles.kickSectionTitle}>
+                <AlertCircle size={20} className={styles.kickSectionIcon} /> Pending Kick Requests
               </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div className={styles.kickList}>
                 {kickRequests.map((request) => (
-                  <div key={request.kickRequestId} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "1.25rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+                  <div key={request.kickRequestId} className={`glass-card ${styles.kickCard}`}>
+                    <div className={styles.kickCardTop}>
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--color-text-1)" }}>
+                        <div className={styles.kickRequesterRow}>
+                          <span className={styles.kickRequesterName}>
                             Request to Kick: {request.userName}
                           </span>
-                          <span className="badge badge-neutral" style={{ fontSize: "0.72rem" }}>{request.userEmail}</span>
+                          <span className={`badge badge-neutral ${styles.kickEmailBadge}`}>{request.userEmail}</span>
                         </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-                          Team: <strong style={{ color: "var(--color-text-2)" }}>{request.teamName}</strong> · Requested {formatDate(request.requestedAt)}
+                        <div className={styles.kickTeamMeta}>
+                          Team: <strong className={styles.metaStrong}>{request.teamName}</strong> · Requested {formatDate(request.requestedAt)}
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}
+                      <div className={styles.kickActions}>
+                        <button className={`btn btn-sm ${styles.kickApproveBtn}`}
                           onClick={() => handleResolveKick(request.kickRequestId, "approve")} disabled={resolvingId !== null}>
-                          <CheckCircle size={14} style={{ marginRight: 4 }} /> Approve Kick
+                          <CheckCircle size={14} className={styles.kickBtnIcon} /> Approve Kick
                         </button>
-                        <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e", border: "1px solid rgba(244,63,94,0.3)" }}
+                        <button className={`btn btn-sm ${styles.kickRejectBtn}`}
                           onClick={() => handleResolveKick(request.kickRequestId, "reject")} disabled={resolvingId !== null}>
-                          <XCircle size={14} style={{ marginRight: 4 }} /> Reject
+                          <XCircle size={14} className={styles.kickBtnIcon} /> Reject
                         </button>
                       </div>
                     </div>
-                    <div style={{ background: "rgba(255,255,255,0.02)", padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border-2)", fontSize: "0.88rem", color: "var(--color-text-2)" }}>
+                    <div className={styles.kickReasonBox}>
                       <strong>Reason:</strong> {request.reason}
                     </div>
                   </div>
@@ -508,7 +509,7 @@ function actionFor(t: AssignedTeam): { label: string; variant: string; disabled:
 function SkeletonDashboard() {
   return (
     <>
-      <div className="grid-4" style={{ marginBottom: "1.5rem" }}>
+      <div className={`grid-4 ${styles.statsGrid}`}>
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="stat-card" aria-hidden>
             <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 10 }} />

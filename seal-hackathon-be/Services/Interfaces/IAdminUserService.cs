@@ -5,8 +5,8 @@ namespace SEAL.NET.Services.Interfaces
 {
     public interface IAdminUserService
     {
-        Task<ServiceResult> GetUsersAsync();
-        Task<ServiceResult> GetPendingUsersAsync();
+        Task<ServiceResult> GetUsersAsync(int page, int pageSize);
+        Task<ServiceResult> GetPendingUsersAsync(int page, int pageSize);
         Task<ServiceResult> ApproveUserAsync(Guid? actorUserId, Guid userId);
         Task<ServiceResult> RejectUserAsync(Guid? actorUserId, Guid userId);
         Task<ServiceResult> UpdateUserRoleAsync(Guid? actorUserId, Guid userId, UpdateUserRoleRequest request);

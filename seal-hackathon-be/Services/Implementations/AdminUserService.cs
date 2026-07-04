@@ -59,10 +59,21 @@ namespace SEAL.NET.Services.Implementations
                 .ToDictionary(g => g.Key, g => g.Select(x => x.Name!).ToList());
         }
 
-        public async Task<ServiceResult> GetUsersAsync()
+        // Callers page through results instead of loading the whole Users table;
+        // MaxPageSize mirrors the 200-row cap used for audit logs.
+        private const int MaxPageSize = 200;
+
+        private static (int Page, int PageSize) NormalizePaging(int page, int pageSize)
+            => (Math.Max(page, 1), Math.Clamp(pageSize, 1, MaxPageSize));
+
+        public async Task<ServiceResult> GetUsersAsync(int page, int pageSize)
         {
+            (page, pageSize) = NormalizePaging(page, pageSize);
+
             var users = await _userManager.Users
                 .OrderByDescending(u => u.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             var roleMap = await GetRoleMapAsync(users.Select(u => u.Id));
@@ -83,11 +94,15 @@ namespace SEAL.NET.Services.Implementations
             return ServiceResult.Ok(result);
         }
 
-        public async Task<ServiceResult> GetPendingUsersAsync()
+        public async Task<ServiceResult> GetPendingUsersAsync(int page, int pageSize)
         {
+            (page, pageSize) = NormalizePaging(page, pageSize);
+
             var users = await _userManager.Users
                 .Where(u => !u.IsApproved)
                 .OrderByDescending(u => u.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             var roleMap = await GetRoleMapAsync(users.Select(u => u.Id));
