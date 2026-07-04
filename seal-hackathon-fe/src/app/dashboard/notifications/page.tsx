@@ -80,7 +80,6 @@ export default function UserNotificationsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Notifications</h1>
-          <p className="page-subtitle">Stay updated with system alerts and team activity</p>
         </div>
         <button className="btn btn-secondary" onClick={markAllRead} disabled={notifications.every((item) => item.isRead)}>
           <CheckCircle size={16} /> Mark all as read

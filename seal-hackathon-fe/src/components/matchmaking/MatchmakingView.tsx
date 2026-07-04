@@ -33,9 +33,6 @@ export default function MatchmakingView() {
       <div className="page-header" style={{ marginBottom: "2rem" }}>
         <div>
           <h1 className="page-title">Teammate Matchmaking</h1>
-          <p className="page-subtitle">
-            Find teammates and manage invitations for your project.
-          </p>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { use, useState, useEffect } from "react";
-import { ChevronLeft, Users, Crown, Mail, Shield, BookOpen, Target, ExternalLink } from "lucide-react";
+import { ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 
@@ -110,10 +110,6 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
               {team.status}
             </span>
           </div>
-          <p className="page-subtitle">
-            <Target size={13} style={{ marginRight: 4 }} />
-            {team.category.categoryName} · {team.category.eventName}
-          </p>
         </div>
       </div>
 

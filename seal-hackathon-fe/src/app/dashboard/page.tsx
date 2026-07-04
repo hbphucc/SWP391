@@ -37,7 +37,6 @@ export default function DashboardPage() {
       <div className="page-header" style={{ marginBottom: receivedInvites.length > 0 ? "1.5rem" : "2rem" }}>
         <div>
           <h1 className="page-title">Dashboard Overview</h1>
-          <p className="page-subtitle">Welcome back · {metrics?.upcomingEvent || "SEAL Hackathon"} is live 🚀</p>
         </div>
         {isAdmin && (
           <div style={{ display: "flex", gap: "0.75rem" }}>

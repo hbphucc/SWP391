@@ -14,7 +14,6 @@ export default function AdminEventsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Event Management</h1>
-          <p className="page-subtitle">Create hackathon events and manage round pipelines</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
           {view === "list" ? (

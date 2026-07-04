@@ -146,7 +146,6 @@ export default function AdminTeamsPage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <h1 className="page-title">Team Management</h1>
-          <p className="page-subtitle">Select an event to review its teams and assigned judges</p>
         </div>
         <div className={styles.headerActions}>
           <select

@@ -84,7 +84,6 @@ export default function UserTracksPage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">Competition Tracks</h1>
-          <p className="page-subtitle">Tracks are loaded from backend categories.</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
           <select className="form-input" style={{ width: 260 }} value={eventId} onChange={(event) => setEventId(event.target.value)} disabled={events.length === 0}>

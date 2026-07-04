@@ -134,7 +134,6 @@ export default function AdminProfilePage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Admin Profile</h1>
-          <p className="page-subtitle">Manage your administrator account through the backend profile API</p>
         </div>
       </div>
 

@@ -239,7 +239,6 @@ export default function JudgingPortalPage() {
         <div className="page-header">
           <div>
             <h1 className="page-title">Scoring Portal</h1>
-            <p className="page-subtitle">Score and review submissions</p>
           </div>
         </div>
         <div className="empty-state">
@@ -390,7 +389,6 @@ export default function JudgingPortalPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Scoring Workspace</h1>
-          <p className="page-subtitle">Your assigned events, rounds and teams — at a glance</p>
         </div>
         <button className="btn btn-secondary" onClick={loadJudgeData} disabled={loading}>
           <RefreshCw size={15} className={loading ? "spin" : undefined} /> Refresh

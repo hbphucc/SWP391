@@ -118,7 +118,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <h1 className="page-title">{event.eventName}</h1>
             <span className={`badge ${STATUS_BADGE[event.status] || "badge-neutral"}`}>{event.status}</span>
           </div>
-          <p className="page-subtitle">{event.description || "No description provided."}</p>
         </div>
         {/* Team registration requires 2–4 teammates and approval; the Teams
             page owns that validated flow rather than duplicating it here. */}

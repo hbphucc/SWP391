@@ -508,9 +508,24 @@
   overflow-wrap: anywhere;
 }
 
+.cardDateRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-text-2);
+  margin-bottom: 0.8rem;
+  font-weight: 500;
+}
+
+.calendarIcon {
+  color: var(--color-primary-2);
+  flex-shrink: 0;
+}
+
 .statsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   background: var(--color-surface-2);
   padding: 1.2rem;
@@ -542,14 +557,6 @@
   font-weight: 600;
   color: var(--color-text);
   overflow-wrap: anywhere;
-}
-
-.dateValue {
-  display: block;
-  font-size: clamp(0.72rem, 0.85vw, 0.8rem);
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: visible;
 }
 
 .cardAction {

@@ -82,7 +82,6 @@ export default function JudgingQueuePage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">Scoring & Evaluation</h1>
-          <p className="page-subtitle">Select an event to view its scoring queue</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
           <select
