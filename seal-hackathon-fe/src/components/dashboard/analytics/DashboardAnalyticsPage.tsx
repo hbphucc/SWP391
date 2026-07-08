@@ -1,10 +1,16 @@
 "use client";
 import { useState, useEffect, type CSSProperties } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend } from "recharts";
+import dynamic from "next/dynamic";
 import { Download, Info, TrendingUp } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 import styles from "./DashboardAnalyticsPage.module.css";
+
+// Charts pull in recharts/d3 (~400KB). Load them lazily so this route's
+// initial bundle stays lean; they render once analytics data is fetched.
+// Both point at the same module so recharts ships as one shared lazy chunk.
+const CriterionRadarChart = dynamic(() => import("./analyticsCharts").then(m => m.CriterionRadarChart), { ssr: false });
+const JudgeVarianceChart = dynamic(() => import("./analyticsCharts").then(m => m.JudgeVarianceChart), { ssr: false });
 
 interface CriterionReliability {
   criteriaId: string;
@@ -38,8 +44,6 @@ interface InterRaterAnalytics {
   variance: TeamVariance[];
   criterionAverages: CriterionAverage[];
 }
-
-const BAR_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e"];
 
 export default function AnalyticsPage() {
   const { message } = App.useApp();
@@ -183,16 +187,7 @@ export default function AnalyticsPage() {
           {/* Radar: Average score by criterion */}
           <div className="glass-card">
             <h4 className={styles.chartTitle}>Average Score by Criterion</h4>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="rgba(148,163,184,0.1)" />
-                <PolarAngleAxis dataKey="criterion" tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-                <PolarRadiusAxis tick={{ fill: "var(--color-text-3)", fontSize: 10 }} />
-                <Radar name="Average Score" dataKey="avgScore" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
-                <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
-                <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} />
-              </RadarChart>
-            </ResponsiveContainer>
+            <CriterionRadarChart radarData={radarData} />
           </div>
         </div>
 
@@ -202,18 +197,7 @@ export default function AnalyticsPage() {
           {varianceRows.length === 0 ? (
             <div className={styles.smallMuted}>No team scores yet.</div>
           ) : (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={varianceRows} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
-                <XAxis dataKey="name" tick={{ fill: "var(--color-text-2)", fontSize: 12 }} />
-                <YAxis tick={{ fill: "var(--color-text-3)", fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: "var(--color-bg-3)", border: "1px solid var(--color-border)", borderRadius: 8, color: "var(--color-text)" }} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
-                <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-text-2)" }} />
-                {judgeNames.map((j, i) => (
-                  <Bar key={j} dataKey={j} name={j} fill={BAR_COLORS[i % BAR_COLORS.length]} radius={[4, 4, 0, 0]} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+            <JudgeVarianceChart varianceRows={varianceRows} judgeNames={judgeNames} />
           )}
         </div>
       </div>
