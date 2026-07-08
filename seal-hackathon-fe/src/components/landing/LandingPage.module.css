@@ -1158,6 +1158,88 @@
   }
 }
 
+/* ─── Light-mode corrections ──────────────────────────────────
+   Several sections above hardcode dark-only colors (translucent
+   navy fills, white text gradients, white-on-white surfaces) that
+   were adaptive var(--color-*) tokens before the landing page was
+   extracted into this module. They break in light mode, so we
+   restore theme-aware values here. data-theme="light" lives on
+   <html>, hence the :global() prefix. Dark mode is unaffected. */
+:global([data-theme="light"]) .aboutSection {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+:global([data-theme="light"]) .heroWrapper {
+  border-bottom-color: var(--color-border);
+}
+
+:global([data-theme="light"]) .heroImageCol {
+  border-color: var(--color-border);
+}
+
+/* White text gradient is invisible on a light background — use the
+   brand indigo→cyan range instead so the headline stays legible. */
+:global([data-theme="light"]) .heroTitleGradient {
+  background: linear-gradient(to right, var(--color-primary-3) 15%, var(--color-primary) 50%, var(--color-cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: 0 0 40px rgba(99, 102, 241, 0.15);
+}
+
+:global([data-theme="light"]) .posterFrame {
+  background: var(--color-surface-2);
+}
+
+:global([data-theme="light"]) .cardIconWrapper {
+  background: var(--color-surface-2);
+}
+
+:global([data-theme="light"]) .valueTags span {
+  background: var(--color-surface-2);
+}
+
+:global([data-theme="light"]) .stepIcon {
+  background: rgba(245, 158, 11, 0.1);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+}
+
+/* Drop the dark navy overlay that muddies the light surface. */
+:global([data-theme="light"]) .stepsSection {
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, 0.06), rgba(99, 102, 241, 0.02)),
+    var(--color-surface);
+}
+
+/* CTA panel: hardcoded dark gradient + white text becomes an off-key
+   dark block on the light landing. Re-tint with the brand indigo→cyan
+   wash so it still feels like an accent card, and flip text to dark. */
+:global([data-theme="light"]) .ctaSection {
+  border-color: rgba(99, 102, 241, 0.28);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(245, 158, 11, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 76%, rgba(6, 182, 212, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(224, 231, 255, 0.9), rgba(255, 255, 255, 0.92) 48%, rgba(207, 250, 254, 0.85));
+}
+
+:global([data-theme="light"]) .ctaSection::after {
+  background: rgba(6, 182, 212, 0.14);
+}
+
+:global([data-theme="light"]) .ctaTitle {
+  color: var(--color-text);
+}
+
+:global([data-theme="light"]) .ctaDesc {
+  color: var(--color-text-2);
+}
+
+:global([data-theme="light"]) .ctaStats span {
+  color: var(--color-text);
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
 /* ─── Event Details Modal ─────────────────────────────────── */
 /* Page-scoped modifiers layered on top of the shared global
    .modal-content/.modal-header/.modal-title classes — only the
