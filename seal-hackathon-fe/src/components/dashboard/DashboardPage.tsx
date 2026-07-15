@@ -1,7 +1,6 @@
 "use client";
 import { Calendar, Trophy, Users, Search, Send, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import WorkspaceTabs, { WorkspaceTab } from "@/components/workspace/WorkspaceTabs";
 import TeamsView from "@/components/team/TeamsView";
 import MatchmakingView from "@/components/matchmaking/MatchmakingView";
@@ -29,9 +28,17 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* Banner */}
-      <div style={{ position: 'relative', width: '100%', height: 'clamp(160px, 18vw, 320px)', borderRadius: '1rem', overflow: 'hidden', marginTop: '-1rem', marginBottom: '1.5rem' }}>
-        <Image src="/images/dashboard_header.png" alt="Dashboard Banner" fill sizes="100vw" style={{ objectFit: 'cover' }} priority />
+      {/* Banner — portrait clip rotated 90° to fill the wide banner */}
+      <div style={{ position: 'relative', width: '100%', height: 'clamp(160px, 18vw, 320px)', borderRadius: '1rem', overflow: 'hidden', marginTop: '-1rem', marginBottom: '1.5rem', containerType: 'size', background: '#000' }}>
+        <video
+          src="/images/dashboard_header.mp4"
+          poster="/images/dashboard_header.png"
+          autoPlay
+          loop
+          muted
+          playsInline
+          style={{ position: 'absolute', top: '50%', left: '50%', height: '100cqw', width: 'auto', transform: 'translate(-50%, -50%) rotate(270deg)' }}
+        />
       </div>
       {/* Header */}
       <div className="page-header" style={{ marginBottom: receivedInvites.length > 0 ? "1.5rem" : "2rem" }}>

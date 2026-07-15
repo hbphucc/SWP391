@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare, Shield, Star } from "lucide-react";
+import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare, Shield, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import styles from "./LandingPage.module.css";
 import { apiRequest } from "@/lib/api";
 
@@ -85,6 +85,25 @@ export default function LandingPage() {
   const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Published" | "Completed">("featured");
   const [winners, setWinners] = useState<WinnerDto[]>([]);
   const [loadingWinners, setLoadingWinners] = useState(false);
+
+  // Hero image carousel: auto-advances every 3s, with manual arrow controls.
+  const heroSlides = [
+    "/images/hero_banner.png",
+    "/images/hero_slide_2.jpg",
+    "/images/hero_slide_3.jpg",
+    "/images/hero_slide_4.jpg",
+  ];
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeroIndex((i) => (i + 1) % heroSlides.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [heroIndex, heroSlides.length]);
+
+  const goToSlide = (dir: number) =>
+    setHeroIndex((i) => (i + dir + heroSlides.length) % heroSlides.length);
 
   useEffect(() => {
     const load = async () => {
@@ -220,10 +239,51 @@ export default function LandingPage() {
           <div style={{ flex: '1 1 500px', display: 'flex', justifyContent: 'center' }}>
             <div className={styles.posterFrame}>
               <div className={styles.posterImageContainer}>
-                <Image src="/images/hero_banner.png" alt="Hero Banner" fill style={{ objectFit: 'cover' }} priority />
+                <AnimatePresence initial={false}>
+                  <motion.div
+                    key={heroIndex}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.8 }}
+                    style={{ position: 'absolute', inset: 0 }}
+                  >
+                    <Image src={heroSlides[heroIndex]} alt={`Hero slide ${heroIndex + 1}`} fill style={{ objectFit: 'cover' }} priority />
+                  </motion.div>
+                </AnimatePresence>
                 <div className={styles.hologramSweep} />
+
+                <div className={styles.carouselDots}>
+                  {heroSlides.map((_, i) => (
+                    <button
+                      type="button"
+                      key={i}
+                      className={`${styles.carouselDot} ${i === heroIndex ? styles.carouselDotActive : ''}`}
+                      onClick={() => setHeroIndex(i)}
+                      aria-label={`Go to image ${i + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
-              
+
+              {/* Carousel arrows — outside the clipped image container so their glow isn't cut */}
+              <button
+                type="button"
+                className={`${styles.carouselArrow} ${styles.carouselPrev}`}
+                onClick={() => goToSlide(-1)}
+                aria-label="Previous image"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                type="button"
+                className={`${styles.carouselArrow} ${styles.carouselNext}`}
+                onClick={() => goToSlide(1)}
+                aria-label="Next image"
+              >
+                <ChevronRight size={22} />
+              </button>
+
               {/* Floating Badges */}
               <div className={`${styles.floatingBadge} ${styles.badge1}`}>
                 <Zap size={16} style={{ color: 'var(--color-cyan)' }} /> Live Coding
@@ -252,7 +312,7 @@ export default function LandingPage() {
           className={styles.aboutSection}
         >
           <div className={styles.aboutImageCol}>
-            <Image src="/images/about_us_image.png" alt="About SEAL Hackathon" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} />
+            <Image src="/images/about_us_image_v2.jpg" alt="About SEAL Hackathon" fill sizes="(max-width: 768px) 100vw, 400px" style={{ objectFit: 'cover' }} />
           </div>
           <div className={styles.aboutTextCol}>
             <h2 className={styles.aboutHeading}>Why Join <span className="gradient-text">SEAL?</span></h2>

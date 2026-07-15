@@ -20,6 +20,7 @@ namespace SEAL.NET.Repositories.Implementations
                     .ThenInclude(r => r.Submissions)
                 .Include(e => e.Rounds)
                     .ThenInclude(r => r.PromptDocument)
+                .AsSplitQuery()
                 .OrderByDescending(e => e.CreatedAt)
                 .ToListAsync();
         }
@@ -33,6 +34,7 @@ namespace SEAL.NET.Repositories.Implementations
                     .ThenInclude(r => r.Submissions)
                 .Include(e => e.Rounds)
                     .ThenInclude(r => r.PromptDocument)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(e => e.EventId == eventId);
         }
 

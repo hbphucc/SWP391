@@ -196,18 +196,13 @@ export default function RegisterPage() {
       )}
       <div className={styles.splitContainer}>
         <div className={styles.leftSide}>
+          <Link href="/" className={styles.backBtn}>
+            <ArrowLeft size={16} /> Quay về
+          </Link>
           <div className={styles.orb1} />
           <div className={styles.orb2} />
 
           <div className={`${styles.card} ${styles.registerCard}`}>
-            <button 
-              onClick={() => router.push("/auth/login")} 
-              className={`btn btn-ghost ${styles.backButton}`}
-              aria-label="Back to login"
-            >
-              <ArrowLeft size={20} />
-            </button>
-
             <div className={styles.logoWrap}>
               <div className={styles.logoIcon}>
                 <Trophy size={24} />
@@ -459,14 +454,16 @@ export default function RegisterPage() {
         </div>
 
         <div className={styles.rightSide}>
+          <video
+            className={styles.rightVideo}
+            src="/images/auth_illustration.mp4"
+            poster="/images/auth_illustration.jpg"
+            autoPlay
+            loop
+            muted
+            playsInline
+          />
           <div className={styles.rightOverlay} />
-          <div className={styles.rightContent}>
-            <div className={styles.sloganIcon}>
-              <Code2 size={24} color="white" />
-            </div>
-            <h1 className={styles.sloganTitle}>Join SEAL</h1>
-            <p className={styles.sloganDesc}>Create an account, wait for admin approval, then start building with your team.</p>
-          </div>
         </div>
       </div>
     </div>
