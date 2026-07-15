@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Script from "next/script";
 import { App } from "antd";
-import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import styles from "./Auth.module.css";
@@ -142,6 +142,9 @@ function LoginForm() {
       )}
       <div className={styles.splitContainer}>
         <div className={styles.leftSide}>
+          <Link href="/" className={styles.backBtn}>
+            <ArrowLeft size={16} /> Quay về
+          </Link>
           <div className={styles.orb1} />
           <div className={styles.orb2} />
 
@@ -237,16 +240,16 @@ function LoginForm() {
         </div>
 
         <div className={styles.rightSide}>
+          <video
+            className={styles.rightVideo}
+            src="/images/auth_illustration.mp4"
+            poster="/images/auth_illustration.jpg"
+            autoPlay
+            loop
+            muted
+            playsInline
+          />
           <div className={styles.rightOverlay} />
-          <div className={styles.rightContent}>
-            <div className={styles.sloganIcon}>
-              <Code2 size={24} color="white" />
-            </div>
-            <h1 className={styles.sloganTitle}>SEAL Hackathon</h1>
-            <p className={styles.sloganDesc}>
-              Manage events, teams, submissions, judging, and rankings from one connected system.
-            </p>
-          </div>
         </div>
       </div>
     </div>

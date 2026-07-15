@@ -12,6 +12,32 @@
 .authCenter {
   justify-content: center;
   align-items: center;
+  padding: 2rem 1rem;
+}
+
+/* Full-screen video background with the form card centred on top. */
+.bgVideo {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.bgOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  /* Darker at the edges, a touch lighter at the centre so the card sits in a
+     soft spotlight while the code video stays visible around it. */
+  background:
+    radial-gradient(ellipse at center, rgba(9, 13, 24, 0.62) 0%, rgba(9, 13, 24, 0.92) 100%),
+    linear-gradient(180deg, rgba(9, 13, 24, 0.72) 0%, rgba(9, 13, 24, 0.84) 100%);
+  /* Heavier blur smears the stock-clip watermark so it's not legible, while the
+     code still reads as ambient motion behind the card. */
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
 
 .splitContainer {
@@ -33,11 +59,14 @@
   z-index: 10;
   background: var(--color-bg);
   overflow: hidden;
+  /* Feather the right edge outward so the form side melts into the video
+     instead of meeting it at a hard vertical seam. */
+  box-shadow: 60px 0 120px 30px var(--color-bg);
 }
 
 .rightSide {
   flex: 1;
-  background-image: url('/images/login_illustration.png');
+  background-image: url('/images/auth_illustration.jpg');
   background-size: cover;
   background-position: center;
   position: relative;
@@ -48,10 +77,26 @@
   color: #fff;
 }
 
+.rightVideo {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
 .rightOverlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(135deg, rgba(8, 12, 24, 0.95) 0%, rgba(30, 58, 138, 0.7) 100%);
+  /* Left-edge fade to the form's bg colour blends the seam; diagonal tint
+     on top keeps the slogan text readable over the video. */
+  background:
+    linear-gradient(to right,
+      #090d18 0%,
+      rgba(9, 13, 24, 0.85) 10%,
+      rgba(9, 13, 24, 0.35) 28%,
+      rgba(9, 13, 24, 0) 50%),
+    linear-gradient(135deg, rgba(8, 12, 24, 0.35) 0%, rgba(30, 58, 138, 0.22) 100%);
   z-index: 1;
 }
 
@@ -101,6 +146,37 @@
 @media (max-width: 900px) {
   .rightSide { display: none; }
   .leftSide { flex: 1; min-width: 0; width: 100%; padding: 1rem; }
+}
+
+/* Back-to-home button, pinned to the top-left of the form side */
+.backBtn {
+  position: absolute;
+  top: 1.75rem;
+  left: 1.75rem;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-2);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 999px);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.backBtn:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-primary);
+  transform: translateX(-2px);
+}
+
+@media (max-width: 900px) {
+  .backBtn { top: 1rem; left: 1rem; }
 }
 
 /* Decorative orbs */
