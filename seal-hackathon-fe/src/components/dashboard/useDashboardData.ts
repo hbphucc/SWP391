@@ -170,11 +170,15 @@ export function useDashboardData() {
       }
     };
 
-    loadDashboard();
-    loadActivity();
-    loadInvitations();
-    loadMyTeam();
-    loadRegistrations();
+    const loadAll = async () => {
+      await loadDashboard();
+      await loadActivity();
+      await loadInvitations();
+      await loadMyTeam();
+      await loadRegistrations();
+    };
+
+    void loadAll();
   }, [message, userRoles]);
 
   const filteredEvents = useMemo(() => {

@@ -50,7 +50,7 @@ export default function CreateEventRoundsSection({ rounds, setRounds, addRound, 
                 </button>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "1rem" }}>
               <div className="form-group">
                 <label className="form-label"><Target size={11} /> Top N Teams to Advance</label>
                 <input
@@ -61,6 +61,20 @@ export default function CreateEventRoundsSection({ rounds, setRounds, addRound, 
                   onChange={(e) => setRounds(rounds.map((x) => x.id === r.id ? { ...x, topN: e.target.value } : x))}
                 />
                 <span className="form-hint">Top {r.topN || "?"} teams advance to next round</span>
+              </div>
+              <div className="form-group">
+                <label className="form-label"><Target size={11} /> Pass Threshold</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder="Default 40"
+                  value={r.passThreshold}
+                  onChange={(e) => setRounds(rounds.map((x) => x.id === r.id ? { ...x, passThreshold: e.target.value } : x))}
+                />
+                <span className="form-hint">Minimum weighted score to advance</span>
               </div>
               <div className="form-group">
                 <label className="form-label"><Clock size={11} /> Submission Deadline *</label>

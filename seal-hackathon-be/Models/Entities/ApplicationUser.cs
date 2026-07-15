@@ -35,6 +35,8 @@ namespace SEAL.NET.Models.Entities
         [MaxLength(20)]
         public string? RequestedRole { get; set; }
 
+        public bool EmailNotificationsEnabled { get; set; } = true;
+
         public ICollection<Team> LedTeams { get; set; } = new List<Team>();
         public ICollection<TeamMember> TeamMemberships { get; set; } = new List<TeamMember>();
         public ICollection<JudgeAssignment> JudgeAssignments { get; set; } = new List<JudgeAssignment>();

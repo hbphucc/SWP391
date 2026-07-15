@@ -75,6 +75,10 @@ namespace SEAL.NET.Data
                 .HasConversion<string>()
                 .HasMaxLength(20);
 
+            builder.Entity<ApplicationUser>()
+                .Property(u => u.EmailNotificationsEnabled)
+                .HasDefaultValue(true);
+
             builder.Entity<IdentityRole<Guid>>().ToTable("Roles");
             builder.Entity<IdentityUserRole<Guid>>().ToTable("UserRoles");
             builder.Entity<IdentityUserClaim<Guid>>().ToTable("UserClaims");

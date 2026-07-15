@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using SEAL.NET.Data;
+using SEAL.NET.Helpers;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Repositories.Implementations;
 using SEAL.NET.Repositories.Interfaces;
@@ -20,6 +22,7 @@ var connectionString =
     ?? builder.Configuration["DATABASE_URL"]
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' or 'DATABASE_URL' not found.");
 
+connectionString = BuildNpgsqlConnectionString(connectionString, builder.Configuration);
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (builder.Environment.IsProduction() &&
@@ -33,7 +36,10 @@ if (builder.Environment.IsProduction() &&
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.CommandTimeout(20);
+    }));
 
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
@@ -77,6 +83,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<AuthTokenValidationCache>();
 
 
 builder.Services.AddAuthentication(options =>
@@ -103,25 +111,14 @@ builder.Services.AddAuthentication(options =>
         {
             var userManager = context.HttpContext.RequestServices
                 .GetRequiredService<UserManager<ApplicationUser>>();
+            var authTokenCache = context.HttpContext.RequestServices
+                .GetRequiredService<AuthTokenValidationCache>();
 
             var principal = context.Principal;
             var userId = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId) || !Guid.TryParse(userId, out _))
             {
                 context.Fail("Invalid authentication token.");
-                return;
-            }
-
-            var user = await userManager.FindByIdAsync(userId);
-            if (user == null)
-            {
-                context.Fail("User no longer exists.");
-                return;
-            }
-
-            if (!user.IsApproved)
-            {
-                context.Fail("Account is not approved.");
                 return;
             }
 
@@ -133,10 +130,10 @@ builder.Services.AddAuthentication(options =>
                 return;
             }
 
-            var currentStamp = await userManager.GetSecurityStampAsync(user);
-            if (!string.Equals(tokenStamp, currentStamp, StringComparison.Ordinal))
+            var validationError = await authTokenCache.ValidateAsync(userId, tokenStamp, userManager);
+            if (validationError != null)
             {
-                context.Fail("Session has been invalidated.");
+                context.Fail(validationError);
                 return;
             }
         }
@@ -239,7 +236,7 @@ app.Use(async (context, next) =>
 
 using (var scope = app.Services.CreateScope())
 {
-    await DbSeeder.SeedRolesAndAdminAsync(scope.ServiceProvider);
+    await SeedDatabaseOnStartupAsync(app, scope.ServiceProvider);
 }
 
 if (app.Environment.IsDevelopment())
@@ -280,3 +277,55 @@ app.MapGet("/health", async (ApplicationDbContext dbContext, ILoggerFactory logg
 app.MapControllers();
 
 app.Run();
+
+static string BuildNpgsqlConnectionString(string connectionString, IConfiguration configuration)
+{
+    var builder = new NpgsqlConnectionStringBuilder(connectionString)
+    {
+        Pooling = true,
+        MinPoolSize = 0,
+        MaxPoolSize = configuration.GetValue<int?>("Database:MaxPoolSize") ?? 5,
+        Timeout = configuration.GetValue<int?>("Database:TimeoutSeconds") ?? 15,
+        CommandTimeout = configuration.GetValue<int?>("Database:CommandTimeoutSeconds") ?? 20,
+        ConnectionIdleLifetime = configuration.GetValue<int?>("Database:ConnectionIdleLifetimeSeconds") ?? 10,
+        ConnectionPruningInterval = configuration.GetValue<int?>("Database:ConnectionPruningIntervalSeconds") ?? 5
+    };
+
+    return builder.ConnectionString;
+}
+
+static async Task SeedDatabaseOnStartupAsync(WebApplication app, IServiceProvider serviceProvider)
+{
+    var logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
+    var delays = new[] { TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) };
+
+    for (var attempt = 0; attempt <= delays.Length; attempt++)
+    {
+        try
+        {
+            await DbSeeder.SeedRolesAndAdminAsync(serviceProvider);
+            return;
+        }
+        catch (PostgresException ex) when (IsSupabasePoolLimit(ex) && attempt < delays.Length)
+        {
+            logger.LogWarning(
+                ex,
+                "Supabase connection pool is full while seeding database. Retrying in {DelaySeconds}s.",
+                delays[attempt].TotalSeconds);
+            await Task.Delay(delays[attempt]);
+        }
+        catch (PostgresException ex) when (IsSupabasePoolLimit(ex) && app.Environment.IsDevelopment())
+        {
+            logger.LogWarning(
+                ex,
+                "Supabase connection pool stayed full after retries. Skipping startup seed in Development.");
+            return;
+        }
+    }
+}
+
+static bool IsSupabasePoolLimit(PostgresException ex)
+{
+    return ex.MessageText.Contains("MAXCONNSESSION", StringComparison.OrdinalIgnoreCase)
+        || ex.MessageText.Contains("max clients", StringComparison.OrdinalIgnoreCase);
+}

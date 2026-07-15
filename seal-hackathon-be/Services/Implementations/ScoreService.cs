@@ -11,11 +11,16 @@ namespace SEAL.NET.Services.Implementations
     {
         private readonly ApplicationDbContext _context;
         private readonly INotificationService _notificationService;
+        private readonly IAuditLogService _auditLogService;
 
-        public ScoreService(ApplicationDbContext context, INotificationService notificationService)
+        public ScoreService(
+            ApplicationDbContext context,
+            INotificationService notificationService,
+            IAuditLogService auditLogService)
         {
             _context = context;
             _notificationService = notificationService;
+            _auditLogService = auditLogService;
         }
 
         public async Task<ServiceResult> SubmitScoreAsync(Guid judgeId, CreateScoreRequest request)
@@ -48,9 +53,16 @@ namespace SEAL.NET.Services.Implementations
             if (!isAssigned)
                 return ServiceResult.Forbidden();
 
-            var existingScore = await _context.Scores.FirstOrDefaultAsync(s =>
-                s.SubmissionId == request.SubmissionId &&
-                s.JudgeId == judgeId &&
+            var existingScoresForJudge = await _context.Scores
+                .Where(s =>
+                    s.SubmissionId == request.SubmissionId &&
+                    s.JudgeId == judgeId)
+                .ToListAsync();
+
+            if (existingScoresForJudge.Any(s => s.IsLocked))
+                return ServiceResult.BadRequest("Scores have already been finalized and cannot be edited.");
+
+            var existingScore = existingScoresForJudge.FirstOrDefault(s =>
                 s.CriteriaId == request.CriteriaId);
 
             if (existingScore != null)
@@ -60,6 +72,12 @@ namespace SEAL.NET.Services.Implementations
                 existingScore.CreatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+                await _auditLogService.LogAsync(
+                    judgeId,
+                    "update_score",
+                    "Score",
+                    existingScore.ScoreId.ToString(),
+                    $"Updated score for team '{submission.Team?.TeamName}' in round '{submission.Round?.RoundName}'.");
 
                 return ServiceResult.OkMessage("Score updated successfully.");
             }
@@ -75,6 +93,12 @@ namespace SEAL.NET.Services.Implementations
 
             _context.Scores.Add(score);
             await _context.SaveChangesAsync();
+            await _auditLogService.LogAsync(
+                judgeId,
+                "submit_score",
+                "Score",
+                score.ScoreId.ToString(),
+                $"Submitted score for team '{submission.Team?.TeamName}' in round '{submission.Round?.RoundName}'.");
 
             return ServiceResult.Ok(new { message = "Score submitted successfully.", score.ScoreId });
         }
@@ -291,6 +315,14 @@ namespace SEAL.NET.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
+            await _auditLogService.LogAsync(
+                judgeId,
+                request.Finalize ? "finalize_score" : "save_score_draft",
+                "ScoreEvaluation",
+                request.SubmissionId.ToString(),
+                request.Finalize
+                    ? $"Finalized evaluation for team '{submission.Team?.TeamName}' in round '{submission.Round?.RoundName}'."
+                    : $"Saved draft evaluation for team '{submission.Team?.TeamName}' in round '{submission.Round?.RoundName}'.");
 
             if (request.Finalize)
             {

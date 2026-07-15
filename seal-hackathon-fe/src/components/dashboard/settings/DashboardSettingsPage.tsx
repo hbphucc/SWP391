@@ -1,12 +1,9 @@
 "use client";
 import Link from "next/link";
-import { User, Lock, Bell, SunMoon } from "lucide-react";
+import { Lock, SunMoon, User } from "lucide-react";
+import NotificationPreferencesCard from "@/components/settings/NotificationPreferencesCard";
 import styles from "@/components/settings/SettingsPage.module.css";
 
-// Honest settings page: it only lists what actually works today and points
-// to the real flows (profile/password live on the Profile page, theme lives
-// in the top bar). Server-side preferences are clearly marked as coming soon
-// instead of pretending to save.
 export default function SettingsPage() {
   return (
     <div className={styles.root}>
@@ -38,24 +35,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <div className="glass-card">
-        <h3 className={styles.title}>
-          <Bell size={18} className={styles.primaryIcon} /> Email Notifications
-          <span className={`badge badge-neutral ${styles.soonBadge}`}>Coming soon</span>
-        </h3>
-        <p className={styles.body}>
-          Per-event email preferences are not available yet. In-app notifications are always on —
-          check the bell icon in the top bar.
-        </p>
-        <div className={styles.disabledList}>
-          {["Team invitations", "Event updates", "Submission results"].map(item => (
-            <label key={item} className={styles.disabledItem}>
-              <input type="checkbox" disabled className={styles.checkbox} />
-              <span>{item}</span>
-            </label>
-          ))}
-        </div>
-      </div>
+      <NotificationPreferencesCard />
     </div>
   );
 }

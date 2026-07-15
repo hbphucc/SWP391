@@ -24,8 +24,10 @@ namespace SEAL.NET.Services.Implementations
             if (currentUserId == null) return ServiceResult.Unauthorized("Invalid authentication token.");
 
             var notifications = await _context.Notifications
+                .AsNoTracking()
                 .Where(n => n.UserId == currentUserId.Value)
                 .OrderByDescending(n => n.CreatedAt)
+                .Take(20)
                 .Select(n => new
                 {
                     n.Id,
@@ -76,10 +78,12 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> BroadcastAsync(BroadcastNotificationRequest request)
         {
-            var allUsers = await _userManager.Users.ToListAsync();
+            var allUsers = await _userManager.Users
+                .Where(u => u.IsApproved)
+                .ToListAsync();
 
             if (allUsers.Count == 0)
-                return ServiceResult.BadRequest("No users found to broadcast to.");
+                return ServiceResult.BadRequest("No active users found to broadcast to.");
 
             var broadcastId = Guid.NewGuid();
             var now = DateTime.UtcNow;

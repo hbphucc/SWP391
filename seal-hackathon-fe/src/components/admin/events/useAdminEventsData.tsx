@@ -10,6 +10,7 @@ export type RoundDto = {
   roundName: string;
   roundOrder: number;
   maxTeamsAdvancing: number;
+  passThreshold?: number | null;
   submissionDeadline: string | null;
   hasSubmissions: boolean;
   promptDocumentId?: string | null;
@@ -47,6 +48,7 @@ type RoundDraft = {
   id: number;
   name: string;
   topN: string;
+  passThreshold: string;
   deadline: string;
   promptDocumentId: string | null;
   promptFileName: string | null;
@@ -75,6 +77,7 @@ const INITIAL_ROUND_EDIT_FORM = {
   deadline: "",
   roundOrder: "",
   maxTeamsAdvancing: "",
+  passThreshold: "",
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
 };
@@ -82,6 +85,7 @@ const INITIAL_ROUND = (): RoundDraft => ({
   id: Date.now(),
   name: "",
   topN: "5",
+  passThreshold: "",
   deadline: "",
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
@@ -167,7 +171,7 @@ export function useAdminEventsData() {
 
   /* ── Create form ── */
   const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState<RoundDraft[]>([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
+  const [rounds, setRounds] = useState<RoundDraft[]>([{ id: 1, name: "Qualifying Round", topN: "10", passThreshold: "", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
   const [prizes, setPrizes] = useState<ReturnType<typeof INITIAL_PRIZE>[]>([]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
   // Active section anchor for the sticky TOC sidebar. Used purely for the
@@ -321,6 +325,7 @@ export function useAdminEventsData() {
       deadline: toDateTimeLocal(round.submissionDeadline),
       roundOrder: String(round.roundOrder),
       maxTeamsAdvancing: String(round.maxTeamsAdvancing),
+      passThreshold: round.passThreshold == null ? "" : String(round.passThreshold),
       promptDocumentId: round.promptDocumentId || null,
       promptFileName: round.promptFileName || null,
     });
@@ -351,12 +356,17 @@ export function useAdminEventsData() {
     }
     const roundOrder = Number(roundEditForm.roundOrder);
     const maxTeamsAdvancing = Number(roundEditForm.maxTeamsAdvancing);
+    const passThreshold = roundEditForm.passThreshold.trim() === "" ? null : Number(roundEditForm.passThreshold);
     if (!round.hasSubmissions && (!Number.isInteger(roundOrder) || roundOrder < 1)) {
       message.error("Round order must be a positive whole number.");
       return;
     }
     if (!round.hasSubmissions && (!Number.isInteger(maxTeamsAdvancing) || maxTeamsAdvancing < 0)) {
       message.error("Top N teams must be zero or a positive whole number.");
+      return;
+    }
+    if (!round.hasSubmissions && passThreshold != null && (!Number.isFinite(passThreshold) || passThreshold < 0 || passThreshold > 100)) {
+      message.error("Pass threshold must be between 0 and 100, or left blank for the default.");
       return;
     }
 
@@ -371,6 +381,7 @@ export function useAdminEventsData() {
           maxTeamsAdvancing: round.hasSubmissions
             ? round.maxTeamsAdvancing
             : maxTeamsAdvancing,
+          passThreshold: round.hasSubmissions ? round.passThreshold ?? null : passThreshold,
           promptDocumentId: roundEditForm.promptDocumentId || null,
         }),
       });
@@ -579,6 +590,14 @@ export function useAdminEventsData() {
       message.error("The total weight (%) of criteria for each round must equal exactly 100.");
       return;
     }
+    if (rounds.some((r) => {
+      if (r.passThreshold.trim() === "") return false;
+      const value = Number(r.passThreshold);
+      return !Number.isFinite(value) || value < 0 || value > 100;
+    })) {
+      message.error("Pass threshold must be between 0 and 100, or left blank for the default.");
+      return;
+    }
 
     if (prizes.some((p) => !p.title.trim())) { message.error("Every prize needs a title."); return; }
 
@@ -611,6 +630,7 @@ export function useAdminEventsData() {
             submissionDeadline: toApiDate(r.deadline),
             roundOrder: i + 1,
             maxTeamsAdvancing: Number(r.topN) || 0,
+            passThreshold: r.passThreshold.trim() === "" ? null : Number(r.passThreshold),
             promptDocumentId: r.promptDocumentId || null,
             criteria: r.criteria.map((c) => ({
               criteriaName: c.name.trim(),
@@ -631,7 +651,7 @@ export function useAdminEventsData() {
 
       message.success("Event created successfully.");
       setEventForm({ ...INITIAL_EVENT_FORM });
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
+      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", passThreshold: "", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
       setPrizes([]);
       setSelectedTracks([]);
       setActiveSection("general");

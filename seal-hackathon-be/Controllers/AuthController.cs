@@ -46,6 +46,16 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
             => this.ToActionResult(await _authService.UpdateProfileAsync(CurrentUserId(), request));
 
+        [HttpGet("notification-preferences")]
+        [Authorize]
+        public async Task<IActionResult> GetNotificationPreferences()
+            => this.ToActionResult(await _authService.GetNotificationPreferencesAsync(CurrentUserId()));
+
+        [HttpPut("notification-preferences")]
+        [Authorize]
+        public async Task<IActionResult> UpdateNotificationPreferences([FromBody] NotificationPreferencesRequest request)
+            => this.ToActionResult(await _authService.UpdateNotificationPreferencesAsync(CurrentUserId(), request));
+
         [HttpPost("change-password")]
         [Authorize]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)

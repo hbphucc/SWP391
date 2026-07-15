@@ -14,6 +14,7 @@ namespace SEAL.NET.Repositories.Implementations
         public async Task<List<Event>> GetEventsWithDetailsAsync()
         {
             return await _context.Events
+                .AsNoTracking()
                 .Include(e => e.Categories)
                     .ThenInclude(c => c.Teams)
                 .Include(e => e.Rounds)
@@ -28,6 +29,7 @@ namespace SEAL.NET.Repositories.Implementations
         public async Task<Event?> GetEventDetailAsync(Guid eventId)
         {
             return await _context.Events
+                .AsNoTracking()
                 .Include(e => e.Categories)
                     .ThenInclude(c => c.Teams)
                 .Include(e => e.Rounds)

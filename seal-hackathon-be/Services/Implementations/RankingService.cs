@@ -8,6 +8,13 @@ namespace SEAL.NET.Services.Implementations
 {
     public class RankingService : IRankingService
     {
+        private static readonly TeamStatus[] RankableTeamStatuses =
+        [
+            TeamStatus.Approved,
+            TeamStatus.Active,
+            TeamStatus.Champion
+        ];
+
         private readonly ApplicationDbContext _context;
 
         public RankingService(ApplicationDbContext context)
@@ -47,7 +54,10 @@ namespace SEAL.NET.Services.Implementations
                         .ThenInclude(t => t!.Submissions)
                             .ThenInclude(sub => sub.Scores)
                                 .ThenInclude(sc => sc.Criteria)
-                    .Where(s => s.RoundId == roundId)
+                    .Where(s =>
+                        s.RoundId == roundId &&
+                        s.Team != null &&
+                        RankableTeamStatuses.Contains(s.Team.Status))
                     .ToListAsync();
 
                 var teamResults = new List<dynamic>();
@@ -105,7 +115,10 @@ namespace SEAL.NET.Services.Implementations
                         .ThenInclude(t => t!.Category)
                     .Include(s => s.Scores)
                         .ThenInclude(sc => sc.Criteria)
-                    .Where(s => s.RoundId == roundId)
+                    .Where(s =>
+                        s.RoundId == roundId &&
+                        s.Team != null &&
+                        RankableTeamStatuses.Contains(s.Team.Status))
                     .ToListAsync();
 
                 var teamResults = submissions.Select(s => new
@@ -153,7 +166,11 @@ namespace SEAL.NET.Services.Implementations
                         .ThenInclude(t => t!.Submissions)
                             .ThenInclude(sub => sub.Scores)
                                 .ThenInclude(sc => sc.Criteria)
-                    .Where(s => s.RoundId == roundId && s.Team!.CategoryId == categoryId)
+                    .Where(s =>
+                        s.RoundId == roundId &&
+                        s.Team != null &&
+                        s.Team.CategoryId == categoryId &&
+                        RankableTeamStatuses.Contains(s.Team.Status))
                     .ToListAsync();
 
                 var teamResults = new List<dynamic>();
@@ -208,7 +225,11 @@ namespace SEAL.NET.Services.Implementations
                     .Include(s => s.Team)
                     .Include(s => s.Scores)
                         .ThenInclude(sc => sc.Criteria)
-                    .Where(s => s.RoundId == roundId && s.Team!.CategoryId == categoryId)
+                    .Where(s =>
+                        s.RoundId == roundId &&
+                        s.Team != null &&
+                        s.Team.CategoryId == categoryId &&
+                        RankableTeamStatuses.Contains(s.Team.Status))
                     .ToListAsync();
 
                 var teamResults = submissions.Select(s => new
@@ -246,7 +267,9 @@ namespace SEAL.NET.Services.Implementations
                 .Include(t => t.Submissions)
                     .ThenInclude(s => s.Scores)
                         .ThenInclude(sc => sc.Criteria)
-                .Where(t => t.Category.EventId == eventId && t.Status != TeamStatus.Pending && t.Status != TeamStatus.Rejected)
+                .Where(t =>
+                    t.Category.EventId == eventId &&
+                    RankableTeamStatuses.Contains(t.Status))
                 .ToListAsync();
 
             var teamResults = new List<dynamic>();
@@ -312,7 +335,9 @@ namespace SEAL.NET.Services.Implementations
                 .Include(t => t.Submissions)
                     .ThenInclude(s => s.Scores)
                         .ThenInclude(sc => sc.Criteria)
-                .Where(t => t.CategoryId == categoryId && t.Status != TeamStatus.Pending && t.Status != TeamStatus.Rejected)
+                .Where(t =>
+                    t.CategoryId == categoryId &&
+                    RankableTeamStatuses.Contains(t.Status))
                 .ToListAsync();
 
             var teamResults = new List<dynamic>();
