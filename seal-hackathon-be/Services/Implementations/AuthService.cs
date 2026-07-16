@@ -330,6 +330,43 @@ namespace SEAL.NET.Services.Implementations
             return ServiceResult.Ok(BuildProfile(user, roles));
         }
 
+        public async Task<ServiceResult> GetNotificationPreferencesAsync(string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return ServiceResult.Unauthorized("Invalid authentication token.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return ServiceResult.Unauthorized("User not found.");
+
+            return ServiceResult.Ok(new
+            {
+                user.EmailNotificationsEnabled
+            });
+        }
+
+        public async Task<ServiceResult> UpdateNotificationPreferencesAsync(string? userId, NotificationPreferencesRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return ServiceResult.Unauthorized("Invalid authentication token.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return ServiceResult.Unauthorized("User not found.");
+
+            user.EmailNotificationsEnabled = request.EmailNotificationsEnabled;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return ServiceResult.BadRequestBody(result.Errors);
+
+            return ServiceResult.Ok(new
+            {
+                message = "Notification preferences updated successfully.",
+                user.EmailNotificationsEnabled
+            });
+        }
+
         public async Task<ServiceResult> ChangePasswordAsync(string? userId, ChangePasswordRequest request)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -445,6 +482,7 @@ namespace SEAL.NET.Services.Implementations
             developerRole = user.DeveloperRole == null ? null : user.DeveloperRole.ToString(),
             programmingLanguages = DeveloperProfileOptions.ParseLanguages(user.ProgrammingLanguages),
             requestedRole = user.RequestedRole,
+            emailNotificationsEnabled = user.EmailNotificationsEnabled,
             roles
         };
 

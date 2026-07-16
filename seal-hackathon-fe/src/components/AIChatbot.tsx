@@ -56,9 +56,9 @@ export default function AIChatbot() {
 
   const suggestedQuestions = [
     "How do I register?",
-    "Competition rules",
-    "Prize structure",
-    "Find mentors or teammates",
+    "Submission deadline",
+    "View results",
+    "Find teammates",
   ];
 
   const removeAccents = (str: string) => {
@@ -90,18 +90,34 @@ export default function AIChatbot() {
       if (normalizedInput.includes("dang ky") || normalizedInput.includes("register") || normalizedInput.includes("tham gia")) {
         botMessage.text = "To register for SEAL Hackathon, create a team from My Team or use Matchmaking to find teammates.";
         botMessage.action = { label: "Go to Teams", path: "/dashboard/teams" };
+      } else if (normalizedInput.includes("deadline") || normalizedInput.includes("han nop") || normalizedInput.includes("tre")) {
+        botMessage.text = "Submission deadlines are shown on each event round and on your Submissions page. The backend blocks late submissions, so submit before the displayed deadline.";
+        botMessage.action = { label: "Open Submissions", path: "/dashboard/submissions" };
+      } else if (normalizedInput.includes("submit") || normalizedInput.includes("submission") || normalizedInput.includes("nop bai")) {
+        botMessage.text = "Your team leader can submit the repository URL, demo URL, and slide/report URL from the Submissions page while the current round is still open.";
+        botMessage.action = { label: "Open Submissions", path: "/dashboard/submissions" };
       } else if (normalizedInput.includes("rule") || normalizedInput.includes("the le") || normalizedInput.includes("noi quy")) {
         botMessage.text = "Competition rules: teams must have 3-5 members, submissions must be original, and each round must be submitted before its deadline.";
       } else if (normalizedInput.includes("prize") || normalizedInput.includes("giai thuong") || normalizedInput.includes("thuong")) {
         botMessage.text = "Prize details are available on the Prizes page.";
         botMessage.action = { label: "View Prizes", path: "/dashboard/prizes" };
+      } else if (normalizedInput.includes("result") || normalizedInput.includes("rank") || normalizedInput.includes("ket qua") || normalizedInput.includes("diem")) {
+        botMessage.text = "Results and rankings appear after judges save or finalize evaluations. You can check rankings and your team's finalized feedback from the dashboard.";
+        botMessage.action = { label: "View Rankings", path: "/dashboard/rankings" };
       } else if (normalizedInput.includes("team") || normalizedInput.includes("nhom") || normalizedInput.includes("doi")) {
         botMessage.text = "You can manage your team from My Team. If you need teammates, open Matchmaking and send invitations.";
         botMessage.action = { label: "Open Teams", path: "/dashboard/teams" };
+      } else if (normalizedInput.includes("match") || normalizedInput.includes("teammate") || normalizedInput.includes("dong doi")) {
+        botMessage.text = "Use Matchmaking to browse free agents, find recruiting teams, and send join requests or invitations.";
+        botMessage.action = { label: "Open Matchmaking", path: "/dashboard/matchmaking" };
       } else if (normalizedInput.includes("mentor") || normalizedInput.includes("huong dan")) {
         botMessage.text = "Mentors are assigned to support teams. You can see mentor-related updates from your team workspace.";
+      } else if (normalizedInput.includes("help") || normalizedInput.includes("guide") || normalizedInput.includes("faq")) {
+        botMessage.text = "The Hackathon Guide has walkthroughs for joining events, creating teams, submitting work, judging flow, and FAQs.";
+        botMessage.action = { label: "Open Guide", path: "/dashboard/help" };
       } else {
-        botMessage.text = "I can help with SEAL Hackathon registration, rules, prizes, teams, matchmaking, and mentors.";
+        botMessage.text = "I can help with registration, deadlines, submissions, rules, prizes, teams, matchmaking, mentors, results, and the guide page.";
+        botMessage.action = { label: "Open Guide", path: "/dashboard/help" };
       }
 
       setMessages((prev) => [...prev, botMessage]);
@@ -158,7 +174,7 @@ export default function AIChatbot() {
               <Avatar icon={<RobotOutlined />} style={{ backgroundColor: "#3b82f6" }} />
               <div>
                 <div style={{ fontWeight: "bold", fontSize: 15 }}>SEAL AI Assistant</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>Always online</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>FAQ guide</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

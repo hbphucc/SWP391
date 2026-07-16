@@ -11,6 +11,7 @@ import {
   Target,
   Bell,
   Mail,
+  CircleHelp,
 } from "lucide-react";
 import type { Portal } from "./routePolicies";
 
@@ -47,6 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "dash-criteria", label: "Criteria", href: "/admin/events?tab=criteria", icon: FileText, roles: ["Admin"], portal: "dashboard", section: "Judging" },
   { id: "dash-scoring", label: "Scoring", href: "/dashboard/judging", icon: Target, roles: ["Judge", "Admin"], portal: "dashboard", section: "Judging" },
   { id: "dash-rankings", label: "Rankings", href: "/dashboard/rankings", icon: Trophy, roles: null, portal: "dashboard", section: "Judging" },
+  { id: "dash-help", label: "Guide", href: "/dashboard/help", icon: CircleHelp, roles: null, portal: "dashboard", section: "Content" },
   { id: "dash-documents", label: "Documents", href: "/dashboard/documents", icon: FileText, roles: null, portal: "dashboard", section: "Content" },
   { id: "dash-storage", label: "Storage", href: "/dashboard/storage", icon: Cloud, roles: ["Admin"], portal: "dashboard", section: "Content" },
   { id: "dash-analytics", label: "Analytics", href: "/dashboard/analytics", icon: BookOpen, roles: ["Admin", "Judge"], portal: "dashboard", section: "Content" },

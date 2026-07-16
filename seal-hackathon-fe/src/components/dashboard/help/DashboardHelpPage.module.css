@@ -1,0 +1,332 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.header {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.subtitle {
+  margin: 0.45rem 0 0;
+  max-width: 820px;
+  color: var(--color-text-3);
+  line-height: 1.6;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: min(100%, 360px);
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border-1);
+  border-radius: 8px;
+  background: var(--color-surface-1);
+  color: var(--color-text-3);
+}
+
+.searchBox input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-1);
+  font: inherit;
+}
+
+.roleTabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
+.roleTab {
+  border: 1px solid var(--color-border-1);
+  background: var(--color-surface-1);
+  color: var(--color-text-2);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.roleTabActive {
+  border-color: var(--color-primary-2);
+  background: var(--color-primary-1);
+  color: white;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.topicColumn,
+.sideColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.topicCard,
+.sideCard {
+  padding: 1.25rem;
+}
+
+.topicHeader,
+.sideHeader {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.topicIcon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--color-primary-2);
+  flex-shrink: 0;
+}
+
+.topicIntro {
+  min-width: 0;
+}
+
+.topicMeta {
+  color: var(--color-primary-2);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+
+.topicIntro h2,
+.sideHeader h2 {
+  margin: 0;
+  color: var(--color-text-1);
+  font-size: 1.05rem;
+}
+
+.topicIntro p,
+.sideHeader p {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-3);
+  line-height: 1.55;
+}
+
+.stepList {
+  margin: 1rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--color-text-2);
+  line-height: 1.7;
+}
+
+.stepList li + li {
+  margin-top: 0.35rem;
+}
+
+.tipList {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.tipItem {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  color: var(--color-text-2);
+  border: 1px solid var(--color-border-1);
+  border-radius: 8px;
+  padding: 0.65rem 0.7rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tipItem svg {
+  color: var(--color-emerald);
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.quickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.progressTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+  margin: 1rem 0;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-primary-2), var(--color-cyan));
+  transition: width 0.2s ease;
+}
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.checkItem {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--color-text-2);
+  border: 1px solid var(--color-border-1);
+  border-radius: 8px;
+  padding: 0.65rem 0.7rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.checkItem input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary-2);
+}
+
+.resetButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.9rem;
+  border: 1px solid var(--color-border-1);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  background: var(--color-surface-1);
+  color: var(--color-text-2);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.faqItem {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 1px solid var(--color-border-1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--color-text-2);
+  padding: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.faqQuestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--color-text-1);
+  font-weight: 700;
+}
+
+.faqAnswer {
+  color: var(--color-text-3);
+  line-height: 1.55;
+  margin-top: 0.55rem;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.glossaryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+}
+
+.glossaryItem {
+  border-bottom: 1px solid var(--color-border-1);
+  padding-bottom: 0.7rem;
+}
+
+.glossaryItem:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.glossaryItem dt {
+  color: var(--color-text-1);
+  font-weight: 800;
+}
+
+.glossaryItem dd {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-3);
+  line-height: 1.5;
+}
+
+.emptyState,
+.smallEmpty {
+  border: 1px dashed var(--color-border-1);
+  border-radius: 8px;
+  color: var(--color-text-3);
+  padding: 1rem;
+  text-align: center;
+}
+
+.emptyState {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .searchBox {
+    width: 100%;
+  }
+
+  .topicCard,
+  .sideCard {
+    padding: 1rem;
+  }
+}

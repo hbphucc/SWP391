@@ -12,11 +12,16 @@ namespace SEAL.NET.Services.Implementations
     {
         private readonly ApplicationDbContext _context;
         private readonly INotificationService _notificationService;
+        private readonly IAuditLogService _auditLogService;
 
-        public SubmissionService(ApplicationDbContext context, INotificationService notificationService)
+        public SubmissionService(
+            ApplicationDbContext context,
+            INotificationService notificationService,
+            IAuditLogService auditLogService)
         {
             _context = context;
             _notificationService = notificationService;
+            _auditLogService = auditLogService;
         }
 
         private async Task NotifySubmissionReceivedAsync(Team team, Round round, bool isUpdate)
@@ -80,6 +85,12 @@ namespace SEAL.NET.Services.Implementations
                 existingSubmission.SubmittedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+                await _auditLogService.LogAsync(
+                    currentUserId,
+                    "update_submission",
+                    "Submission",
+                    existingSubmission.SubmissionId.ToString(),
+                    $"Updated submission for team '{team.TeamName}' in round '{round.RoundName}'.");
                 await NotifySubmissionReceivedAsync(team, round, isUpdate: true);
 
                 return ServiceResult.Ok(new
@@ -100,6 +111,12 @@ namespace SEAL.NET.Services.Implementations
 
             _context.Submissions.Add(submission);
             await _context.SaveChangesAsync();
+            await _auditLogService.LogAsync(
+                currentUserId,
+                "create_submission",
+                "Submission",
+                submission.SubmissionId.ToString(),
+                $"Created submission for team '{team.TeamName}' in round '{round.RoundName}'.");
             await NotifySubmissionReceivedAsync(team, round, isUpdate: false);
 
             return ServiceResult.Ok(new

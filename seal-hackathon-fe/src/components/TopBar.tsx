@@ -117,15 +117,10 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     document.addEventListener("mousedown", handleClickOutside);
     const id = window.setTimeout(() => {
       void loadNotifications();
-    }, 0);
-
-    const intervalId = setInterval(() => {
-      void loadNotifications();
-    }, 15000);
+    }, 3000);
 
     return () => {
       window.clearTimeout(id);
-      clearInterval(intervalId);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [loadNotifications]);

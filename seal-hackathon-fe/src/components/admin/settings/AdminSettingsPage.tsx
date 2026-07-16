@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Shield, Bell, Globe, User } from "lucide-react";
+import NotificationPreferencesCard from "@/components/settings/NotificationPreferencesCard";
 import styles from "@/components/settings/SettingsPage.module.css";
 
 // Honest admin settings page: there is no backend settings API yet, so the
@@ -38,6 +39,8 @@ export default function AdminSettingsPage() {
           <button className="btn btn-secondary">Open System Notifications</button>
         </Link>
       </div>
+
+      <NotificationPreferencesCard />
 
       <div className="glass-card">
         <h3 className={styles.title}>

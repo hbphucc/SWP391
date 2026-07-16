@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { FileText, Download, Upload, Trash2 } from "lucide-react";
+import { FileText, Download, Upload, Trash2, Search, X } from "lucide-react";
 import { App } from "antd";
 import { apiRequest, apiUpload, apiDownload } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
@@ -24,6 +24,19 @@ interface MentorTeam {
   teamName: string;
 }
 
+type DocumentTypeFilter = "all" | "pdf" | "image" | "document" | "spreadsheet" | "presentation" | "archive" | "other";
+
+const DOCUMENT_TYPE_OPTIONS: { value: DocumentTypeFilter; label: string }[] = [
+  { value: "all", label: "All types" },
+  { value: "pdf", label: "PDF" },
+  { value: "image", label: "Images" },
+  { value: "document", label: "Documents" },
+  { value: "spreadsheet", label: "Spreadsheets" },
+  { value: "presentation", label: "Presentations" },
+  { value: "archive", label: "Archives" },
+  { value: "other", label: "Other" },
+];
+
 function formatSize(bytes: number) {
   if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   if (bytes >= 1024) return (bytes / 1024).toFixed(1) + " KB";
@@ -33,6 +46,47 @@ function formatSize(bytes: number) {
 function formatDate(value: string) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function getFileExtension(fileName: string) {
+  const lastDotIndex = fileName.lastIndexOf(".");
+  return lastDotIndex >= 0 ? fileName.slice(lastDotIndex + 1).toLowerCase() : "";
+}
+
+function getDocumentType(doc: DocumentDto): DocumentTypeFilter {
+  const contentType = doc.contentType.toLowerCase();
+  const extension = getFileExtension(doc.fileName);
+
+  if (contentType.includes("pdf") || extension === "pdf") return "pdf";
+  if (contentType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension)) return "image";
+  if (
+    contentType.includes("word") ||
+    contentType.includes("document") ||
+    ["doc", "docx", "txt", "rtf"].includes(extension)
+  ) return "document";
+  if (
+    contentType.includes("sheet") ||
+    contentType.includes("excel") ||
+    ["xls", "xlsx", "csv"].includes(extension)
+  ) return "spreadsheet";
+  if (
+    contentType.includes("presentation") ||
+    contentType.includes("powerpoint") ||
+    ["ppt", "pptx"].includes(extension)
+  ) return "presentation";
+  if (
+    contentType.includes("zip") ||
+    contentType.includes("rar") ||
+    contentType.includes("7z") ||
+    ["zip", "rar", "7z", "tar", "gz"].includes(extension)
+  ) return "archive";
+
+  return "other";
+}
+
+function getDocumentTypeLabel(doc: DocumentDto) {
+  const type = getDocumentType(doc);
+  return DOCUMENT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Other";
 }
 
 export default function DocumentsPage() {
@@ -47,6 +101,8 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [events, setEvents] = useState<{eventId: string, eventName: string}[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("global");
+  const [searchText, setSearchText] = useState("");
+  const [typeFilter, setTypeFilter] = useState<DocumentTypeFilter>("all");
 
   const [mentorTeams, setMentorTeams] = useState<MentorTeam[]>([]);
   const [viewContext, setViewContext] = useState<string>("official");
@@ -147,12 +203,34 @@ export default function DocumentsPage() {
     });
   };
   const filteredDocs = useMemo(() => {
-    if (isAdmin || !isMentor) return docs;
-    if (viewContext === "official") {
-      return docs.filter(d => !d.teamId);
-    }
-    return docs.filter(d => d.teamId === viewContext);
-  }, [docs, isAdmin, isMentor, viewContext]);
+    const scopedDocs = (() => {
+      if (isAdmin || !isMentor) return docs;
+      if (viewContext === "official") {
+        return docs.filter(d => !d.teamId);
+      }
+      return docs.filter(d => d.teamId === viewContext);
+    })();
+
+    const query = searchText.trim().toLowerCase();
+
+    return scopedDocs.filter((doc) => {
+      const matchesType = typeFilter === "all" || getDocumentType(doc) === typeFilter;
+      const matchesSearch =
+        query.length === 0 ||
+        doc.fileName.toLowerCase().includes(query) ||
+        (doc.eventName ?? "").toLowerCase().includes(query) ||
+        (doc.uploaderName ?? "").toLowerCase().includes(query);
+
+      return matchesType && matchesSearch;
+    });
+  }, [docs, isAdmin, isMentor, searchText, typeFilter, viewContext]);
+
+  const hasActiveFilters = searchText.trim().length > 0 || typeFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchText("");
+    setTypeFilter("all");
+  };
 
   return (
     <div className={styles.root}>
@@ -193,12 +271,48 @@ export default function DocumentsPage() {
       </div>
 
       <div className={`glass-card ${styles.card}`}>
-        <h4 className={styles.cardTitle}>All Files</h4>
+        <div className={styles.cardHeader}>
+          <div>
+            <h4 className={styles.cardTitle}>All Files</h4>
+            <p className={styles.cardSubtitle}>
+              Showing {filteredDocs.length} of {docs.length} document{docs.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className={styles.filters}>
+            <div className={styles.searchBox}>
+              <Search size={15} className={styles.searchIcon} />
+              <input
+                className={styles.searchInput}
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search by file, event, or uploader..."
+                aria-label="Search documents"
+              />
+            </div>
+            <select
+              className={`form-input ${styles.typeSelect}`}
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as DocumentTypeFilter)}
+              aria-label="Filter documents by type"
+            >
+              {DOCUMENT_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            {hasActiveFilters && (
+              <button className={`btn btn-ghost btn-sm ${styles.clearButton}`} onClick={clearFilters}>
+                <X size={14} /> Clear
+              </button>
+            )}
+          </div>
+        </div>
         <div className={styles.list}>
           {loading ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "var(--color-text-3)" }}>Loading documents…</div>
           ) : filteredDocs.length === 0 ? (
-            <div className={styles.emptyState}>No documents found. Upload one to get started.</div>
+            <div className={styles.emptyState}>
+              {hasActiveFilters ? "No documents match these filters." : "No documents found. Upload one to get started."}
+            </div>
           ) : filteredDocs.map((d, i) => (
             <div key={d.documentId} className={`${styles.row} ${i === filteredDocs.length - 1 ? styles.lastRow : ""}`}>
               <div className={styles.fileInfo}>
@@ -213,7 +327,7 @@ export default function DocumentsPage() {
                     )}
                   </div>
                   <div className={styles.fileMeta}>
-                    {formatSize(d.size)} · Uploaded {formatDate(d.uploadedAt)}{d.uploaderName ? ` · ${d.uploaderName}` : ""}
+                    {getDocumentTypeLabel(d)} · {formatSize(d.size)} · Uploaded {formatDate(d.uploadedAt)}{d.uploaderName ? ` · ${d.uploaderName}` : ""}
                   </div>
                 </div>
               </div>

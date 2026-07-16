@@ -1,4 +1,4 @@
-import { Clock, AlertCircle, Pencil, Trash2, Save } from "lucide-react";
+import { AlertCircle, Clock, Pencil, Save, Trash2 } from "lucide-react";
 import { apiUpload } from "@/lib/api";
 import DateTimePickerField from "./DateTimePickerField";
 import { toDisplayDate } from "./eventFormHelpers";
@@ -9,6 +9,7 @@ interface RoundEditFormState {
   deadline: string;
   roundOrder: string;
   maxTeamsAdvancing: string;
+  passThreshold: string;
   promptDocumentId: string | null;
   promptFileName: string | null;
 }
@@ -32,8 +33,21 @@ interface EventRoundsTabProps {
 }
 
 export default function EventRoundsTab({
-  selectedEvent, editingRoundId, roundEditForm, setRoundEditForm, saving, deletingRoundId, advancingId, loading,
-  onBeginEditRound, onUpdateRound, onDeleteRound, onAdvanceRound, onCancelEditRound, onUploadError, onUploadSuccess,
+  selectedEvent,
+  editingRoundId,
+  roundEditForm,
+  setRoundEditForm,
+  saving,
+  deletingRoundId,
+  advancingId,
+  loading,
+  onBeginEditRound,
+  onUpdateRound,
+  onDeleteRound,
+  onAdvanceRound,
+  onCancelEditRound,
+  onUploadError,
+  onUploadSuccess,
 }: EventRoundsTabProps) {
   return (
     <div>
@@ -48,8 +62,10 @@ export default function EventRoundsTab({
         <div
           key={round.roundId}
           style={{
-            marginBottom: "1rem", background: "var(--color-surface-2)",
-            padding: "1rem", borderRadius: "var(--radius-md)",
+            marginBottom: "1rem",
+            background: "var(--color-surface-2)",
+            padding: "1rem",
+            borderRadius: "var(--radius-md)",
             border: "1px solid var(--color-border-2)",
           }}
         >
@@ -59,15 +75,15 @@ export default function EventRoundsTab({
                 Round {index + 1}: {round.roundName}
               </div>
               <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)", marginTop: "0.25rem" }}>
-                Deadline: {toDisplayDate(round.submissionDeadline)} · Top {round.maxTeamsAdvancing} advance
+                Deadline: {toDisplayDate(round.submissionDeadline)} | Top {round.maxTeamsAdvancing} advance | Pass {round.passThreshold ?? "default"}
                 {round.promptFileName && (
                   <span style={{ marginLeft: "1rem", color: "var(--color-primary)", fontWeight: 500 }}>
-                    📄 {round.promptFileName}
+                    Prompt: {round.promptFileName}
                   </span>
                 )}
               </div>
               {round.hasSubmissions && (
-                <span className="badge badge-neutral" style={{ marginTop: "0.5rem" }}>Has submissions · deadline only</span>
+                <span className="badge badge-neutral" style={{ marginTop: "0.5rem" }}>Has submissions | deadline only</span>
               )}
             </div>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -94,21 +110,59 @@ export default function EventRoundsTab({
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
                 <div className="form-group">
                   <label className="form-label">Round Name</label>
-                  <input className="form-input" value={roundEditForm.roundName} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, roundName: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                  <input
+                    className="form-input"
+                    value={roundEditForm.roundName}
+                    onChange={(event) => setRoundEditForm((cur) => ({ ...cur, roundName: event.target.value }))}
+                    disabled={saving || round.hasSubmissions}
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Submission Deadline</label>
-                  <DateTimePickerField value={roundEditForm.deadline} onChange={(value) => setRoundEditForm((cur) => ({ ...cur, deadline: value }))} disabled={saving} />
+                  <DateTimePickerField
+                    value={roundEditForm.deadline}
+                    onChange={(value) => setRoundEditForm((cur) => ({ ...cur, deadline: value }))}
+                    disabled={saving}
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Round Order</label>
-                  <input type="number" min={1} className="form-input" value={roundEditForm.roundOrder} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, roundOrder: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                  <input
+                    type="number"
+                    min={1}
+                    className="form-input"
+                    value={roundEditForm.roundOrder}
+                    onChange={(event) => setRoundEditForm((cur) => ({ ...cur, roundOrder: event.target.value }))}
+                    disabled={saving || round.hasSubmissions}
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Top N Teams</label>
-                  <input type="number" min={0} className="form-input" value={roundEditForm.maxTeamsAdvancing} onChange={(e) => setRoundEditForm((cur) => ({ ...cur, maxTeamsAdvancing: e.target.value }))} disabled={saving || round.hasSubmissions} />
+                  <input
+                    type="number"
+                    min={0}
+                    className="form-input"
+                    value={roundEditForm.maxTeamsAdvancing}
+                    onChange={(event) => setRoundEditForm((cur) => ({ ...cur, maxTeamsAdvancing: event.target.value }))}
+                    disabled={saving || round.hasSubmissions}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Pass Threshold</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.1"
+                    className="form-input"
+                    placeholder="Default 40"
+                    value={roundEditForm.passThreshold}
+                    onChange={(event) => setRoundEditForm((cur) => ({ ...cur, passThreshold: event.target.value }))}
+                    disabled={saving || round.hasSubmissions}
+                  />
                 </div>
               </div>
+
               <div className="form-group" style={{ marginTop: "1rem" }}>
                 <label className="form-label">Round Prompt Document (Optional)</label>
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem", minHeight: 40 }}>
@@ -116,8 +170,8 @@ export default function EventRoundsTab({
                     type="file"
                     id={`edit-round-prompt-${round.roundId}`}
                     style={{ display: "none" }}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
                       if (file) {
                         try {
                           const fd = new FormData();
