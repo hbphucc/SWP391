@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Users, FileEdit, MessageSquare, Clipboard, Send, Eye, Mail } from "lucide-react";
+import { Users, FileEdit, MessageSquare, Clipboard, Send, Eye, Mail, Search, Filter } from "lucide-react";
 import { App, Modal, Input, Spin, Empty, Tag } from "antd";
 import { apiRequest } from "@/lib/api";
 import StatCardRow from "@/components/workspace/StatCardRow";
@@ -38,6 +38,9 @@ export default function MentorWorkspacePage() {
   const [pendingInvitationCount, setPendingInvitationCount] = useState(0);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [eventFilter, setEventFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
 
   const loadTeams = useCallback(async () => {
     setLoading(true);
@@ -100,6 +103,34 @@ export default function MentorWorkspacePage() {
     [teams]
   );
 
+  const eventOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach((team) => map.set(team.eventName, team.eventName));
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [teams]);
+
+  const visibleTeams = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+
+    return teams.filter((team) => {
+      if (eventFilter !== "all" && team.eventName !== eventFilter) return false;
+      if (teamFilter === "submitted" && !team.latestSubmission) return false;
+      if (teamFilter === "missingSubmission" && team.latestSubmission) return false;
+      if (teamFilter === "hasNotes" && !team.notes) return false;
+      if (teamFilter === "needsNotes" && team.notes) return false;
+
+      if (!query) return true;
+
+      return [
+        team.teamName,
+        team.categoryName,
+        team.eventName,
+        team.status,
+        team.latestSubmission?.roundName,
+      ].some((value) => value?.toLowerCase().includes(query));
+    });
+  }, [eventFilter, searchText, teamFilter, teams]);
+
   const openReview = (team: MentorTeam) => {
     setSelectedTeam(team);
     setNote(team.notes || "");
@@ -135,20 +166,53 @@ export default function MentorWorkspacePage() {
         <Empty description="You have not been assigned to mentor any teams yet." />
       </div>
     ) : (
-      <div className="table-wrapper">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Team Name</th>
-              <th>Track / Event</th>
-              <th>Members</th>
-              <th>Status</th>
-              <th>Submission Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {teams.map((t) => (
+      <>
+        <div className="glass-card" style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center", marginBottom: "1rem" }}>
+          <Input
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder="Search team, event, track, or round..."
+            prefix={<Search size={15} />}
+            allowClear
+            style={{ flex: "1 1 260px" }}
+          />
+          <select className="form-input" value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} style={{ flex: "0 1 220px" }}>
+            <option value="all">All events</option>
+            {eventOptions.map((eventName) => (
+              <option key={eventName} value={eventName}>{eventName}</option>
+            ))}
+          </select>
+          <select className="form-input" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} style={{ flex: "0 1 210px" }}>
+            <option value="all">All teams</option>
+            <option value="submitted">With submissions</option>
+            <option value="missingSubmission">No submissions</option>
+            <option value="hasNotes">Has notes</option>
+            <option value="needsNotes">Needs notes</option>
+          </select>
+          <span className="badge badge-neutral">
+            <Filter size={12} style={{ marginRight: 4 }} /> {visibleTeams.length} shown
+          </span>
+        </div>
+
+        {visibleTeams.length === 0 ? (
+          <div className="glass-card" style={{ textAlign: "center", padding: "2.5rem 1rem" }}>
+            <Empty description="No teams match these filters." />
+          </div>
+        ) : (
+          <div className="table-wrapper">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Team Name</th>
+                  <th>Track / Event</th>
+                  <th>Members</th>
+                  <th>Status</th>
+                  <th>Submission Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleTeams.map((t) => (
               <tr key={t.teamId} onClick={() => setDetailTeamId(t.teamId)} style={{ cursor: "pointer" }}>
                 <td className="table-cell-primary">
                   <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -206,10 +270,12 @@ export default function MentorWorkspacePage() {
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </>
     )
   );
 

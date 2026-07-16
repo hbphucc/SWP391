@@ -264,7 +264,6 @@ namespace SEAL.NET.Services.Implementations
                 Email = request.Email,
                 FullName = request.Name,
                 SchoolName = request.Company,
-                PlainPassword = tempPassword,
                 IsApproved = true,
                 CreatedAt = DateTime.UtcNow
             };

@@ -25,6 +25,8 @@ namespace SEAL.NET.Services.Implementations
                 .Include(d => d.Event)
                 .AsQueryable();
 
+            var promptDocumentRounds = new Dictionary<Guid, (Guid EventId, string EventName, string RoundName)>();
+
             if (!roles.Contains("Admin") && currentUserId.HasValue)
             {
                 if (roles.Contains("Mentor") || roles.Contains("Judge"))
@@ -42,9 +44,36 @@ namespace SEAL.NET.Services.Implementations
                         .SelectMany(ma => ma.Team.Members.Select(tm => tm.UserId))
                         .ToListAsync();
 
+                    promptDocumentRounds = await _context.Rounds
+                        .AsNoTracking()
+                        .Include(r => r.Event)
+                        .Where(r =>
+                            r.PromptDocumentId.HasValue &&
+                            participatedEventIds.Contains(r.EventId))
+                        .GroupBy(r => r.PromptDocumentId!.Value)
+                        .Select(g => new
+                        {
+                            DocumentId = g.Key,
+                            Round = g
+                                .OrderBy(r => r.RoundOrder)
+                                .Select(r => new
+                                {
+                                    r.EventId,
+                                    EventName = r.Event.EventName,
+                                    r.RoundName
+                                })
+                                .First()
+                        })
+                        .ToDictionaryAsync(
+                            item => item.DocumentId,
+                            item => (item.Round.EventId, item.Round.EventName, item.Round.RoundName));
+
+                    var promptDocumentIds = promptDocumentRounds.Keys.ToList();
+
                     query = query.Where(d =>
                         (d.EventId == null && d.UploaderId.HasValue && adminUserIds.Contains(d.UploaderId.Value)) ||
                         (d.EventId != null && participatedEventIds.Contains(d.EventId.Value)) ||
+                        promptDocumentIds.Contains(d.DocumentId) ||
                         (d.UploaderId.HasValue && mentoredTeamMemberIds.Contains(d.UploaderId.Value))
                     );
                 }
@@ -78,6 +107,17 @@ namespace SEAL.NET.Services.Implementations
                     UploadedAt = d.UploadedAt
                 })
                 .ToListAsync();
+
+            foreach (var document in documents)
+            {
+                if (promptDocumentRounds.TryGetValue(document.DocumentId, out var promptRound))
+                {
+                    document.EventId = promptRound.EventId;
+                    document.EventName = promptRound.EventName;
+                    document.RoundName = promptRound.RoundName;
+                    document.IsPromptDocument = true;
+                }
+            }
 
             return ServiceResult.Ok(documents);
         }

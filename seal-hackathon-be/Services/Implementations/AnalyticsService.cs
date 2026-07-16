@@ -20,7 +20,7 @@ namespace SEAL.NET.Services.Implementations
                 .Include(s => s.Criteria)
                 .Include(s => s.Judge)
                 .Include(s => s.Submission!).ThenInclude(sub => sub.Team)
-                .Include(s => s.Submission!).ThenInclude(sub => sub.Round)
+                .Include(s => s.Submission!).ThenInclude(sub => sub.Round).ThenInclude(round => round.Event)
                 .AsQueryable();
 
             if (eventId.HasValue)
@@ -31,10 +31,15 @@ namespace SEAL.NET.Services.Implementations
                 {
                     CriteriaId = s.CriteriaId,
                     CriteriaName = s.Criteria!.CriteriaName,
+                    MaxScore = (double)s.Criteria.MaxScore,
+                    Weight = (double)s.Criteria.Weight,
                     SubmissionId = s.SubmissionId,
                     TeamName = s.Submission!.Team.TeamName,
+                    EventName = s.Submission.Round.Event.EventName,
+                    RoundName = s.Submission.Round.RoundName,
                     JudgeId = s.JudgeId,
                     JudgeName = s.Judge!.FullName,
+                    JudgeEmail = s.Judge.Email ?? string.Empty,
                     Value = (double)s.ScoreValue
                 })
                 .ToListAsync();
@@ -69,13 +74,45 @@ namespace SEAL.NET.Services.Implementations
             var validIccs = result.ByCriterion.Where(c => c.Icc.HasValue).Select(c => c.Icc!.Value).ToList();
             result.OverallIcc = validIccs.Count > 0 ? Math.Round(validIccs.Average(), 3) : (double?)null;
 
+            var submissionCodes = scores
+                .Select(s => s.SubmissionId)
+                .Distinct()
+                .Select((id, index) => new { id, code = $"SUB-{index + 1:000}" })
+                .ToDictionary(item => item.id, item => item.code);
+
+            var judgeCodes = scores
+                .Select(s => s.JudgeId)
+                .Distinct()
+                .Select((id, index) => new { id, code = $"JDG-{index + 1:000}" })
+                .ToDictionary(item => item.id, item => item.code);
+
+            result.AnonymousScores = scores
+                .OrderBy(s => s.EventName)
+                .ThenBy(s => s.RoundName)
+                .ThenBy(s => submissionCodes[s.SubmissionId])
+                .ThenBy(s => judgeCodes[s.JudgeId])
+                .ThenBy(s => s.CriteriaName)
+                .Select(s => new AnonymousScoreDatasetRowDto
+                {
+                    Event = s.EventName,
+                    Round = s.RoundName,
+                    SubmissionCode = submissionCodes[s.SubmissionId],
+                    JudgeCode = judgeCodes[s.JudgeId],
+                    JudgeType = IsInternalJudge(s.JudgeEmail) ? "Internal" : "Guest/External",
+                    Criterion = s.CriteriaName,
+                    Score = Math.Round(s.Value, 2),
+                    MaxScore = Math.Round(s.MaxScore, 2),
+                    Weight = Math.Round(s.Weight, 2)
+                })
+                .ToList();
+
             // Variance per team across judges (avg score each judge gave the team, across criteria)
             result.Variance = scores
                 .GroupBy(s => s.SubmissionId)
                 .Take(10)
                 .Select(subGroup => new TeamVarianceDto
                 {
-                    Team = subGroup.First().TeamName,
+                    Team = $"{subGroup.First().TeamName} - {subGroup.First().RoundName} ({submissionCodes[subGroup.Key]})",
                     Judges = subGroup
                         .GroupBy(s => new { s.JudgeId, s.JudgeName })
                         .Select(jg => new JudgeAverageDto
@@ -98,6 +135,9 @@ namespace SEAL.NET.Services.Implementations
             if (icc.Value >= 0.5) return "Moderate";
             return "Low";
         }
+
+        private static bool IsInternalJudge(string email)
+            => email.EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase);
 
         // One-way random effects ICC(1) from (target, rating) pairs.
         private static double? ComputeOneWayIcc(IEnumerable<(Guid Target, double Value)> data)
@@ -142,10 +182,15 @@ namespace SEAL.NET.Services.Implementations
         {
             public Guid CriteriaId { get; set; }
             public string CriteriaName { get; set; } = string.Empty;
+            public double MaxScore { get; set; }
+            public double Weight { get; set; }
             public Guid SubmissionId { get; set; }
             public string TeamName { get; set; } = string.Empty;
+            public string EventName { get; set; } = string.Empty;
+            public string RoundName { get; set; } = string.Empty;
             public Guid JudgeId { get; set; }
             public string JudgeName { get; set; } = string.Empty;
+            public string JudgeEmail { get; set; } = string.Empty;
             public double Value { get; set; }
         }
     }

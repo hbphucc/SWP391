@@ -20,6 +20,7 @@ export type CurrentUser = {
   developerRole?: string | null;
   programmingLanguages?: string[];
   requestedRole?: string | null;
+  avatarUrl?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -156,6 +157,12 @@ export async function apiDownload(path: string): Promise<Blob> {
   return response.blob();
 }
 
+export function resolveApiUrl(path?: string | null): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path) || path.startsWith("data:")) return path;
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export function toCurrentUser(user: {
   id: string;
   fullName?: string;
@@ -170,6 +177,7 @@ export function toCurrentUser(user: {
   developerRole?: string | null;
   programmingLanguages?: string[];
   requestedRole?: string | null;
+  avatarUrl?: string | null;
 }): CurrentUser {
   const roles = user.roles?.length ? user.roles : [user.role ?? "Member"];
   const fullName = user.fullName ?? user.name ?? user.email;
@@ -188,6 +196,7 @@ export function toCurrentUser(user: {
     developerRole: user.developerRole,
     programmingLanguages: user.programmingLanguages ?? [],
     requestedRole: user.requestedRole,
+    avatarUrl: user.avatarUrl,
   };
 }
 
@@ -209,6 +218,7 @@ export async function fetchCurrentUser() {
     developerRole?: string | null;
     programmingLanguages?: string[];
     requestedRole?: string | null;
+    avatarUrl?: string | null;
   }>("/Auth/me");
 
   return toCurrentUser(user);

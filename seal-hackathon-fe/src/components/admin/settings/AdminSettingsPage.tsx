@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Shield, Bell, Globe, User } from "lucide-react";
+import { Bell, User } from "lucide-react";
 import NotificationPreferencesCard from "@/components/settings/NotificationPreferencesCard";
 import styles from "@/components/settings/SettingsPage.module.css";
 
@@ -42,25 +42,6 @@ export default function AdminSettingsPage() {
 
       <NotificationPreferencesCard />
 
-      <div className="glass-card">
-        <h3 className={styles.title}>
-          <Globe size={18} className={styles.primaryIcon} /> Platform Configuration
-          <span className={`badge badge-neutral ${styles.soonBadge}`}>Coming soon</span>
-        </h3>
-        <p className={styles.body}>
-          Maintenance mode and platform branding require backend support that is not implemented yet.
-        </p>
-        <div className={styles.disabledList}>
-          <label className={styles.disabledItem}>
-            <input type="checkbox" disabled className={styles.checkbox} />
-            <span>Maintenance mode (lock platform for non-admins)</span>
-          </label>
-          <label className={styles.disabledItem}>
-            <input type="checkbox" disabled className={styles.checkbox} />
-            <span><Shield size={13} className={styles.inlineIcon} />Enforce 2FA for all administrators</span>
-          </label>
-        </div>
-      </div>
     </div>
   );
 }

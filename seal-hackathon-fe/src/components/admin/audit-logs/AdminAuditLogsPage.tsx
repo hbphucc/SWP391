@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { FileText, Shield, Search, RefreshCw } from "lucide-react";
+import { Download, FileText, RotateCcw, Search, Shield } from "lucide-react";
 import { App, Table, Tag, Input } from "antd";
 import { apiRequest, fetchCurrentUser } from "@/lib/api";
 
@@ -23,6 +23,11 @@ export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [entityFilter, setEntityFilter] = useState("all");
+  const [actorFilter, setActorFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [filterNow, setFilterNow] = useState(() => Date.now());
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -51,9 +56,24 @@ export default function AuditLogsPage() {
   }, [isAdmin, loadLogs]);
 
   const filteredLogs = useMemo(() => {
-    if (!searchText.trim()) return logs;
     const query = searchText.toLowerCase();
     return logs.filter((log) => {
+      if (actionFilter !== "all" && log.action !== actionFilter) return false;
+      if (entityFilter !== "all" && (log.entityType ?? "System") !== entityFilter) return false;
+      if (actorFilter !== "all" && (log.actorEmail ?? log.actorName ?? "System / Guest") !== actorFilter) return false;
+
+      if (dateFilter !== "all") {
+        const createdAt = new Date(log.createdAt).getTime();
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        if (dateFilter === "today" && createdAt < startOfToday.getTime()) return false;
+        if (dateFilter === "7days" && filterNow - createdAt > 7 * 24 * 60 * 60 * 1000) return false;
+        if (dateFilter === "30days" && filterNow - createdAt > 30 * 24 * 60 * 60 * 1000) return false;
+      }
+
+      if (!query.trim()) return true;
+
       return (
         log.action.toLowerCase().includes(query) ||
         (log.actorName && log.actorName.toLowerCase().includes(query)) ||
@@ -62,7 +82,54 @@ export default function AuditLogsPage() {
         (log.entityType && log.entityType.toLowerCase().includes(query))
       );
     });
-  }, [logs, searchText]);
+  }, [actionFilter, actorFilter, dateFilter, entityFilter, filterNow, logs, searchText]);
+
+  const actionOptions = useMemo(
+    () => Array.from(new Set(logs.map((log) => log.action))).sort((a, b) => a.localeCompare(b)),
+    [logs]
+  );
+
+  const entityOptions = useMemo(
+    () => Array.from(new Set(logs.map((log) => log.entityType ?? "System"))).sort((a, b) => a.localeCompare(b)),
+    [logs]
+  );
+
+  const actorOptions = useMemo(
+    () => Array.from(new Set(logs.map((log) => log.actorEmail ?? log.actorName ?? "System / Guest"))).sort((a, b) => a.localeCompare(b)),
+    [logs]
+  );
+
+  const hasFilters = searchText.trim() || actionFilter !== "all" || entityFilter !== "all" || actorFilter !== "all" || dateFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchText("");
+    setActionFilter("all");
+    setEntityFilter("all");
+    setActorFilter("all");
+    setDateFilter("all");
+  };
+
+  const exportCsv = () => {
+    const headers = ["Time", "Actor", "Email", "Action", "Target Type", "Target Id", "Details"];
+    const escapeCell = (value: string | null) => `"${(value ?? "").replaceAll("\"", "\"\"")}"`;
+    const rows = filteredLogs.map((log) => [
+      new Date(log.createdAt).toLocaleString(),
+      log.actorName ?? "System / Guest",
+      log.actorEmail ?? "",
+      log.action,
+      log.entityType ?? "",
+      log.entityId ?? "",
+      log.description,
+    ].map(escapeCell).join(","));
+
+    const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const columns = [
     {
@@ -150,18 +217,56 @@ export default function AuditLogsPage() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <Input
-            prefix={<Search size={16} style={{ color: "var(--color-text-3)" }} />}
-            placeholder="Search logs..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-            allowClear
-          />
-          <button className="btn btn-secondary btn-icon" onClick={loadLogs} disabled={loading} title="Refresh Logs">
-            <RefreshCw size={15} />
+          <button className="btn btn-secondary btn-icon" onClick={loadLogs} disabled={loading} title="Refresh logs">
+            <RotateCcw size={15} />
+          </button>
+          <button className="btn btn-secondary" onClick={exportCsv} disabled={filteredLogs.length === 0}>
+            <Download size={15} /> Export CSV
           </button>
         </div>
+      </div>
+
+      <div className="glass-card" style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center", marginBottom: "1rem" }}>
+        <Input
+          prefix={<Search size={16} style={{ color: "var(--color-text-3)" }} />}
+          placeholder="Search action, actor, details..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ flex: "1 1 260px" }}
+          allowClear
+        />
+        <select className="form-input" value={actionFilter} onChange={(event) => setActionFilter(event.target.value)} style={{ flex: "0 1 190px" }}>
+          <option value="all">All actions</option>
+          {actionOptions.map((action) => <option key={action} value={action}>{action}</option>)}
+        </select>
+        <select className="form-input" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} style={{ flex: "0 1 170px" }}>
+          <option value="all">All targets</option>
+          {entityOptions.map((entity) => <option key={entity} value={entity}>{entity}</option>)}
+        </select>
+        <select className="form-input" value={actorFilter} onChange={(event) => setActorFilter(event.target.value)} style={{ flex: "0 1 220px" }}>
+          <option value="all">All actors</option>
+          {actorOptions.map((actor) => <option key={actor} value={actor}>{actor}</option>)}
+        </select>
+        <select
+          className="form-input"
+          value={dateFilter}
+          onChange={(event) => {
+            setDateFilter(event.target.value);
+            setFilterNow(Date.now());
+          }}
+          style={{ flex: "0 1 150px" }}
+        >
+          <option value="all">Any time</option>
+          <option value="today">Today</option>
+          <option value="7days">Last 7 days</option>
+          <option value="30days">Last 30 days</option>
+        </select>
+        {hasFilters && (
+          <button className="btn btn-ghost btn-sm" onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
+        <span className="badge badge-neutral">{filteredLogs.length} logs</span>
       </div>
 
       <div className="card">

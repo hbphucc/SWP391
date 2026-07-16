@@ -78,15 +78,18 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> BroadcastAsync(BroadcastNotificationRequest request)
         {
+            var now = DateTime.UtcNow;
+            var nowOffset = DateTimeOffset.UtcNow;
             var allUsers = await _userManager.Users
-                .Where(u => u.IsApproved)
+                .Where(u =>
+                    u.IsApproved &&
+                    (u.LockoutEnd == null || u.LockoutEnd <= nowOffset))
                 .ToListAsync();
 
             if (allUsers.Count == 0)
                 return ServiceResult.BadRequest("No active users found to broadcast to.");
 
             var broadcastId = Guid.NewGuid();
-            var now = DateTime.UtcNow;
 
             var notifications = allUsers.Select(u => new Notification
             {

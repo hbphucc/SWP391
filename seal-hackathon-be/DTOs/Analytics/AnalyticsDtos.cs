@@ -27,6 +27,19 @@ namespace SEAL.NET.DTOs.Analytics
         public double AvgScore { get; set; }
     }
 
+    public class AnonymousScoreDatasetRowDto
+    {
+        public string Event { get; set; } = string.Empty;
+        public string Round { get; set; } = string.Empty;
+        public string SubmissionCode { get; set; } = string.Empty;
+        public string JudgeCode { get; set; } = string.Empty;
+        public string JudgeType { get; set; } = string.Empty;
+        public string Criterion { get; set; } = string.Empty;
+        public double Score { get; set; }
+        public double MaxScore { get; set; }
+        public double Weight { get; set; }
+    }
+
     public class InterRaterAnalyticsDto
     {
         public double? OverallIcc { get; set; }
@@ -36,5 +49,6 @@ namespace SEAL.NET.DTOs.Analytics
         public List<CriterionReliabilityDto> ByCriterion { get; set; } = [];
         public List<TeamVarianceDto> Variance { get; set; } = [];
         public List<CriterionAverageDto> CriterionAverages { get; set; } = [];
+        public List<AnonymousScoreDatasetRowDto> AnonymousScores { get; set; } = [];
     }
 }

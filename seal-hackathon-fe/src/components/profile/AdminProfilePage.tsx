@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useState } from "react";
 import { User, Save, Upload, Mail, GraduationCap, Phone, Lock } from "lucide-react";
 import { App } from "antd";
-import { CurrentUser, apiRequest, fetchCurrentUser } from "@/lib/api";
+import { CurrentUser, apiRequest, apiUpload, fetchCurrentUser, resolveApiUrl } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { PASSWORD_PATTERN, PASSWORD_RULE_MESSAGE } from "@/lib/constants";
 import styles from "./ProfilePage.module.css";
@@ -28,7 +28,7 @@ export default function AdminProfilePage() {
     fetchCurrentUser()
       .then((currentUser) => {
         setUser(currentUser);
-        setAvatarUrl(localStorage.getItem(`avatar_${currentUser.email}`));
+        setAvatarUrl(resolveApiUrl(currentUser.avatarUrl) ?? localStorage.getItem(`avatar_${currentUser.email}`));
       })
       .catch((err) => message.error(err instanceof Error ? err.message : "Could not load profile."))
       .finally(() => setLoading(false));
@@ -50,7 +50,7 @@ export default function AdminProfilePage() {
       });
 
       // Re-source from /Auth/me so the local user state never trusts a
-      // hand-crafted client object — the cookie-backed server is the truth.
+      // hand-crafted client object; the cookie-backed server is the truth.
       const refreshed = await refresh();
       if (refreshed) setUser(refreshed);
       message.success("Profile updated successfully.");
@@ -61,7 +61,7 @@ export default function AdminProfilePage() {
     }
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
@@ -71,20 +71,24 @@ export default function AdminProfilePage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      try {
-        localStorage.setItem(`avatar_${user.email}`, dataUrl);
-      } catch {
-        message.error("Could not save the avatar — local storage is full. Try a smaller image.");
-        return;
-      }
-      setAvatarUrl(dataUrl);
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const updated = await apiUpload<CurrentUser>("/Auth/avatar", formData);
+      const refreshed = await refresh();
+      const nextUser = refreshed ?? updated;
+      setUser(nextUser);
+      setAvatarUrl(resolveApiUrl(nextUser.avatarUrl));
+      localStorage.removeItem(`avatar_${user.email}`);
       window.dispatchEvent(new Event("storage"));
       message.success("Avatar updated successfully.");
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not upload avatar.");
+    } finally {
+      setSaving(false);
+      e.target.value = "";
+    }
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -223,3 +227,4 @@ export default function AdminProfilePage() {
     </div>
   );
 }
+

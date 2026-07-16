@@ -14,15 +14,18 @@ namespace SEAL.NET.Services.Implementations
         private readonly ApplicationDbContext _context;
         private readonly INotificationService _notificationService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ILogger<TeamService> _logger;
 
         public TeamService(
             ApplicationDbContext context,
             INotificationService notificationService,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            ILogger<TeamService> logger)
         {
             _context = context;
             _notificationService = notificationService;
             _userManager = userManager;
+            _logger = logger;
         }
 
         private async Task<Team?> GetCurrentUserTeamAsync(Guid userId)
@@ -286,7 +289,10 @@ namespace SEAL.NET.Services.Implementations
                             "team"
                         );
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to notify invited team member {UserId} for team {TeamId}.", memberId, team.TeamId);
+                    }
                 }
             }
 
@@ -342,7 +348,10 @@ namespace SEAL.NET.Services.Implementations
                         $"Team {team.TeamName} invited you to be their mentor. Accept or decline from your dashboard.",
                         "team");
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to notify mentor {MentorId} about invitation for team {TeamId}.", request.MentorId.Value, team.TeamId);
+                }
             }
 
             return ServiceResult.Ok(new
@@ -612,7 +621,10 @@ namespace SEAL.NET.Services.Implementations
                     "team"
                 );
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify user {UserId} about invitation for team {TeamId}.", user.Id, team.TeamId);
+            }
 
             return ServiceResult.OkMessage("Invitation sent successfully.");
         }
@@ -716,7 +728,10 @@ namespace SEAL.NET.Services.Implementations
                             $"Team {teamName} has been disbanded by its leader.",
                             "team");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to notify members after team {TeamId} was disbanded.", team.TeamId);
+                    }
                 }
 
                 return ServiceResult.OkMessage("You have left the team and disbanded it.");
@@ -1144,7 +1159,10 @@ namespace SEAL.NET.Services.Implementations
                     "team"
                 );
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify mentor {MentorId} about invitation for team {TeamId}.", mentor.Id, team.TeamId);
+            }
 
             return ServiceResult.OkMessage("Mentor invitation sent. Waiting for the mentor to accept.");
         }
@@ -1261,7 +1279,10 @@ namespace SEAL.NET.Services.Implementations
                     "team"
                 );
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify leader {LeaderId} that mentor invitation {InvitationId} was accepted.", invitation.Team.LeaderId, invitation.Id);
+            }
 
             return ServiceResult.OkMessage("Invitation accepted. You are now this team's mentor.");
         }
@@ -1293,7 +1314,10 @@ namespace SEAL.NET.Services.Implementations
                     "team"
                 );
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify leader {LeaderId} that mentor invitation {InvitationId} was declined.", invitation.Team.LeaderId, invitation.Id);
+            }
 
             return ServiceResult.OkMessage("Invitation declined.");
         }
@@ -1587,7 +1611,10 @@ namespace SEAL.NET.Services.Implementations
                     );
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify leader {LeaderId} about join request for team {TeamId}.", team.LeaderId, team.TeamId);
+            }
 
             return ServiceResult.OkMessage("Join request sent successfully.");
         }

@@ -21,9 +21,6 @@ namespace SEAL.NET.Models.Entities
         [MaxLength(150)]
         public string? SchoolName { get; set; }
 
-        [MaxLength(100)]
-        public string? PlainPassword { get; set; }
-
         // Developer profile metadata (descriptive only — NOT an auth/Identity role).
         public DeveloperRole? DeveloperRole { get; set; }
 
@@ -34,6 +31,9 @@ namespace SEAL.NET.Models.Entities
 
         [MaxLength(20)]
         public string? RequestedRole { get; set; }
+
+        [MaxLength(500)]
+        public string? AvatarUrl { get; set; }
 
         public bool EmailNotificationsEnabled { get; set; } = true;
 

@@ -334,7 +334,10 @@ namespace SEAL.NET.Services.Implementations
                     "team"
                 );
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify invitee {InviteeId} about matchmaking invitation for team {TeamId}.", invitee.Id, team.TeamId);
+            }
 
             return ServiceResult.OkMessage("Invitation sent successfully.");
         }
@@ -581,7 +584,10 @@ namespace SEAL.NET.Services.Implementations
                     );
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send matchmaking acceptance notification for invitation {InvitationId}.", invitation.Id);
+            }
 
             return ServiceResult.OkMessage(isJoinRequest ? "Join request accepted successfully." : "You have joined the team successfully.");
         }
@@ -633,7 +639,10 @@ namespace SEAL.NET.Services.Implementations
                     );
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send matchmaking rejection notification for invitation {InvitationId}.", invitation.Id);
+            }
 
             return ServiceResult.OkMessage(isJoinRequest ? "Join request rejected successfully." : "Invitation rejected successfully.");
         }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Target, Clock, CheckCircle, AlertCircle, ChevronRight, RefreshCw, CalendarDays } from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { App } from "antd";
 
@@ -38,9 +39,13 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 
 export default function JudgingQueuePage() {
   const { message } = App.useApp();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const eventFromUrl = searchParams.get("event") ?? "";
+  const selectedEventId = eventFromUrl;
   const [filter, setFilter] = useState("all");
   const [events, setEvents] = useState<EventDto[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
   const [queue, setQueue] = useState<SubmissionQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +58,6 @@ export default function JudgingQueuePage() {
       ]);
       setQueue(queueData);
       setEvents(eventData);
-      setSelectedEventId((current) => eventData.some((event) => event.eventId === current) ? current : "");
     } catch (err) {
       setQueue([]);
       message.error(err instanceof Error ? err.message : "Could not load scoring queue.");
@@ -69,6 +73,20 @@ export default function JudgingQueuePage() {
     };
     void trigger();
   }, [loadQueue]);
+
+  const handleEventChange = (eventId: string) => {
+    setFilter("all");
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (eventId) {
+      params.set("event", eventId);
+    } else {
+      params.delete("event");
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   const selectedEvent = events.find((event) => event.eventId === selectedEventId);
   const selectedRoundIds = new Set(selectedEvent?.rounds.map((round) => round.roundId) ?? []);
@@ -88,7 +106,7 @@ export default function JudgingQueuePage() {
             className="form-input"
             style={{ width: 280 }}
             value={selectedEventId}
-            onChange={(event) => { setSelectedEventId(event.target.value); setFilter("all"); }}
+            onChange={(event) => handleEventChange(event.target.value)}
             disabled={loading || events.length === 0}
             aria-label="Select event"
           >
@@ -155,7 +173,7 @@ export default function JudgingQueuePage() {
               <span className={`badge ${q.status === "pending" ? "badge-warning" : q.status === "locked" ? "badge-success" : "badge-cyan"}`}>
                 {q.status.charAt(0).toUpperCase() + q.status.slice(1)}
               </span>
-              <Link href={`/admin/judging/${q.submissionId}`}>
+              <Link href={`/admin/judging/${q.submissionId}${selectedEventId ? `?event=${selectedEventId}` : ""}`}>
                 <button className="btn btn-sm btn-primary">
                   {q.status === "locked" ? "View Score" : q.status === "scored" ? "View Draft" : "View Details"} <ChevronRight size={13} />
                 </button>
