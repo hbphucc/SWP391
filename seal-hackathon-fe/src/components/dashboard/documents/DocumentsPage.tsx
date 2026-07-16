@@ -67,10 +67,27 @@ function getDocumentType(doc: DocumentDto): DocumentTypeFilter {
 
   if (contentType.includes("pdf") || extension === "pdf") return "pdf";
   if (contentType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension)) return "image";
-  if (contentType.includes("word") || contentType.includes("document") || ["doc", "docx", "txt", "rtf"].includes(extension)) return "document";
-  if (contentType.includes("sheet") || contentType.includes("excel") || ["xls", "xlsx", "csv"].includes(extension)) return "spreadsheet";
-  if (contentType.includes("presentation") || contentType.includes("powerpoint") || ["ppt", "pptx"].includes(extension)) return "presentation";
-  if (contentType.includes("zip") || contentType.includes("rar") || contentType.includes("7z") || ["zip", "rar", "7z", "tar", "gz"].includes(extension)) return "archive";
+  if (
+    contentType.includes("word") ||
+    contentType.includes("document") ||
+    ["doc", "docx", "txt", "rtf"].includes(extension)
+  ) return "document";
+  if (
+    contentType.includes("sheet") ||
+    contentType.includes("excel") ||
+    ["xls", "xlsx", "csv"].includes(extension)
+  ) return "spreadsheet";
+  if (
+    contentType.includes("presentation") ||
+    contentType.includes("powerpoint") ||
+    ["ppt", "pptx"].includes(extension)
+  ) return "presentation";
+  if (
+    contentType.includes("zip") ||
+    contentType.includes("rar") ||
+    contentType.includes("7z") ||
+    ["zip", "rar", "7z", "tar", "gz"].includes(extension)
+  ) return "archive";
 
   return "other";
 }
@@ -223,8 +240,8 @@ export default function DocumentsPage() {
   const filteredDocs = useMemo(() => {
     const scopedDocs = (() => {
       if (isAdmin || !isMentor) return docs;
-      if (viewContext === "official") return docs.filter(d => !d.teamId);
-      return docs.filter(d => d.teamId === viewContext);
+      if (viewContext === "official") return docs.filter((doc) => !doc.teamId);
+      return docs.filter((doc) => doc.teamId === viewContext);
     })();
 
     const eventScopedDocs = (() => {
@@ -374,7 +391,7 @@ export default function DocumentsPage() {
                       doc.roundName ? `Round: ${doc.roundName}` : null,
                       `Uploaded ${formatDate(doc.uploadedAt)}`,
                       doc.uploaderName,
-                    ].filter(Boolean).join(" · ")}
+                    ].filter(Boolean).join(" - ")}
                   </div>
                 </div>
               </div>
