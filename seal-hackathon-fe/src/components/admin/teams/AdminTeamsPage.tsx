@@ -10,6 +10,10 @@ type AdminTeam = {
   teamId: string;
   teamName: string;
   status: string;
+  eliminationReason?: string | null;
+  eliminatedAt?: string | null;
+  finalRank?: number | null;
+  finalPrize?: string | null;
   category?: { categoryId: string; categoryName: string } | null;
   currentRound?: { roundName: string } | null;
   members: { userId: string; fullName: string; email: string }[];
@@ -267,6 +271,16 @@ export default function AdminTeamsPage() {
                     <span className={`badge ${team.status === "Approved" ? "badge-success" : team.status === "Pending" ? "badge-warning" : "badge-danger"}`}>
                       {team.status}
                     </span>
+                    {team.eliminationReason && (
+                      <div className={styles.decisionNote} title={team.eliminationReason}>
+                        {team.eliminationReason}
+                      </div>
+                    )}
+                    {(team.finalPrize || team.finalRank) && (
+                      <div className={styles.resultNote}>
+                        {[team.finalPrize, team.finalRank ? `Rank #${team.finalRank}` : ""].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
                   </td>
                   <td className={styles.cellRight}>
                     <div className={styles.rowActions}>

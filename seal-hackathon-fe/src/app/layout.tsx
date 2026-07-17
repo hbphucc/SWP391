@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import ThemeProvider from "../components/ThemeProvider";
 import AuthProvider from "../components/AuthProvider";
+import QueryProvider from "../components/QueryProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import FloatingThemeToggle from "../components/FloatingThemeToggle";
 import "./globals.css";
@@ -49,13 +50,15 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <ThemeProvider>
-          <AuthProvider>
-            {children}
-            <FloatingThemeToggle />
-            <AIChatbotWrapper />
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              {children}
+              <FloatingThemeToggle />
+              <AIChatbotWrapper />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
 
         {/* Google Translate container */}
         <div id="google_translate_element" style={{ opacity: 0, position: "absolute", zIndex: -1, pointerEvents: "none" }} />

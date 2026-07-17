@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { Calendar, Users, Trophy, Layers, ArrowRight, Zap, Globe, Rocket, X, CheckCircle2, Target, Sparkles, Mail, ShieldCheck, Phone, MapPin, UserPlus, UploadCloud, ClipboardCheck, MessageSquare, Shield, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import styles from "./LandingPage.module.css";
 import { apiRequest } from "@/lib/api";
@@ -79,12 +80,13 @@ function dateRange(start: string, end: string) {
 }
 
 export default function LandingPage() {
-  const [events, setEvents] = useState<EventDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: events = [], isLoading: loading } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+
   const [selectedComp, setSelectedComp] = useState<EventDto | null>(null);
   const [activeTab, setActiveTab] = useState<"featured" | "Ongoing" | "Published" | "Completed">("featured");
-  const [winners, setWinners] = useState<WinnerDto[]>([]);
-  const [loadingWinners, setLoadingWinners] = useState(false);
 
   // Hero image carousel: auto-advances every 3s, with manual arrow controls.
   const heroSlides = [
@@ -105,45 +107,17 @@ export default function LandingPage() {
   const goToSlide = (dir: number) =>
     setHeroIndex((i) => (i + dir + heroSlides.length) % heroSlides.length);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await apiRequest<EventDto[]>("/Events");
-        setEvents(data);
-      } catch {
-        setEvents([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedComp || selectedComp.status !== "Completed") {
-      return;
-    }
-
-    const loadWinners = async () => {
-      setLoadingWinners(true);
-      try {
-        const sortedRounds = [...selectedComp.rounds].sort((a, b) => b.roundOrder - a.roundOrder);
-        const finalRound = sortedRounds[0];
-        if (finalRound) {
-          const rankingData = await apiRequest<WinnerDto[]>(`/ranking/round/${finalRound.roundId}`);
-          setWinners(rankingData);
-        } else {
-          setWinners([]);
-        }
-      } catch {
-        setWinners([]);
-      } finally {
-        setLoadingWinners(false);
-      }
-    };
-
-    loadWinners();
-  }, [selectedComp]);
+  const { data: winners = [], isLoading: loadingWinners } = useQuery({
+    queryKey: ["winners", selectedComp?.eventId],
+    queryFn: async () => {
+      if (!selectedComp || selectedComp.status !== "Completed") return [];
+      const sortedRounds = [...selectedComp.rounds].sort((a, b) => b.roundOrder - a.roundOrder);
+      const finalRound = sortedRounds[0];
+      if (!finalRound) return [];
+      return apiRequest<WinnerDto[]>(`/ranking/round/${finalRound.roundId}`);
+    },
+    enabled: !!selectedComp && selectedComp.status === "Completed",
+  });
 
   const featuredEvents = getFeaturedEvents(events);
 

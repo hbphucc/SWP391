@@ -945,6 +945,8 @@ namespace SEAL.NET.Services.Implementations
                 team.TeamName,
                 status = team.Status.ToString(),
                 registeredAt = team.CreatedAt.ToString("MMM dd, yyyy"),
+                team.EliminationReason,
+                team.EliminatedAt,
                 category = new
                 {
                     team.Category!.CategoryId,

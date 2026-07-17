@@ -36,6 +36,10 @@ namespace SEAL.NET.Services.Implementations
                     t.TeamId,
                     t.TeamName,
                     status = t.Status.ToString(),
+                    t.EliminationReason,
+                    t.EliminatedAt,
+                    t.FinalRank,
+                    t.FinalPrize,
                     category = new
                     {
                         t.Category!.CategoryId,

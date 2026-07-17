@@ -23,6 +23,63 @@
   margin-bottom: 1.5rem;
 }
 
+.decisionCard {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.1rem;
+}
+
+.eliminatedCard {
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.08);
+}
+
+.resultCard {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.decisionIcon {
+  display: inline-flex;
+  color: var(--color-primary);
+  margin-top: 0.1rem;
+}
+
+.eliminatedCard .decisionIcon {
+  color: #fb7185;
+}
+
+.resultCard .decisionIcon {
+  color: #fbbf24;
+}
+
+.decisionBody {
+  min-width: 0;
+}
+
+.decisionLabel {
+  font-size: 0.75rem;
+  color: var(--color-text-3);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.decisionText {
+  color: var(--color-text-1);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.decisionMeta {
+  margin-top: 0.3rem;
+  color: var(--color-text-3);
+  font-size: 0.8rem;
+}
+
 .tabIcon {
   margin-right: 6px;
 }

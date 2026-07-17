@@ -25,8 +25,34 @@ type RankingDto = {
   teamId: string;
   teamName: string;
   categoryName?: string;
+  status?: string;
+  currentRoundName?: string | null;
+  finalRank?: number | null;
+  finalPrize?: string | null;
+  eliminationReason?: string | null;
+  eliminatedAt?: string | null;
+  submittedRounds?: number;
+  totalRounds?: number;
   totalScore: number;
   submittedAt: string;
+};
+
+type EventReportRow = {
+  reportRank: number;
+  teamId: string;
+  teamName: string;
+  categoryName?: string;
+  status: string;
+  currentRoundName?: string | null;
+  finalRank?: number | null;
+  finalPrize?: string | null;
+  eliminationReason?: string | null;
+  eliminatedAt?: string | null;
+  submittedRounds: number;
+  submittedRoundNames?: string;
+  totalRounds: number;
+  averageScore: number;
+  lastSubmittedAt: string;
 };
 
 const RANK_ICON: Record<number, React.ReactNode> = {
@@ -114,20 +140,24 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
   }, [roundId, categoryId]);
 
   // Prefix cells that spreadsheet apps would interpret as formulas (CSV injection).
-  const sanitizeCsvCell = (cell: string | number) => {
-    const value = String(cell);
+  const sanitizeCsvCell = (cell: string | number | null | undefined) => {
+    const value = cell == null ? "" : String(cell);
     return /^[=+\-@]/.test(value) ? `'${value}` : value;
   };
 
   const exportCsv = () => {
     const rows = [
-      ["Rank", "Team", "Category", "Score", "Submitted At"],
+      ["Rank", "Team", "Category", "Status", "Score", "Submitted At", "Final Rank", "Prize", "Elimination Reason"],
       ...rankings.map((item) => [
         item.rank,
         item.teamName,
         item.categoryName ?? "",
+        item.status ?? "",
         item.totalScore.toFixed(2),
         item.submittedAt,
+        item.finalRank ?? "",
+        item.finalPrize ?? "",
+        item.eliminationReason ?? "",
       ]),
     ];
     const csv = rows.map((row) => row.map((cell) => `"${sanitizeCsvCell(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -138,6 +168,62 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
     link.download = "rankings.csv";
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportEventReport = async () => {
+    if (!eventId) return;
+
+    try {
+      const rows = await apiRequest<EventReportRow[]>(`/ranking/event/${eventId}/report`);
+      const selectedEventName = selectedEvent?.eventName ?? "event";
+      const csvRows = [
+        [
+          "Event",
+          "Report Rank",
+          "Team",
+          "Category",
+          "Status",
+          "Current Round",
+          "Average Score",
+          "Submitted Rounds",
+          "Total Rounds",
+          "Submitted Round Names",
+          "Final Rank",
+          "Prize",
+          "Elimination Reason",
+          "Eliminated At",
+          "Last Submitted At",
+        ],
+        ...rows.map((item) => [
+          selectedEventName,
+          item.reportRank,
+          item.teamName,
+          item.categoryName ?? "",
+          item.status,
+          item.currentRoundName ?? "",
+          item.averageScore.toFixed(2),
+          item.submittedRounds,
+          item.totalRounds,
+          item.submittedRoundNames ?? "",
+          item.finalRank ?? "",
+          item.finalPrize ?? "",
+          item.eliminationReason ?? "",
+          item.eliminatedAt ?? "",
+          item.lastSubmittedAt,
+        ]),
+      ];
+
+      const csv = csvRows.map((row) => row.map((cell) => `"${sanitizeCsvCell(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${selectedEventName.replaceAll(" ", "-").toLowerCase()}-event-report.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not export event report.");
+    }
   };
 
   const topThree = rankings.slice(0, 3);
@@ -173,6 +259,9 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
           </button>
           <button className="btn btn-secondary" onClick={exportCsv} disabled={rankings.length === 0}>
             <Download size={15} /> Export CSV
+          </button>
+          <button className="btn btn-primary" onClick={exportEventReport} disabled={!eventId}>
+            <Download size={15} /> Event Report
           </button>
         </div>
       </div>
@@ -212,7 +301,7 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
           <div className="table-wrapper">
             <table className="table">
               <thead><tr>
-                <th>Rank</th><th>Team</th><th>Category</th><th>Score</th><th>Submitted</th><th>Score Bar</th>
+                <th>Rank</th><th>Team</th><th>Category</th><th>Status</th><th>Score</th><th>Submitted</th><th>Decision</th><th>Score Bar</th>
               </tr></thead>
               <tbody>
                 {rankings.map(r => (
@@ -226,11 +315,27 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
                     <td className="table-cell-primary">{r.teamName}</td>
                     <td><span className="badge badge-neutral">{r.categoryName ?? "N/A"}</span></td>
                     <td>
+                      <span className={`badge ${r.status === "Champion" ? "badge-warning" : r.status === "Eliminated" || r.status === "Rejected" ? "badge-danger" : "badge-success"}`}>
+                        {r.status ?? "Ranked"}
+                      </span>
+                    </td>
+                    <td>
                       <span style={{ fontWeight: 800, fontSize: "1rem", fontFamily: "var(--font-display)", color: r.totalScore >= 80 ? "#10b981" : r.totalScore >= 60 ? "#f59e0b" : "#f43f5e" }}>
                         {r.totalScore.toFixed(2)}
                       </span>
                     </td>
                     <td>{new Date(r.submittedAt).toLocaleString()}</td>
+                    <td>
+                      {r.eliminationReason ? (
+                        <span className="badge badge-danger" title={r.eliminationReason}>Eliminated: {r.eliminationReason}</span>
+                      ) : r.finalPrize ? (
+                        <span className="badge badge-warning">{r.finalPrize}</span>
+                      ) : r.finalRank ? (
+                        <span className="badge badge-neutral">Final rank #{r.finalRank}</span>
+                      ) : (
+                        <span style={{ color: "var(--color-text-3)" }}>-</span>
+                      )}
+                    </td>
                     <td style={{ minWidth: 120 }}>
                       <div className="progress">
                         <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, r.totalScore))}%`, background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }} />

@@ -9,6 +9,7 @@ import styles from "./Sidebar.module.css";
 import { useAuth } from "./AuthProvider";
 import { getVisibleNav } from "./shell/navigationConfig";
 import type { Portal } from "./shell/routePolicies";
+import { resolveApiUrl } from "@/lib/api";
 
 interface SidebarProps {
   portal: Portal;
@@ -31,13 +32,12 @@ export default function Sidebar({
 
   const [avatar, setAvatar] = useState<string | null>(null);
 
-  // Avatar is a UI-only per-email preference; never drives identity/authz.
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!currentUser) {
         setAvatar(null);
       } else {
-        setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+        setAvatar(resolveApiUrl(currentUser.avatarUrl));
       }
     }, 0);
     return () => clearTimeout(timer);

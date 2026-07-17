@@ -1,6 +1,6 @@
 "use client";
 import React, { use, useState, useEffect } from "react";
-import { ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink } from "lucide-react";
+import { AlertTriangle, Award, ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import styles from "./TeamDetailPage.module.css";
@@ -29,6 +29,10 @@ type TeamData = {
   teamName: string;
   status: string;
   registeredAt: string;
+  eliminationReason?: string | null;
+  eliminatedAt?: string | null;
+  finalRank?: number | null;
+  finalPrize?: string | null;
   category: {
     categoryId: string;
     categoryName: string;
@@ -113,6 +117,29 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </div>
+
+      {(team.eliminationReason || team.finalRank || team.finalPrize) && (
+        <div className={`glass-card ${styles.decisionCard} ${team.eliminationReason ? styles.eliminatedCard : styles.resultCard}`}>
+          <div className={styles.decisionIcon}>
+            {team.eliminationReason ? <AlertTriangle size={18} /> : <Award size={18} />}
+          </div>
+          <div className={styles.decisionBody}>
+            <div className={styles.decisionLabel}>
+              {team.eliminationReason ? "Elimination Decision" : "Final Result"}
+            </div>
+            <div className={styles.decisionText}>
+              {team.eliminationReason
+                ? team.eliminationReason
+                : [team.finalPrize, team.finalRank ? `Final rank #${team.finalRank}` : ""].filter(Boolean).join(" · ")}
+            </div>
+            {team.eliminatedAt && (
+              <div className={styles.decisionMeta}>
+                Eliminated at {new Date(team.eliminatedAt).toLocaleString()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className={`tabs ${styles.tabs}`}>
         <button className={`tab-btn ${tab === "members" ? "active" : ""}`} onClick={() => setTab("members")}>
