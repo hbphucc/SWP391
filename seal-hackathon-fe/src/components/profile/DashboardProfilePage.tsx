@@ -29,7 +29,7 @@ export default function ProfilePage() {
     fetchCurrentUser()
       .then((currentUser) => {
         setUser(currentUser);
-        setAvatarUrl(resolveApiUrl(currentUser.avatarUrl) ?? localStorage.getItem(`avatar_${currentUser.email}`));
+        setAvatarUrl(resolveApiUrl(currentUser.avatarUrl));
       })
       .catch((err) => message.error(err instanceof Error ? err.message : "Could not load profile."))
       .finally(() => setLoading(false));
@@ -92,7 +92,6 @@ export default function ProfilePage() {
       const nextUser = refreshed ?? updated;
       setUser(nextUser);
       setAvatarUrl(resolveApiUrl(nextUser.avatarUrl));
-      localStorage.removeItem(`avatar_${user.email}`);
       window.dispatchEvent(new Event("storage"));
       message.success("Avatar updated successfully.");
     } catch (err) {

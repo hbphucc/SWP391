@@ -9,7 +9,7 @@ import Link from "next/link";
 import styles from "./TopBar.module.css";
 import { ThemeContext } from "./ThemeProvider";
 import { useAuth } from "./AuthProvider";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, resolveApiUrl } from "@/lib/api";
 import { ALL_LANGUAGES } from "@/lib/languages";
 
 interface TopBarProps {
@@ -101,7 +101,7 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
       if (!currentUser) {
         setAvatar(null);
       } else {
-        setAvatar(localStorage.getItem(`avatar_${currentUser.email}`));
+        setAvatar(resolveApiUrl(currentUser.avatarUrl));
       }
     }, 0);
     return () => clearTimeout(timer);

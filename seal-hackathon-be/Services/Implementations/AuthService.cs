@@ -24,6 +24,12 @@ namespace SEAL.NET.Services.Implementations
         private const string PasswordResetOtpTokenName = "OtpHash";
         private const string PasswordResetOtpExpiryName = "OtpExpiresAt";
         private const long MaxAvatarSize = 2 * 1024 * 1024;
+        private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/png",
+            "image/jpeg",
+            "image/webp"
+        };
 
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
@@ -349,37 +355,102 @@ namespace SEAL.NET.Services.Implementations
             if (length > MaxAvatarSize)
                 return ServiceResult.BadRequest("Avatar image must be smaller than 2 MB.");
 
-            if (string.IsNullOrWhiteSpace(contentType) || !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                return ServiceResult.BadRequest("Avatar must be an image file.");
-
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
                 return ServiceResult.Unauthorized("User not found.");
 
             await using var ms = new MemoryStream();
             await content.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            if (!TryGetValidatedAvatarContentType(bytes, contentType, out var normalizedContentType))
+                return ServiceResult.BadRequest("Avatar must be a valid PNG, JPEG, or WebP image.");
 
             var document = new Document
             {
                 FileName = Path.GetFileName(fileName),
-                ContentType = contentType,
+                ContentType = normalizedContentType,
                 Size = length,
-                Content = ms.ToArray(),
+                Content = bytes,
                 UploaderId = parsedUserId
             };
 
-            _context.Documents.Add(document);
-            user.AvatarUrl = $"/Documents/{document.DocumentId}/download";
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            var result = await _userManager.UpdateAsync(user);
-            if (!result.Succeeded)
-                return ServiceResult.BadRequestBody(result.Errors);
+            try
+            {
+                _context.Documents.Add(document);
+                await _context.SaveChangesAsync();
 
-            await _context.SaveChangesAsync();
+                user.AvatarUrl = $"/Documents/{document.DocumentId}/download";
+
+                var result = await _userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                {
+                    await transaction.RollbackAsync();
+                    return ServiceResult.BadRequestBody(result.Errors);
+                }
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             var roles = await _userManager.GetRolesAsync(user);
             return ServiceResult.Ok(BuildProfile(user, roles));
         }
+
+        private static bool TryGetValidatedAvatarContentType(byte[] content, string? declaredContentType, out string normalizedContentType)
+        {
+            normalizedContentType = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(declaredContentType) ||
+                !AllowedAvatarContentTypes.Contains(declaredContentType))
+            {
+                return false;
+            }
+
+            normalizedContentType = declaredContentType.ToLowerInvariant();
+
+            return normalizedContentType switch
+            {
+                "image/png" => HasPngSignature(content),
+                "image/jpeg" => HasJpegSignature(content),
+                "image/webp" => HasWebpSignature(content),
+                _ => false
+            };
+        }
+
+        private static bool HasPngSignature(byte[] content)
+            => content.Length >= 8 &&
+               content[0] == 0x89 &&
+               content[1] == 0x50 &&
+               content[2] == 0x4E &&
+               content[3] == 0x47 &&
+               content[4] == 0x0D &&
+               content[5] == 0x0A &&
+               content[6] == 0x1A &&
+               content[7] == 0x0A;
+
+        private static bool HasJpegSignature(byte[] content)
+            => content.Length >= 3 &&
+               content[0] == 0xFF &&
+               content[1] == 0xD8 &&
+               content[2] == 0xFF;
+
+        private static bool HasWebpSignature(byte[] content)
+            => content.Length >= 12 &&
+               content[0] == 0x52 &&
+               content[1] == 0x49 &&
+               content[2] == 0x46 &&
+               content[3] == 0x46 &&
+               content[8] == 0x57 &&
+               content[9] == 0x45 &&
+               content[10] == 0x42 &&
+               content[11] == 0x50;
 
         public async Task<ServiceResult> GetNotificationPreferencesAsync(string? userId)
         {

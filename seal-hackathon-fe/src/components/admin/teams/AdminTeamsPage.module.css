@@ -111,6 +111,22 @@
   color: var(--color-text-3);
 }
 
+.decisionNote,
+.resultNote {
+  max-width: 220px;
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.decisionNote {
+  color: #fb7185;
+}
+
+.resultNote {
+  color: #fbbf24;
+}
+
 .memberCount {
   display: flex;
   align-items: center;
