@@ -6,6 +6,7 @@ import AuthProvider from "../components/AuthProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import FloatingThemeToggle from "../components/FloatingThemeToggle";
 import "./globals.css";
+import "./visual-refresh.css";
 
 const themeBootstrap = `
 (function() {

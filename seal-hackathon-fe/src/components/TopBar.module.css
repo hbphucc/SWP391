@@ -137,3 +137,20 @@
   .topbar { left: 0 !important; }
   .userInfo { display: none; }
 }
+
+.topbar { background: color-mix(in srgb, var(--color-bg-3) 96%, transparent); backdrop-filter: blur(12px); border-bottom-color: var(--color-border); padding-inline: clamp(.75rem, 2vw, 1.5rem); }
+.iconBtn { border-color: var(--color-border); border-radius: 7px; background: var(--color-surface); }
+.iconBtn:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-nav-hover); }
+.userBtn { border-color: var(--color-border); border-radius: 8px; background: var(--color-surface); }
+.userBtn:hover { border-color: var(--color-primary); background: var(--color-nav-hover); box-shadow: none; }
+.notifPanel { background: var(--color-dropdown-bg); backdrop-filter: none; border-color: var(--color-border); box-shadow: var(--shadow-lg); }
+.notifItem:hover, .notifItem.unread { background: var(--color-nav-hover); }
+
+@media (max-width: 560px) {
+  .topbar { gap: .5rem; }
+  .left { min-width: 0; gap: .5rem; }
+  .right { gap: .25rem; }
+  .left :global(.search-bar) { min-width: 0 !important; width: min(52vw, 260px); }
+  .notifPanel { position: fixed; top: calc(var(--topbar-height) - 2px); left: 12px; right: 12px; width: auto; }
+  .userBtn { padding-right: .4rem; }
+}

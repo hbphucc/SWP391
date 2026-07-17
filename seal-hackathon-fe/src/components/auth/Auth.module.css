@@ -59,9 +59,6 @@
   z-index: 10;
   background: var(--color-bg);
   overflow: hidden;
-  /* Feather the right edge outward so the form side melts into the video
-     instead of meeting it at a hard vertical seam. */
-  box-shadow: 60px 0 120px 30px var(--color-bg);
 }
 
 .rightSide {
@@ -75,6 +72,9 @@
   justify-content: center;
   padding: 80px;
   color: #fff;
+  /* Fade out the left edge of the video/image to blend seamlessly into the left side */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 25%);
+  mask-image: linear-gradient(to right, transparent 0%, black 25%);
 }
 
 .rightVideo {
@@ -88,15 +88,7 @@
 .rightOverlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  /* Left-edge fade to the form's bg colour blends the seam; diagonal tint
-     on top keeps the slogan text readable over the video. */
-  background:
-    linear-gradient(to right,
-      #090d18 0%,
-      rgba(9, 13, 24, 0.85) 10%,
-      rgba(9, 13, 24, 0.35) 28%,
-      rgba(9, 13, 24, 0) 50%),
-    linear-gradient(135deg, rgba(8, 12, 24, 0.35) 0%, rgba(30, 58, 138, 0.22) 100%);
+  background: linear-gradient(135deg, rgba(8, 12, 24, 0.45) 0%, rgba(30, 58, 138, 0.25) 100%);
   z-index: 1;
 }
 
@@ -573,3 +565,26 @@
 .step.active { background: var(--gradient-primary); color: #fff; border-color: transparent; box-shadow: 0 0 12px rgba(99,102,241,0.4); }
 .step.done   { background: rgba(16,185,129,0.15); color: #34d399; border-color: rgba(16,185,129,0.3); }
 .stepLine    { flex: 1; max-width: 40px; height: 1px; background: var(--color-border-2); }
+
+/* Calm, task-focused authentication surfaces. */
+.authBg { background: var(--color-bg); }
+.bgOverlay { background: rgba(9, 18, 31, .54); backdrop-filter: none; }
+.splitContainer { background: var(--color-bg); }
+.leftSide { background: var(--color-bg); }
+.rightOverlay { background: linear-gradient(180deg, rgba(10, 28, 50, .35), rgba(10, 28, 50, .72)); }
+.orb1, .orb2, .orb3 { display: none; }
+.card { width: min(100%, 470px); border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); backdrop-filter: none; box-shadow: var(--shadow-lg); }
+.registerCard { width: min(100%, 620px); }
+.logoIcon, .step.active { background: var(--color-primary); box-shadow: none; }
+.title { color: var(--color-text); letter-spacing: -.025em; }
+.subtitle { line-height: 1.55; }
+.radioOption, .languageOption { border-color: var(--color-border); background: var(--color-surface-2); }
+.radioOption:has(input:checked), .languageOptionSelected { border-color: var(--color-primary); background: var(--color-nav-hover); box-shadow: none; }
+.testimonialCard { border-radius: 12px; backdrop-filter: blur(6px); }
+
+@media (max-width: 768px) {
+  .authCenter, .leftSide { padding: 1rem; }
+  .card { padding: 1.25rem; max-height: calc(100dvh - 2rem); }
+  .rightSide { display: none; }
+  .leftSide { width: 100%; }
+}
