@@ -188,17 +188,3 @@
   }
   .collapseBtn { display: none; }
 }
-
-/* Navigation is deliberately quiet so dense admin screens remain scannable. */
-.sidebar { background: var(--color-bg-3); backdrop-filter: none; box-shadow: 1px 0 0 var(--color-border); }
-.logo { min-height: var(--topbar-height); padding: .9rem 1rem; }
-.logoIcon { border-radius: 8px; background: var(--color-primary); box-shadow: none; }
-.logoName { background: none; -webkit-text-fill-color: currentColor; color: var(--color-text); letter-spacing: -.02em; }
-.sectionTitle { padding: .8rem 1rem .35rem; color: var(--color-text-3); letter-spacing: .08em; }
-.nav { padding: .65rem 0; }
-.navItem { min-height: 42px; margin: .1rem .65rem; padding: .6rem .75rem; border-radius: 7px; }
-.navItem.active { background: var(--color-nav-hover); color: var(--color-nav-active-text); box-shadow: none; }
-.activeBar { left: -.65rem; width: 3px; background: var(--color-primary); box-shadow: none; }
-.collapseBtn:focus-visible, .navItem:focus-visible, .logoutBtn:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-primary) 34%, transparent); }
-.footer { background: var(--color-surface-2); }
-.overlay { background: rgba(9, 18, 31, .58); backdrop-filter: blur(2px); }

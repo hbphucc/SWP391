@@ -1304,36 +1304,6 @@
   box-shadow: var(--shadow-xl);
 }
 
-/* Landing page refresh: editorial hierarchy with restrained effects. */
-.container { background: var(--color-bg); }
-.header { background: color-mix(in srgb, var(--color-bg-3) 96%, transparent); border-bottom: 1px solid var(--color-border); backdrop-filter: blur(10px); }
-.logoIcon { background: var(--color-primary); box-shadow: none; }
-.heroWrapper { background: #10243d; }
-.cyberGrid, .auroraLayer, .scanline, .hologramSweep, .bgBlob1, .bgBlob2 { display: none; }
-.heroContentWrapper { width: min(1180px, calc(100% - 2rem)); }
-.heroTitleGradient { background: none; -webkit-text-fill-color: #fff; color: #fff; text-shadow: none; }
-.heroTag, .floatingBadge, .pingBadge { backdrop-filter: none; box-shadow: none; }
-.posterFrame { border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, .28); }
-.posterImageContainer { border-radius: 10px; }
-.carouselArrow { box-shadow: none; backdrop-filter: none; }
-.competitionsSection, .valueSection, .stepsSection { padding-block: clamp(3.5rem, 7vw, 6rem); }
-.featuredGrid, .valueGrid { gap: 1.25rem; }
-.eventCard, .valueCard { border-color: var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: var(--shadow-sm); }
-.eventCard:hover, .valueCard:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.cardIconWrapper, .valueIcon, .stepIcon { box-shadow: none; }
-.ctaSection { border-radius: 16px; background: #17395f; box-shadow: none; }
-.ctaSection::after { display: none; }
-.footer { background: #0e1d30; }
-
-@media (max-width: 768px) {
-  .header { padding-inline: 1rem; }
-  .navLinks { gap: .5rem; }
-  .heroContentWrapper { width: min(100% - 1.25rem, 1180px); }
-  .floatingBadge { display: none; }
-  .heroCtaRow > * { flex: 1 1 100%; }
-  .ctaSection { margin-inline: .75rem; }
-}
-
 .eventModalHeader {
   margin-bottom: 1rem;
 }

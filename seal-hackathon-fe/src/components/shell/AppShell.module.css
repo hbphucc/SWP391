@@ -28,17 +28,3 @@
   .main { margin-left: 0 !important; }
   .content { padding: 1.25rem; }
 }
-
-/* Professional workspace frame */
-.shell { background: var(--color-bg); }
-.main { background: var(--color-bg); }
-.main::before { display: none; }
-.content {
-  width: min(100%, 1540px);
-  margin-inline: auto;
-  padding: clamp(1.25rem, 2.4vw, 2.25rem);
-}
-
-@media (max-width: 768px) {
-  .content { width: 100%; padding: 1rem; }
-}
