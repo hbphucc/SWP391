@@ -1,11 +1,12 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { Table, Button, Tag, Input, App } from "antd";
-import { StarOutlined, FileOutlined, SearchOutlined, EyeOutlined } from "@ant-design/icons";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { App } from "antd";
+import { BadgeCheck, CalendarDays, Clock, Eye, Search, Sparkles, Users } from "lucide-react";
 import { apiRequest } from "@/lib/api";
-
 import { useAuth } from "@/components/AuthProvider";
+import PageHeader from "@/components/workspace/PageHeader";
+import styles from "./DashboardEventsPage.module.css";
 
 type EventDto = {
   eventId: string;
@@ -17,11 +18,26 @@ type EventDto = {
   rounds?: unknown[];
 };
 
+const statusOptions = ["All", "Published", "Ongoing", "Upcoming", "Completed", "Draft"];
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function getStatusClass(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized === "ongoing" || normalized === "active") return styles.statusOngoing;
+  if (normalized === "published" || normalized === "upcoming") return styles.statusPublished;
+  if (normalized === "completed") return styles.statusCompleted;
+  return styles.statusNeutral;
+}
+
 export default function UserEventsPage() {
   const { message } = App.useApp();
   const { user } = useAuth();
   const [events, setEvents] = useState<EventDto[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
   const userRoles = React.useMemo(() => user?.roles ?? [], [user?.roles]);
@@ -63,110 +79,122 @@ export default function UserEventsPage() {
     try {
       await apiRequest(`/Events/${eventId}/register?role=${role}`, { method: "POST" });
       message.success(`Successfully registered as ${role}!`);
-      setMyRegistrations(prev => [...prev, eventId]);
+      setMyRegistrations((prev) => Array.from(new Set([...prev, eventId])));
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to register for event.");
     }
   };
 
-  const filteredEvents = events.filter(e =>
-    e.eventName?.toLowerCase().includes(searchText.toLowerCase()) ||
-    e.status?.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredEvents = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
 
-  const columns = [
-    {
-      title: "EVENT NAME",
-      dataIndex: "eventName",
-      key: "eventName",
-      width: "28%",
-      render: (text: string, record: EventDto) => (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ padding: "8px", background: "var(--color-surface-2)", borderRadius: "6px" }}>
-            {/* Backend reports running events as "Ongoing"; some older data uses "Active". */}
-            {record.status === "Active" || record.status === "Ongoing" ? <StarOutlined style={{color: "#60a5fa"}} /> : <FileOutlined style={{color: "#9ca3af"}} />}
-          </div>
-          <b>{text}</b>
-        </div>
-      )
-    },
-    {
-      title: "DATES",
-      key: "dates",
-      width: "22%",
-      render: (_: unknown, record: EventDto) => (
-        <span>{new Date(record.startDate).toLocaleDateString()} - {new Date(record.endDate).toLocaleDateString()}</span>
-      )
-    },
-    {
-      title: "STATUS",
-      dataIndex: "status",
-      key: "status",
-      width: "14%",
-      render: (text: string) => (
-        <Tag color={text === "Active" || text === "Ongoing" ? "processing" : "default"} style={{ borderRadius: "12px", padding: "2px 10px" }}>
-          {text}
-        </Tag>
-      )
-    },
-    {
-      title: "ROUNDS",
-      key: "rounds",
-      width: "12%",
-      render: (_: unknown, record: EventDto) => <b>{record.rounds?.length ?? 0} Rounds</b>
-    },
-    {
-      title: "ACTIONS",
-      key: "actions",
-      width: "24%",
-      render: (_: unknown, record: EventDto) => {
-        const canRegister = (record.status === "Draft" || record.status === "Published" || record.status === "Ongoing" || record.status === "Upcoming" || record.status === "Active") && !myRegistrations.includes(record.eventId);
-        return (
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <Link href={`/dashboard/events/${record.eventId}`}>
-              <Button type="primary" icon={<EyeOutlined />} style={{ borderRadius: "20px" }}>View & Participate</Button>
-            </Link>
-            {canRegister && userRoles.includes("Mentor") && (
-              <Button type="dashed" onClick={() => handleRegisterEvent(record.eventId, 'Mentor')} style={{ borderRadius: "20px" }}>
-                Register as Mentor
-              </Button>
-            )}
-            {canRegister && userRoles.includes("Judge") && (
-              <Button type="dashed" onClick={() => handleRegisterEvent(record.eventId, 'Judge')} style={{ borderRadius: "20px" }}>
-                Register as Judge
-              </Button>
-            )}
-          </div>
-        );
-      }
-    }
-  ];
+    return events.filter((event) => {
+      const matchesStatus = statusFilter === "All" || event.status === statusFilter;
+      const matchesSearch =
+        !query ||
+        event.eventName.toLowerCase().includes(query) ||
+        event.status.toLowerCase().includes(query) ||
+        (event.description ?? "").toLowerCase().includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [events, searchText, statusFilter]);
 
   return (
     <div>
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
-        <div>
-          <h1 className="page-title">Discover Hackathons</h1>
-        </div>
-        <Input
-          placeholder="Search events..."
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ width: 300, borderRadius: "20px" }}
-          prefix={<SearchOutlined />}
-        />
-      </div>
-
-      <Table
-        className="custom-antd-table"
-        columns={columns}
-        dataSource={filteredEvents}
-        pagination={{ pageSize: 10 }}
-        rowKey="eventId"
-        loading={loading}
-        locale={{ emptyText: loading ? "Loading events..." : "No events found." }}
-        tableLayout="fixed"
+      <PageHeader
+        title="Discover Hackathons"
+        subtitle="Explore event timelines, rounds, and participation options from one place."
+        actions={
+          <div className={styles.headerActions}>
+            <div className={styles.searchBox}>
+              <Search size={16} />
+              <input
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search events..."
+                aria-label="Search events"
+              />
+            </div>
+            <select className={`form-input ${styles.statusSelect}`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>{status} events</option>
+              ))}
+            </select>
+          </div>
+        }
       />
+
+      {loading ? (
+        <div className="empty-state">
+          <span className="spinner" />
+          <div className="empty-title">Loading events</div>
+        </div>
+      ) : filteredEvents.length === 0 ? (
+        <div className="empty-state">
+          <CalendarDays size={42} className="empty-icon" />
+          <div className="empty-title">No events found</div>
+          <div className="empty-desc">Try a different search or status filter.</div>
+        </div>
+      ) : (
+        <div className={styles.grid}>
+          {filteredEvents.map((event) => {
+            const isRegistered = myRegistrations.includes(event.eventId);
+            const canRegister =
+              ["Draft", "Published", "Ongoing", "Upcoming", "Active"].includes(event.status) &&
+              !isRegistered;
+
+            return (
+              <article key={event.eventId} className={styles.card}>
+                <div className={styles.cardTop}>
+                  <span className={`${styles.statusBadge} ${getStatusClass(event.status)}`}>{event.status}</span>
+                  {isRegistered && (
+                    <span className={styles.registeredBadge}>
+                      <BadgeCheck size={13} /> Registered
+                    </span>
+                  )}
+                </div>
+
+                <div className={styles.iconWrap}>
+                  <Sparkles size={20} />
+                </div>
+
+                <h3 className={styles.title}>{event.eventName}</h3>
+                <p className={styles.description}>
+                  {event.description?.trim() || "Open this event to view details, rounds, team options, and participation actions."}
+                </p>
+
+                <div className={styles.metaGrid}>
+                  <div>
+                    <CalendarDays size={15} />
+                    <span>{formatDate(event.startDate)} - {formatDate(event.endDate)}</span>
+                  </div>
+                  <div>
+                    <Clock size={15} />
+                    <span>{event.rounds?.length ?? 0} rounds</span>
+                  </div>
+                </div>
+
+                <div className={styles.actions}>
+                  <Link href={`/dashboard/events/${event.eventId}`} className="btn btn-primary">
+                    <Eye size={15} /> View Details
+                  </Link>
+                  {canRegister && userRoles.includes("Mentor") && (
+                    <button className="btn btn-secondary" onClick={() => handleRegisterEvent(event.eventId, "Mentor")}>
+                      <Users size={15} /> Mentor
+                    </button>
+                  )}
+                  {canRegister && userRoles.includes("Judge") && (
+                    <button className="btn btn-secondary" onClick={() => handleRegisterEvent(event.eventId, "Judge")}>
+                      <Users size={15} /> Judge
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

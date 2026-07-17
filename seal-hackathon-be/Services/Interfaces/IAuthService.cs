@@ -15,6 +15,7 @@ namespace SEAL.NET.Services.Interfaces
         ServiceResult Logout();
         Task<ServiceResult> GetMeAsync(string? userId);
         Task<ServiceResult> UpdateProfileAsync(string? userId, UpdateProfileRequest request);
+        Task<ServiceResult> UpdateAvatarAsync(string? userId, string fileName, string? contentType, long length, Stream content);
         Task<ServiceResult> GetNotificationPreferencesAsync(string? userId);
         Task<ServiceResult> UpdateNotificationPreferencesAsync(string? userId, NotificationPreferencesRequest request);
         Task<ServiceResult> ChangePasswordAsync(string? userId, ChangePasswordRequest request);

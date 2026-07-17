@@ -102,7 +102,6 @@ namespace SEAL.NET.Data
                     UserName = adminEmail,
                     Email = adminEmail,
                     FullName = "System Admin",
-                    PlainPassword = adminPassword,
                     EmailConfirmed = true,
                     IsApproved = true
                 };

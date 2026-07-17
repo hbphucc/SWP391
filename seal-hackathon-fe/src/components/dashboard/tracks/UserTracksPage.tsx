@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Users, Bot, Globe, Smartphone, Shield, Lightbulb, Search, RefreshCw } from "lucide-react";
 import { App, Input } from "antd";
 import { apiRequest } from "@/lib/api";
+import PageHeader from "@/components/workspace/PageHeader";
 import styles from "./UserTracksPage.module.css";
 
 type EventDto = {
@@ -82,10 +83,10 @@ export default function UserTracksPage() {
 
   return (
     <div>
-      <div className={`page-header ${styles.header}`}>
-        <div>
-          <h1 className="page-title">Competition Tracks</h1>
-        </div>
+      <PageHeader
+        title="Competition Tracks"
+        subtitle="Browse event tracks and find the category that best matches your team."
+        actions={
         <div className={styles.toolbar}>
           <select className={`form-input ${styles.eventSelect}`} value={eventId} onChange={(event) => setEventId(event.target.value)} disabled={events.length === 0}>
             {events.map((event) => (
@@ -103,7 +104,8 @@ export default function UserTracksPage() {
             <RefreshCw size={15} />
           </button>
         </div>
-      </div>
+        }
+      />
 
       {loading ? (
         <div className="empty-state">

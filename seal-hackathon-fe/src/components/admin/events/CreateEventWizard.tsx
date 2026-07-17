@@ -4,6 +4,7 @@ import CreateEventRoundsSection from "./CreateEventRoundsSection";
 import CreateEventPrizesSection from "./CreateEventPrizesSection";
 import CreateEventTracksSection from "./CreateEventTracksSection";
 import { useAdminEventsData } from "./useAdminEventsData";
+import styles from "./CreateEventWizard.module.css";
 
 type AdminEventsData = ReturnType<typeof useAdminEventsData>;
 
@@ -13,7 +14,6 @@ interface CreateEventWizardProps {
 
 const TOC_ITEMS = [
   { id: "general", label: "General Info" },
-  { id: "timeline", label: "Timeline" },
   { id: "rounds", label: "Rounds" },
   { id: "prizes", label: "Prizes" },
   { id: "tracks", label: "Tracks" },
@@ -34,24 +34,8 @@ export default function CreateEventWizard({ data }: CreateEventWizardProps) {
   } = data;
 
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "200px minmax(0, 1fr)",
-      gap: "1.5rem",
-      alignItems: "start",
-    }}>
-      {/* TOC sidebar */}
-      <nav
-        aria-label="Event sections"
-        style={{
-          position: "sticky",
-          top: 80,
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.4rem",
-          paddingTop: "0.5rem",
-        }}
-      >
+    <div className={styles.wizard}>
+      <nav aria-label="Event sections" className={styles.toc}>
         {TOC_ITEMS.map((item) => {
           const active = activeSection === item.id;
           return (
@@ -62,16 +46,7 @@ export default function CreateEventWizard({ data }: CreateEventWizardProps) {
                 setActiveSection(item.id);
                 document.getElementById(`ec-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
-              className="btn btn-ghost btn-sm"
-              style={{
-                justifyContent: "flex-start",
-                paddingLeft: "0.85rem",
-                borderLeft: active ? "3px solid var(--color-primary)" : "3px solid transparent",
-                borderRadius: 0,
-                fontWeight: active ? 700 : 500,
-                color: active ? "var(--color-text-1)" : "var(--color-text-3)",
-                background: active ? "rgba(99,102,241,0.08)" : "transparent",
-              }}
+              className={`btn btn-ghost btn-sm ${styles.tocButton} ${active ? styles.tocButtonActive : ""}`}
             >
               {item.label}
             </button>
@@ -79,8 +54,7 @@ export default function CreateEventWizard({ data }: CreateEventWizardProps) {
         })}
       </nav>
 
-      {/* Sections column */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", paddingBottom: 100 }}>
+      <div className={styles.sections}>
         <section id="ec-general">
           <CreateEventGeneralSection eventForm={eventForm} setEventForm={setEventForm} />
         </section>
@@ -110,25 +84,7 @@ export default function CreateEventWizard({ data }: CreateEventWizardProps) {
         </section>
       </div>
 
-      {/* Sticky bottom action bar — always visible, regardless of which
-          section the admin is currently viewing. Spans the full width
-          under both TOC and content. */}
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 10,
-          background: "var(--color-bg)",
-          borderTop: "1px solid var(--color-border)",
-          padding: "0.75rem 1.5rem",
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: "0.6rem",
-          boxShadow: "0 -2px 12px rgba(0,0,0,0.2)",
-        }}
-      >
+      <div className={styles.actionBar}>
         <button className="btn btn-secondary" onClick={() => setView("list")} disabled={submitting}>
           Cancel
         </button>

@@ -1,11 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import {
-  Users, Shield, Calendar, UserCheck, RefreshCw,
-} from "lucide-react";
+import { Users, Shield, Calendar, UserCheck, RefreshCw } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 import StatCardRow from "@/components/workspace/StatCardRow";
+import PageHeader from "@/components/workspace/PageHeader";
 import PendingUsersPanel, { type BackendUser } from "@/components/admin/PendingUsersPanel";
 import PendingTeamsPanel, { type AdminTeam } from "@/components/admin/PendingTeamsPanel";
 import AdminQuickLinks from "@/components/admin/AdminQuickLinks";
@@ -30,7 +29,6 @@ export default function AdminDashboardPage() {
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
-  // Per-row action guard (`user-approve-<id>` etc.) against double-clicks.
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
@@ -90,21 +88,22 @@ export default function AdminDashboardPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-          <h1 className="page-title">Admin Overview</h1>
-        </div>
-        <button className="btn btn-secondary" onClick={loadAll} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : undefined} /> Refresh
-        </button>
-      </div>
+      <PageHeader
+        title="Admin Overview"
+        subtitle="Review pending users, role requests, team approvals, and active event operations."
+        actions={
+          <button className="btn btn-secondary" onClick={loadAll} disabled={loading}>
+            <RefreshCw size={15} className={loading ? "spin" : undefined} /> Refresh
+          </button>
+        }
+      />
 
       <StatCardRow
         items={[
-          { icon: Users, label: "Pending Users", value: loading ? "…" : pendingUsers.length, color: "#6366f1" },
-          { icon: Shield, label: "Role Requests", value: loading ? "…" : roleRequests.length, color: "#f59e0b" },
-          { icon: UserCheck, label: "Pending Teams", value: loading ? "…" : pendingTeams.length, color: "#8b5cf6" },
-          { icon: Calendar, label: "Active Events", value: loading ? "…" : activeEvents, color: "#10b981" },
+          { icon: Users, label: "Pending Users", value: loading ? "..." : pendingUsers.length, color: "#6366f1" },
+          { icon: Shield, label: "Role Requests", value: loading ? "..." : roleRequests.length, color: "#f59e0b" },
+          { icon: UserCheck, label: "Pending Teams", value: loading ? "..." : pendingTeams.length, color: "#8b5cf6" },
+          { icon: Calendar, label: "Active Events", value: loading ? "..." : activeEvents, color: "#10b981" },
         ]}
       />
 

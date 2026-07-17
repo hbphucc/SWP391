@@ -46,6 +46,19 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
             => this.ToActionResult(await _authService.UpdateProfileAsync(CurrentUserId(), request));
 
+        [HttpPost("avatar")]
+        [Authorize]
+        [RequestSizeLimit(3 * 1024 * 1024)]
+        public async Task<IActionResult> UpdateAvatar(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "No file uploaded." });
+
+            using var stream = file.OpenReadStream();
+            return this.ToActionResult(await _authService.UpdateAvatarAsync(
+                CurrentUserId(), file.FileName, file.ContentType, file.Length, stream));
+        }
+
         [HttpGet("notification-preferences")]
         [Authorize]
         public async Task<IActionResult> GetNotificationPreferences()

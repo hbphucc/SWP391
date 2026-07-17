@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using SEAL.NET.Data;
 using SEAL.NET.DTOs.Auth;
 using SEAL.NET.Helpers;
 using SEAL.NET.Models.Entities;
@@ -22,7 +23,9 @@ namespace SEAL.NET.Services.Implementations
         private const string PasswordResetLoginProvider = "PasswordReset";
         private const string PasswordResetOtpTokenName = "OtpHash";
         private const string PasswordResetOtpExpiryName = "OtpExpiresAt";
+        private const long MaxAvatarSize = 2 * 1024 * 1024;
 
+        private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole<Guid>> _roleManager;
         private readonly IConfiguration _configuration;
@@ -31,6 +34,7 @@ namespace SEAL.NET.Services.Implementations
         private readonly ILogger<AuthService> _logger;
 
         public AuthService(
+            ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole<Guid>> roleManager,
             IConfiguration configuration,
@@ -38,6 +42,7 @@ namespace SEAL.NET.Services.Implementations
             IHttpContextAccessor httpContextAccessor,
             ILogger<AuthService> logger)
         {
+            _context = context;
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
@@ -330,6 +335,52 @@ namespace SEAL.NET.Services.Implementations
             return ServiceResult.Ok(BuildProfile(user, roles));
         }
 
+        public async Task<ServiceResult> UpdateAvatarAsync(string? userId, string fileName, string? contentType, long length, Stream content)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return ServiceResult.Unauthorized("Invalid authentication token.");
+
+            if (!Guid.TryParse(userId, out var parsedUserId))
+                return ServiceResult.Unauthorized("Invalid authentication token.");
+
+            if (length <= 0)
+                return ServiceResult.BadRequest("No file uploaded.");
+
+            if (length > MaxAvatarSize)
+                return ServiceResult.BadRequest("Avatar image must be smaller than 2 MB.");
+
+            if (string.IsNullOrWhiteSpace(contentType) || !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return ServiceResult.BadRequest("Avatar must be an image file.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return ServiceResult.Unauthorized("User not found.");
+
+            await using var ms = new MemoryStream();
+            await content.CopyToAsync(ms);
+
+            var document = new Document
+            {
+                FileName = Path.GetFileName(fileName),
+                ContentType = contentType,
+                Size = length,
+                Content = ms.ToArray(),
+                UploaderId = parsedUserId
+            };
+
+            _context.Documents.Add(document);
+            user.AvatarUrl = $"/Documents/{document.DocumentId}/download";
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return ServiceResult.BadRequestBody(result.Errors);
+
+            await _context.SaveChangesAsync();
+
+            var roles = await _userManager.GetRolesAsync(user);
+            return ServiceResult.Ok(BuildProfile(user, roles));
+        }
+
         public async Task<ServiceResult> GetNotificationPreferencesAsync(string? userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -482,6 +533,7 @@ namespace SEAL.NET.Services.Implementations
             developerRole = user.DeveloperRole == null ? null : user.DeveloperRole.ToString(),
             programmingLanguages = DeveloperProfileOptions.ParseLanguages(user.ProgrammingLanguages),
             requestedRole = user.RequestedRole,
+            avatarUrl = user.AvatarUrl,
             emailNotificationsEnabled = user.EmailNotificationsEnabled,
             roles
         };
