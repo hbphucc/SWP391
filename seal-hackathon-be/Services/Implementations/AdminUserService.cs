@@ -336,24 +336,42 @@ namespace SEAL.NET.Services.Implementations
                 if (!await _roleManager.RoleExistsAsync(requestedRole))
                     await _roleManager.CreateAsync(new IdentityRole<Guid>(requestedRole));
 
+                // UserManager writes go straight to the database, one call at a time.
+                // Without a transaction a failure between the strip and the grant would
+                // leave the account with NO roles at all — locked out of every portal —
+                // and an early return would keep that state. The transaction lets any
+                // failed step roll the whole role swap back.
+                await using var tx = await _db.Database.BeginTransactionAsync();
+
                 var currentRoles = await _userManager.GetRolesAsync(user);
                 if (currentRoles.Any())
                 {
                     var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
                     if (!removeResult.Succeeded)
+                    {
+                        await tx.RollbackAsync();
                         return ServiceResult.BadRequestBody(removeResult.Errors);
+                    }
                 }
 
                 var addResult = await _userManager.AddToRoleAsync(user, requestedRole);
                 if (!addResult.Succeeded)
+                {
+                    await tx.RollbackAsync();
                     return ServiceResult.BadRequestBody(addResult.Errors);
+                }
 
                 user.RequestedRole = null;
                 var updateResult = await _userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
+                {
+                    await tx.RollbackAsync();
                     return ServiceResult.BadRequestBody(updateResult.Errors);
+                }
 
                 await _userManager.UpdateSecurityStampAsync(user);
+
+                await tx.CommitAsync();
 
                 await _notificationService.CreateAsync(
                     user.Id,

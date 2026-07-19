@@ -239,6 +239,34 @@ namespace SEAL.NET.Services.Implementations
             if (duplicateTeamName)
                 return ServiceResult.BadRequest("Team name already exists in this category.");
 
+            // Optional inline mentor: resolved and validated BEFORE anything is added
+            // to the change tracker. NotificationService shares this scoped
+            // DbContext and calls SaveChangesAsync, so any Add() staged before a
+            // later validation failure would already be committed by the time we
+            // returned BadRequest — leaving a half-created team behind.
+            ApplicationUser? mentor = null;
+            if (request.MentorId.HasValue)
+            {
+                mentor = await _userManager.FindByIdAsync(request.MentorId.Value.ToString());
+                if (mentor == null)
+                    return ServiceResult.BadRequest("Selected mentor was not found.");
+
+                if (!mentor.IsApproved)
+                    return ServiceResult.BadRequest("Selected mentor's account is disabled.");
+
+                if (!await _userManager.IsInRoleAsync(mentor, "Mentor"))
+                    return ServiceResult.BadRequest("Selected user is not a mentor.");
+
+                // Mentor must have registered for this event (eventId is the team's
+                // category's event, resolved above).
+                var mentorIsRegistered = await _context.Events
+                    .Where(e => e.EventId == eventId)
+                    .SelectMany(e => e.RegisteredMentors)
+                    .AnyAsync(u => u.Id == mentor.Id);
+                if (!mentorIsRegistered)
+                    return ServiceResult.BadRequest("Selected mentor has not registered for this event.");
+            }
+
             var firstRound = await _context.Rounds
                 .Where(r => r.EventId == eventId)
                 .OrderBy(r => r.RoundOrder)
@@ -263,64 +291,25 @@ namespace SEAL.NET.Services.Implementations
                 Role = "Leader"
             });
 
-            // For all other members, create a pending team invitation and system notification
-            foreach (var memberId in allMemberIds)
+            // For all other members, stage a pending team invitation. Notifications are
+            // sent after the save below, never between Add() calls — notifying here
+            // would flush a partially built team through the shared DbContext.
+            var invitedMemberIds = allMemberIds.Where(id => id != leaderId).ToList();
+            foreach (var memberId in invitedMemberIds)
             {
-                if (memberId != leaderId)
+                _context.TeamInvitations.Add(new TeamInvitation
                 {
-                    var invitation = new TeamInvitation
-                    {
-                        TeamId = team.TeamId,
-                        InviterUserId = leaderId,
-                        InviteeUserId = memberId,
-                        Status = InvitationStatus.Pending,
-                        Message = $"Invitation to join team {team.TeamName}",
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    _context.TeamInvitations.Add(invitation);
-
-                    try
-                    {
-                        await _notificationService.CreateAsync(
-                            memberId,
-                            "Team Invitation",
-                            $"You have been invited to join team {team.TeamName}.",
-                            "team"
-                        );
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to notify invited team member {UserId} for team {TeamId}.", memberId, team.TeamId);
-                    }
-                }
+                    TeamId = team.TeamId,
+                    InviterUserId = leaderId,
+                    InviteeUserId = memberId,
+                    Status = InvitationStatus.Pending,
+                    Message = $"Invitation to join team {team.TeamName}",
+                    CreatedAt = DateTime.UtcNow
+                });
             }
 
-            // Optional inline mentor assignment. Validated up front so a bad MentorId
-            // surfaces as the BadRequest the client expects instead of half-creating
-            // a team and then failing. Everything below saves in one SaveChangesAsync,
-            // so the team + invitations + mentor row commit atomically.
-            if (request.MentorId.HasValue)
+            if (mentor != null)
             {
-                var mentor = await _userManager.FindByIdAsync(request.MentorId.Value.ToString());
-                if (mentor == null)
-                    return ServiceResult.BadRequest("Selected mentor was not found.");
-
-                if (!mentor.IsApproved)
-                    return ServiceResult.BadRequest("Selected mentor's account is disabled.");
-
-                if (!await _userManager.IsInRoleAsync(mentor, "Mentor"))
-                    return ServiceResult.BadRequest("Selected user is not a mentor.");
-
-                // Mentor must have registered for this event (eventId is the team's
-                // category's event, resolved above).
-                var mentorIsRegistered = await _context.Events
-                    .Where(e => e.EventId == eventId)
-                    .SelectMany(e => e.RegisteredMentors)
-                    .AnyAsync(u => u.Id == mentor.Id);
-                if (!mentorIsRegistered)
-                    return ServiceResult.BadRequest("Selected mentor has not registered for this event.");
-
                 // Invite only — the mentor becomes the team's actual mentor once they
                 // accept via POST /teams/mentor-invitations/{id}/accept.
                 _context.MentorAssignments.Add(new MentorAssignment
@@ -335,6 +324,25 @@ namespace SEAL.NET.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
+
+            // Notify invited members only after the team is persisted, so a notify
+            // failure can't make the caller think creation failed. One batch call
+            // instead of one save per member.
+            if (invitedMemberIds.Count > 0)
+            {
+                try
+                {
+                    await _notificationService.CreateForUsersAsync(
+                        invitedMemberIds,
+                        "Team Invitation",
+                        $"You have been invited to join team {team.TeamName}.",
+                        "team");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to notify invited members for team {TeamId}.", team.TeamId);
+                }
+            }
 
             // Notify the mentor only after the row is persisted, so a notify failure
             // can't make the caller think creation failed.
