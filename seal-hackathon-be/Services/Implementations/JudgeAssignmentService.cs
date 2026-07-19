@@ -110,6 +110,29 @@ namespace SEAL.NET.Services.Implementations
             if (!isRegistered)
                 return ServiceResult.BadRequest("Selected judge has not registered for this event.");
 
+            // Resolve and validate every requested team up front, in ONE query.
+            // This must happen before the RemoveRange calls below: those mark the
+            // existing assignments as Deleted on the shared scoped DbContext, so a
+            // validation failure after that point would leave pending deletes that
+            // any later SaveChangesAsync in the same request would flush.
+            var requestedTeams = new List<Team>();
+            if (request.TeamIds != null && request.TeamIds.Any())
+            {
+                requestedTeams = await _context.Teams
+                    .Where(t => request.TeamIds.Contains(t.TeamId))
+                    .ToListAsync();
+
+                // Cast to Guid? so "no invalid id" is distinguishable from an id that
+                // is itself Guid.Empty — FirstOrDefault on Guid returns Guid.Empty for
+                // both, which would let an empty id slip through unreported.
+                var invalidTeamId = request.TeamIds
+                    .Select(id => (Guid?)id)
+                    .FirstOrDefault(id => !requestedTeams.Any(t => t.TeamId == id && t.CategoryId == request.CategoryId));
+
+                if (invalidTeamId.HasValue)
+                    return ServiceResult.BadRequest($"Team with ID {invalidTeamId.Value} does not exist or is not in the selected category.");
+            }
+
             // 1. Remove existing assignments for this specific judge, round, and category combination (to avoid duplicates or update assignments)
             var existingForJudge = await _context.JudgeAssignments
                 .Where(a => a.JudgeId == request.JudgeId && a.RoundId == request.RoundId && a.CategoryId == request.CategoryId)
@@ -147,30 +170,22 @@ namespace SEAL.NET.Services.Implementations
             // Create assignments
             if (request.TeamIds != null && request.TeamIds.Any())
             {
-                foreach (var teamId in request.TeamIds)
+                // Iterating the resolved teams (rather than the raw request ids) also
+                // collapses duplicate ids into a single assignment per team.
+                foreach (var team in requestedTeams)
                 {
-                    var team = await _context.Teams.FindAsync(teamId);
-                    if (team == null || team.CategoryId != request.CategoryId)
-                    {
-                        return ServiceResult.BadRequest($"Team with ID {teamId} does not exist or is not in the selected category.");
-                    }
-
                     var assignment = new JudgeAssignment
                     {
                         JudgeId = request.JudgeId,
                         RoundId = request.RoundId,
                         CategoryId = request.CategoryId,
-                        TeamId = teamId
+                        TeamId = team.TeamId
                     };
                     _context.JudgeAssignments.Add(assignment);
                 }
 
                 // Send notification
-                var teamNames = await _context.Teams
-                    .Where(t => request.TeamIds.Contains(t.TeamId))
-                    .Select(t => t.TeamName)
-                    .ToListAsync();
-                string teamNamesStr = string.Join(", ", teamNames);
+                string teamNamesStr = string.Join(", ", requestedTeams.Select(t => t.TeamName));
                 string notifMessage = $"You have been assigned to manage/grade the following teams in {category.CategoryName} for {round.RoundName}: {teamNamesStr}.";
                 await _notificationService.CreateAsync(request.JudgeId, "New Judge Assignment", notifMessage, "info");
             }
