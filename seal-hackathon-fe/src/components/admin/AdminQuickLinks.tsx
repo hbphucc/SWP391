@@ -13,14 +13,14 @@ export default function AdminQuickLinks() {
         </div>
       </Link>
       <Link href="/admin/events?tab=criteria" className="stat-card" style={{ textDecoration: "none" }}>
-        <div className="stat-icon" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}><FileText size={24} /></div>
+        <div className="stat-icon" style={{ background: "rgba(245,158,11,0.15)", color: "var(--color-amber)" }}><FileText size={24} /></div>
         <div>
           <div className="stat-value">Criteria Templates</div>
           <div className="stat-label">Configure scoring rubrics</div>
         </div>
       </Link>
       <Link href="/admin/system-notifications" className="stat-card" style={{ textDecoration: "none" }}>
-        <div className="stat-icon" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}><Shield size={24} /></div>
+        <div className="stat-icon" style={{ background: "rgba(244,63,94,0.15)", color: "var(--color-rose)" }}><Shield size={24} /></div>
         <div>
           <div className="stat-value">System Notifications</div>
           <div className="stat-label">Broadcast announcements to users</div>

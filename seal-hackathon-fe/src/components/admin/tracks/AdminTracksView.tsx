@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Table, Button, Space, Card, Drawer, Form, Input, App } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { apiRequest } from "@/lib/api";
@@ -12,39 +13,29 @@ type CategoryDto = {
 
 export default function AdminTracksView({ eventId }: { eventId: string }) {
   const { message, modal } = App.useApp();
-  const [tracks, setTracks] = useState<CategoryDto[]>([]);
   const [searchText, setSearchText] = useState("");
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
 
-  const loadTracks = async () => {
-    if (!eventId) {
-      setTracks([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      setTracks(await apiRequest<CategoryDto[]>(`/events/${eventId}/categories`));
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load categories.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Shares the ["event-categories", eventId] cache with the user-facing tracks
+  // page, so a CRUD refetch here also freshens that view.
+  const {
+    data: tracks = [],
+    isFetching: loading,
+    error,
+    refetch: loadTracks,
+  } = useQuery({
+    queryKey: ["event-categories", eventId],
+    queryFn: () => apiRequest<CategoryDto[]>(`/events/${eventId}/categories`),
+    enabled: !!eventId,
+  });
 
   useEffect(() => {
-    if (!eventId) return;
-    let active = true;
-    apiRequest<CategoryDto[]>(`/events/${eventId}/categories`)
-      .then((data) => { if (active) setTracks(data); })
-      .catch((err) => { if (active) message.error(err instanceof Error ? err.message : "Could not load categories."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [eventId, message]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load categories.");
+  }, [error, message]);
 
   const showCreateDrawer = () => {
     setIsEditMode(false);
@@ -150,7 +141,7 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
           prefix={<SearchOutlined />}
         />
         <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={loadTracks} disabled={!eventId || loading} />
+          <Button icon={<ReloadOutlined />} onClick={() => loadTracks()} disabled={!eventId || loading} />
           <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: "20px" }} disabled={!eventId}>
             Create Track
           </Button>

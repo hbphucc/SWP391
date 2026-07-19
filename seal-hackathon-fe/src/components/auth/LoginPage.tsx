@@ -8,6 +8,7 @@ import { App } from "antd";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, Trophy } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { getRoleLandingPath, isRouteDeniedForRoles } from "@/components/shell/routePolicies";
 import styles from "./Auth.module.css";
 
 /**
@@ -15,8 +16,12 @@ import styles from "./Auth.module.css";
  * requested redirect is missing or unsafe (external URL, protocol-relative,
  * or otherwise malformed). This prevents open-redirect attacks via the
  * `?redirect=` query param.
+ *
+ * Also falls back when the target is a route this user's role is denied —
+ * otherwise AccessGate would bounce them straight back out, and a route that
+ * redirects to login would ping-pong.
  */
-function getSafeRedirect(value: string | null, fallback: string): string {
+function getSafeRedirect(value: string | null, fallback: string, roles?: string[]): string {
   if (!value) return fallback;
   // Must be an internal absolute path: starts with a single "/".
   // Reject protocol-relative ("//host") and backslash ("/\\host") variants,
@@ -24,6 +29,8 @@ function getSafeRedirect(value: string | null, fallback: string): string {
   if (!value.startsWith("/")) return fallback;
   if (value.startsWith("//") || value.startsWith("/\\")) return fallback;
   if (value.includes(":")) return fallback;
+  // Compare the path only — a denied route stays denied with a query string on it.
+  if (isRouteDeniedForRoles(value.split("?")[0], roles)) return fallback;
   return value;
 }
 
@@ -58,8 +65,8 @@ function LoginForm() {
       }
 
       message.success("Logged in successfully via Google!");
-      const fallback = signedIn.roles.includes("Admin") ? "/admin" : "/dashboard";
-      router.push(getSafeRedirect(redirectUrl, fallback));
+      const fallback = getRoleLandingPath(signedIn.roles);
+      router.push(getSafeRedirect(redirectUrl, fallback, signedIn.roles));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google login failed. Please try again.");
     } finally {
@@ -94,8 +101,8 @@ function LoginForm() {
   // the login page once the AuthProvider finishes its bootstrap check.
   useEffect(() => {
     if (authLoading || !user) return;
-    const fallback = user.roles.includes("Admin") ? "/admin" : "/dashboard";
-    router.push(getSafeRedirect(redirectUrl, fallback));
+    const fallback = getRoleLandingPath(user.roles);
+    router.push(getSafeRedirect(redirectUrl, fallback, user.roles));
   }, [authLoading, user, router, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,8 +129,8 @@ function LoginForm() {
       }
 
       message.success("Logged in successfully!");
-      const fallback = signedIn.roles.includes("Admin") ? "/admin" : "/dashboard";
-      router.push(getSafeRedirect(redirectUrl, fallback));
+      const fallback = getRoleLandingPath(signedIn.roles);
+      router.push(getSafeRedirect(redirectUrl, fallback, signedIn.roles));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in. Please try again.");
     } finally {

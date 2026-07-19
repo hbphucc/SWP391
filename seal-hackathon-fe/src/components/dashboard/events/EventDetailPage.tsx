@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
-import { use, useState, useEffect, useCallback, type CSSProperties } from "react";
+import { use, useState, useEffect, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Users, Target, Clock, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -44,7 +45,7 @@ const STATUS_BADGE: Record<string, string> = {
   Completed: "badge-neutral",
 };
 
-const TRACK_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#f43f5e", "#10b981"];
+const TRACK_COLORS = ["var(--color-primary)", "var(--color-violet)", "var(--color-cyan)", "var(--color-amber)", "var(--color-rose)", "var(--color-emerald)"];
 
 function formatDate(value?: string | null) {
   if (!value) return "TBD";
@@ -56,38 +57,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const { message } = App.useApp();
   const [tab, setTab] = useState("overview");
-  const [event, setEvent] = useState<EventDetailDto | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchEvent = useCallback(() => (
-    apiRequest<EventDetailDto>(`/Events/${id}`)
-  ), [id]);
+  const {
+    data: event = null,
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: ["event", id],
+    queryFn: () => apiRequest<EventDetailDto>(`/Events/${id}`),
+  });
 
   useEffect(() => {
-    let active = true;
-
-    fetchEvent()
-      .then((data) => {
-        if (active) {
-          setEvent(data);
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          message.error(err instanceof Error ? err.message : "Could not load event.");
-          setEvent(null);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [fetchEvent, message]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load event.");
+  }, [error, message]);
 
   if (loading) {
     return <div className="empty-state"><Clock size={48} className="empty-icon" /><div className="empty-title">Loading event…</div></div>;
@@ -132,10 +114,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Quick Stats */}
       <div className={`grid-4 ${styles.statsGrid}`}>
         {[
-          { icon: Target, label: "Tracks", val: event.categories.length, color: "#6366f1" },
-          { icon: Users,  label: "Teams",  val: totalTeams,              color: "#8b5cf6" },
-          { icon: Clock,  label: "Rounds", val: event.rounds.length,     color: "#06b6d4" },
-          { icon: Trophy, label: "Status", val: event.status,            color: "#f59e0b" },
+          { icon: Target, label: "Tracks", val: event.categories.length, color: "var(--color-primary)" },
+          { icon: Users,  label: "Teams",  val: totalTeams,              color: "var(--color-violet)" },
+          { icon: Clock,  label: "Rounds", val: event.rounds.length,     color: "var(--color-cyan)" },
+          { icon: Trophy, label: "Status", val: event.status,            color: "var(--color-amber)" },
         ].map(s => {
           const Icon = s.icon;
           return (

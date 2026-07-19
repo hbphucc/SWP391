@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { App } from "antd";
 import { BadgeCheck, CalendarDays, Clock, Eye, Search, Sparkles, Users } from "lucide-react";
@@ -35,51 +36,39 @@ function getStatusClass(status: string) {
 export default function UserEventsPage() {
   const { message } = App.useApp();
   const { user } = useAuth();
-  const [events, setEvents] = useState<EventDto[]>([]);
+  const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [loading, setLoading] = useState(true);
-  const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
   const userRoles = React.useMemo(() => user?.roles ?? [], [user?.roles]);
+  const isMentorOrJudge = userRoles.includes("Mentor") || userRoles.includes("Judge");
+
+  const {
+    data: events = [],
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+
+  const { data: myRegistrations = [] } = useQuery({
+    queryKey: ["my-registrations"],
+    queryFn: () => apiRequest<string[]>("/Events/my-registrations"),
+    enabled: isMentorOrJudge,
+  });
 
   useEffect(() => {
-    let active = true;
-
-    apiRequest<EventDto[]>("/Events")
-      .then((data) => {
-        if (!active) return;
-        setEvents(data);
-      })
-      .catch((err) => {
-        if (!active) return;
-        message.error(err instanceof Error ? err.message : "Could not load events.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    if (userRoles.includes("Mentor") || userRoles.includes("Judge")) {
-      apiRequest<string[]>("/Events/my-registrations")
-        .then((data) => {
-          if (!active) return;
-          setMyRegistrations(data);
-        })
-        .catch(() => {
-          if (!active) return;
-          setMyRegistrations([]);
-        });
-    }
-
-    return () => {
-      active = false;
-    };
-  }, [message, userRoles]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load events.");
+  }, [error, message]);
 
   const handleRegisterEvent = async (eventId: string, role: string) => {
     try {
       await apiRequest(`/Events/${eventId}/register?role=${role}`, { method: "POST" });
       message.success(`Successfully registered as ${role}!`);
-      setMyRegistrations((prev) => Array.from(new Set([...prev, eventId])));
+      // Optimistically add to the shared registrations cache.
+      queryClient.setQueryData<string[]>(["my-registrations"], (prev) =>
+        Array.from(new Set([...(prev ?? []), eventId])),
+      );
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to register for event.");
     }

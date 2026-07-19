@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Trophy, Award, Star, Medal, Gift } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -16,31 +17,22 @@ interface PrizeDto {
 }
 
 function prizeIcon(rank: number) {
-  if (rank <= 1) return <Trophy size={32} style={{ color: "#f59e0b" }} />;
-  if (rank === 2) return <Medal size={32} style={{ color: "#94a3b8" }} />;
-  if (rank === 3) return <Star size={32} style={{ color: "#10b981" }} />;
-  return <Award size={32} style={{ color: "#8b5cf6" }} />;
+  if (rank <= 1) return <Trophy size={32} style={{ color: "var(--color-medal-gold)" }} />;
+  if (rank === 2) return <Medal size={32} style={{ color: "var(--color-medal-silver)" }} />;
+  if (rank === 3) return <Star size={32} style={{ color: "var(--color-emerald)" }} />;
+  return <Award size={32} style={{ color: "var(--color-violet)" }} />;
 }
 
 export default function PrizesView() {
   const { message } = App.useApp();
-  const [prizes, setPrizes] = useState<PrizeDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: prizes = [], isLoading: loading, error } = useQuery({
+    queryKey: ["prizes"],
+    queryFn: () => apiRequest<PrizeDto[]>("/Prizes"),
+  });
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await apiRequest<PrizeDto[]>("/Prizes");
-        setPrizes(data);
-      } catch (err) {
-        message.error(err instanceof Error ? err.message : "Could not load prizes.");
-        setPrizes([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [message]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load prizes.");
+  }, [error, message]);
 
   return (
     <div style={{ maxWidth: 1100, height: "calc(100vh - 100px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>

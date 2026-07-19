@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Users, Shield, Calendar, UserCheck, RefreshCw } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -24,35 +25,43 @@ interface EventDto {
 
 export default function AdminDashboardPage() {
   const { message } = App.useApp();
-  const [users, setUsers] = useState<BackendUser[]>([]);
-  const [roleRequests, setRoleRequests] = useState<RoleRequest[]>([]);
-  const [teams, setTeams] = useState<AdminTeam[]>([]);
-  const [events, setEvents] = useState<EventDto[]>([]);
-  const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    const [userRes, requestRes, teamRes, eventRes] = await Promise.allSettled([
-      apiRequest<BackendUser[]>("/admin/users"),
-      apiRequest<RoleRequest[]>("/admin/users/role-requests"),
-      apiRequest<AdminTeam[]>("/admin/teams"),
-      apiRequest<EventDto[]>("/Events"),
-    ]);
-    if (userRes.status === "fulfilled") setUsers(userRes.value);
-    if (requestRes.status === "fulfilled") setRoleRequests(requestRes.value);
-    if (teamRes.status === "fulfilled") setTeams(teamRes.value);
-    if (eventRes.status === "fulfilled") setEvents(eventRes.value);
-    if ([userRes, requestRes, teamRes, eventRes].every((r) => r.status === "rejected")) {
+  // Overview-scoped keys (raw shapes) so they never collide with the mapped
+  // caches the detail pages keep under ["admin-users"] / ["admin-role-requests"].
+  const usersQuery = useQuery({
+    queryKey: ["admin-overview-users"],
+    queryFn: () => apiRequest<BackendUser[]>("/admin/users"),
+  });
+  const roleRequestsQuery = useQuery({
+    queryKey: ["admin-overview-role-requests"],
+    queryFn: () => apiRequest<RoleRequest[]>("/admin/users/role-requests"),
+  });
+  const teamsQuery = useQuery({
+    queryKey: ["admin-overview-teams"],
+    queryFn: () => apiRequest<AdminTeam[]>("/admin/teams"),
+  });
+  const eventsQuery = useQuery({
+    queryKey: ["admin-overview-events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+
+  const users = usersQuery.data ?? [];
+  const roleRequests = roleRequestsQuery.data ?? [];
+  const teams = teamsQuery.data ?? [];
+  const events = eventsQuery.data ?? [];
+  const loading =
+    usersQuery.isLoading || roleRequestsQuery.isLoading || teamsQuery.isLoading || eventsQuery.isLoading;
+
+  const loadAll = () =>
+    Promise.all([usersQuery.refetch(), roleRequestsQuery.refetch(), teamsQuery.refetch(), eventsQuery.refetch()]);
+
+  // Match the previous behavior: only surface an error when every request failed.
+  useEffect(() => {
+    if (usersQuery.error && roleRequestsQuery.error && teamsQuery.error && eventsQuery.error) {
       message.error("Could not load admin overview data.");
     }
-    setLoading(false);
-  }, [message]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => void loadAll(), 0);
-    return () => clearTimeout(timer);
-  }, [loadAll]);
+  }, [usersQuery.error, roleRequestsQuery.error, teamsQuery.error, eventsQuery.error, message]);
 
   const pendingUsers = users.filter((u) => !u.isApproved);
   const pendingTeams = teams.filter((t) => t.status === "Pending");
@@ -100,10 +109,10 @@ export default function AdminDashboardPage() {
 
       <StatCardRow
         items={[
-          { icon: Users, label: "Pending Users", value: loading ? "..." : pendingUsers.length, color: "#6366f1" },
-          { icon: Shield, label: "Role Requests", value: loading ? "..." : roleRequests.length, color: "#f59e0b" },
-          { icon: UserCheck, label: "Pending Teams", value: loading ? "..." : pendingTeams.length, color: "#8b5cf6" },
-          { icon: Calendar, label: "Active Events", value: loading ? "..." : activeEvents, color: "#10b981" },
+          { icon: Users, label: "Pending Users", value: loading ? "..." : pendingUsers.length, color: "var(--color-primary)" },
+          { icon: Shield, label: "Role Requests", value: loading ? "..." : roleRequests.length, color: "var(--color-amber)" },
+          { icon: UserCheck, label: "Pending Teams", value: loading ? "..." : pendingTeams.length, color: "var(--color-violet)" },
+          { icon: Calendar, label: "Active Events", value: loading ? "..." : activeEvents, color: "var(--color-emerald)" },
         ]}
       />
 

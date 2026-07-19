@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { App } from "antd";
@@ -53,133 +54,110 @@ interface NotificationDto {
 export function useDashboardData() {
   const { message } = App.useApp();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"all" | "active" | "upcoming">("all");
-  const [events, setEvents] = useState<MappedEvent[]>([]);
-  const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
-  const [myTeam, setMyTeam] = useState<DashboardTeamSummary | null>(null);
-  const [myRegistrations, setMyRegistrations] = useState<string[]>([]);
   const userRoles = useMemo(() => user?.roles ?? [], [user?.roles]);
   const isAdmin = userRoles.includes("Admin");
   const canJudge = isAdmin || userRoles.includes("Judge");
   const isMemberish = userRoles.includes("Member") || userRoles.includes("TeamLeader");
   const currentUserId = user?.id ?? null;
+  const isMentorOrJudge = userRoles.includes("Mentor") || userRoles.includes("Judge");
+
+  const { data: rawEvents = [], isLoading, error: eventsError } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiRequest<NotificationDto[]>("/notifications"),
+  });
+  const { data: rawInvites = [] } = useQuery({
+    queryKey: ["team-invitations-received"],
+    queryFn: () => apiRequest<InvitationResponse[]>("/teams/invitations/received"),
+  });
+  // "No team" is an expected 404 — don't retry it; the null is meaningful.
+  const { data: myTeam = null } = useQuery({
+    queryKey: ["my-team"],
+    queryFn: () => apiRequest<DashboardTeamSummary>("/teams/my-team"),
+    retry: false,
+  });
+  const { data: myRegistrations = [] } = useQuery({
+    queryKey: ["my-registrations"],
+    queryFn: () => apiRequest<string[]>("/Events/my-registrations"),
+    enabled: isMentorOrJudge,
+  });
 
   useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        const data = await apiRequest<EventDto[]>("/Events");
-        const mappedEvents = data.map((event) => ({
-          id: event.eventId,
-          name: event.eventName,
-          status: event.status === "Ongoing" ? "Active" : event.status,
-          currentRound: event.rounds?.[0]?.roundName,
-          teamsCount: event.categories?.reduce((sum: number, category: EventCategoryDto) => sum + (category.teamCount ?? 0), 0) ?? 0,
-          tracksCount: event.categories?.length ?? 0,
-          endDate: event.endDate,
-        }));
+    if (eventsError) message.error(eventsError instanceof Error ? eventsError.message : "Could not load dashboard data.");
+  }, [eventsError, message]);
 
-        setEvents(mappedEvents);
-        setMetrics({
-          activeEvents: mappedEvents.filter((event) => event.status === "Active").length,
-          totalEvents: mappedEvents.length,
-          totalTeams: mappedEvents.reduce((sum, event) => sum + event.teamsCount, 0),
-          totalTracks: mappedEvents.reduce((sum, event) => sum + event.tracksCount, 0),
-          upcomingEvent: mappedEvents[0]?.name ?? "SEAL Hackathon",
-        });
+  const events = useMemo<MappedEvent[]>(
+    () =>
+      rawEvents.map((event) => ({
+        id: event.eventId,
+        name: event.eventName,
+        status: event.status === "Ongoing" ? "Active" : event.status,
+        currentRound: event.rounds?.[0]?.roundName,
+        teamsCount: event.categories?.reduce((sum: number, category: EventCategoryDto) => sum + (category.teamCount ?? 0), 0) ?? 0,
+        tracksCount: event.categories?.length ?? 0,
+        endDate: event.endDate,
+      })),
+    [rawEvents],
+  );
 
-        // Derive upcoming deadlines from event round submission deadlines
-        const now = Date.now();
-        const upcoming: DeadlineItem[] = data
-          .flatMap((event) =>
-            (event.rounds ?? [])
-              .filter((r) => r.submissionDeadline)
-              .map((r) => ({
-                event: event.eventName,
-                task: `${r.roundName ?? "Round"} – Submission Deadline`,
-                rawDate: new Date(r.submissionDeadline as string),
-              })),
-          )
-          .filter((d) => !Number.isNaN(d.rawDate.getTime()) && d.rawDate.getTime() >= now)
-          .sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime())
-          .slice(0, 5)
-          .map((d) => ({
-            event: d.event,
-            task: d.task,
-            date: d.rawDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-            urgent: d.rawDate.getTime() - now < 1000 * 60 * 60 * 24 * 7,
-          }));
-        setDeadlines(upcoming);
-      } catch (err) {
-        message.error(err instanceof Error ? err.message : "Could not load dashboard data.");
-        setEvents([]);
-        setMetrics({
-          activeEvents: 0,
-          totalEvents: 0,
-          totalTeams: 0,
-          totalTracks: 0,
-          upcomingEvent: "SEAL Hackathon",
-        });
-      }
+  // Keep the previous "null while first loading" shape so stat tiles can skeleton.
+  const metrics = useMemo<DashboardMetrics | null>(() => {
+    if (isLoading) return null;
+    return {
+      activeEvents: events.filter((event) => event.status === "Active").length,
+      totalEvents: events.length,
+      totalTeams: events.reduce((sum, event) => sum + event.teamsCount, 0),
+      totalTracks: events.reduce((sum, event) => sum + event.tracksCount, 0),
+      upcomingEvent: events[0]?.name ?? "SEAL Hackathon",
     };
+  }, [events, isLoading]);
 
-    const loadActivity = async () => {
-      try {
-        const notifications = await apiRequest<NotificationDto[]>("/notifications");
-        setActivities(
-          notifications.slice(0, 6).map((n) => ({
-            title: n.title,
-            message: n.message,
-            time: relativeTime(n.createdAt),
-            type: n.type,
+  const deadlines = useMemo<DeadlineItem[]>(() => {
+    // Deadlines are inherently relative to "now"; recomputing per render is fine
+    // and cheap (only when events change), so the impurity here is intentional.
+    // eslint-disable-next-line react-hooks/purity
+    const now = Date.now();
+    return rawEvents
+      .flatMap((event) =>
+        (event.rounds ?? [])
+          .filter((r) => r.submissionDeadline)
+          .map((r) => ({
+            event: event.eventName,
+            task: `${r.roundName ?? "Round"} – Submission Deadline`,
+            rawDate: new Date(r.submissionDeadline as string),
           })),
-        );
-      } catch {
-        setActivities([]);
-      }
-    };
+      )
+      .filter((d) => !Number.isNaN(d.rawDate.getTime()) && d.rawDate.getTime() >= now)
+      .sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime())
+      .slice(0, 5)
+      .map((d) => ({
+        event: d.event,
+        task: d.task,
+        date: d.rawDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        urgent: d.rawDate.getTime() - now < 1000 * 60 * 60 * 24 * 7,
+      }));
+  }, [rawEvents]);
 
-    const loadInvitations = async () => {
-      try {
-        const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-        setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
-      } catch {
-        setReceivedInvites([]);
-      }
-    };
+  const activities = useMemo<ActivityItem[]>(
+    () =>
+      notifications.slice(0, 6).map((n) => ({
+        title: n.title,
+        message: n.message,
+        time: relativeTime(n.createdAt),
+        type: n.type,
+      })),
+    [notifications],
+  );
 
-    const loadMyTeam = async () => {
-      try {
-        const team = await apiRequest<DashboardTeamSummary>("/teams/my-team");
-        setMyTeam(team);
-      } catch {
-        setMyTeam(null);
-      }
-    };
-
-    const loadRegistrations = async () => {
-      if (userRoles.includes("Mentor") || userRoles.includes("Judge")) {
-        try {
-          const regs = await apiRequest<string[]>("/Events/my-registrations");
-          setMyRegistrations(regs);
-        } catch {
-          setMyRegistrations([]);
-        }
-      }
-    };
-
-    const loadAll = async () => {
-      await loadDashboard();
-      await loadActivity();
-      await loadInvitations();
-      await loadMyTeam();
-      await loadRegistrations();
-    };
-
-    void loadAll();
-  }, [message, userRoles]);
+  const receivedInvites = useMemo(
+    () => rawInvites.filter((inv) => inv.status === "Pending"),
+    [rawInvites],
+  );
 
   const filteredEvents = useMemo(() => {
     return events.filter(e =>
@@ -201,8 +179,7 @@ export function useDashboardData() {
     try {
       await apiRequest(`/teams/invitations/${id}/reject`, { method: "POST" });
       message.success("Invitation declined.");
-      const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-      setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+      await queryClient.invalidateQueries({ queryKey: ["team-invitations-received"] });
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
     }
@@ -212,7 +189,7 @@ export function useDashboardData() {
     try {
       await apiRequest(`/Events/${eventId}/register?role=${role}`, { method: "POST" });
       message.success(`Successfully registered as ${role}!`);
-      setMyRegistrations(prev => [...prev, eventId]);
+      queryClient.setQueryData<string[]>(["my-registrations"], (prev) => [...(prev ?? []), eventId]);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to register for event.");
     }
@@ -221,6 +198,7 @@ export function useDashboardData() {
   return {
     activeTab, setActiveTab,
     events, filteredEvents,
+    isLoading,
     receivedInvites,
     metrics,
     activities,

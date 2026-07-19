@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { BarChart3, Download, FileDown, Info, TrendingUp } from "lucide-react";
 import { App } from "antd";
@@ -82,58 +83,39 @@ function downloadCsv(filename: string, headers: string[], rows: (string | number
 
 export default function AnalyticsPage({ audience = "judge" }: { audience?: AnalyticsAudience }) {
   const { message } = App.useApp();
-  const [data, setData] = useState<InterRaterAnalytics | null>(null);
-  const [events, setEvents] = useState<EventOption[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [eventsLoading, setEventsLoading] = useState(true);
 
   const isAdminView = audience === "admin";
 
+  const {
+    data: events = [],
+    isLoading: eventsLoading,
+    error: eventsError,
+  } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventOption[]>("/Events"),
+  });
+
+  // Analytics is keyed by the selected event; switching events changes the key so
+  // react-query refetches and surfaces its own loading state (no manual toggle).
+  const {
+    data = null,
+    isLoading: loading,
+    error: analyticsError,
+  } = useQuery({
+    queryKey: ["inter-rater", selectedEventId],
+    queryFn: () =>
+      apiRequest<InterRaterAnalytics>(
+        `/Analytics/inter-rater${selectedEventId === "all" ? "" : `?eventId=${selectedEventId}`}`,
+      ),
+  });
+
   useEffect(() => {
-    let active = true;
-
-    apiRequest<EventOption[]>("/Events")
-      .then((result) => {
-        if (!active) return;
-        setEvents(result);
-      })
-      .catch((err) => {
-        if (!active) return;
-        message.error(err instanceof Error ? err.message : "Could not load events.");
-        setEvents([]);
-      })
-      .finally(() => {
-        if (active) setEventsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [message]);
-
+    if (eventsError) message.error(eventsError instanceof Error ? eventsError.message : "Could not load events.");
+  }, [eventsError, message]);
   useEffect(() => {
-    let active = true;
-    const query = selectedEventId === "all" ? "" : `?eventId=${selectedEventId}`;
-
-    apiRequest<InterRaterAnalytics>(`/Analytics/inter-rater${query}`)
-      .then((result) => {
-        if (!active) return;
-        setData(result);
-      })
-      .catch((err) => {
-        if (!active) return;
-        message.error(err instanceof Error ? err.message : "Could not load analytics.");
-        setData(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [message, selectedEventId]);
+    if (analyticsError) message.error(analyticsError instanceof Error ? analyticsError.message : "Could not load analytics.");
+  }, [analyticsError, message]);
 
   const selectedEventName = useMemo(() => {
     if (selectedEventId === "all") return "All events";
@@ -210,10 +192,7 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
           <select
             className={`form-input ${styles.eventSelect}`}
             value={selectedEventId}
-            onChange={(event) => {
-              setLoading(true);
-              setSelectedEventId(event.target.value);
-            }}
+            onChange={(event) => setSelectedEventId(event.target.value)}
             disabled={eventsLoading}
             aria-label="Select analytics event"
           >
@@ -267,10 +246,10 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
         <div className={styles.content}>
           <div className={styles.summaryGrid}>
             {[
-              { label: "Overall ICC", val: data.overallIcc != null ? data.overallIcc.toFixed(3) : "N/A", color: "#10b981", sub: "Inter-rater reliability" },
-              { label: "Judges", val: String(data.judgeCount), color: "#6366f1", sub: "Scored submissions" },
-              { label: "Submissions", val: String(data.submissionCount), color: "#f59e0b", sub: "With scores" },
-              { label: "Criteria", val: String(data.criteriaCount), color: "#06b6d4", sub: "Scored criteria" },
+              { label: "Overall ICC", val: data.overallIcc != null ? data.overallIcc.toFixed(3) : "N/A", color: "var(--color-emerald)", sub: "Inter-rater reliability" },
+              { label: "Judges", val: String(data.judgeCount), color: "var(--color-primary)", sub: "Scored submissions" },
+              { label: "Submissions", val: String(data.submissionCount), color: "var(--color-amber)", sub: "With scores" },
+              { label: "Criteria", val: String(data.criteriaCount), color: "var(--color-cyan)", sub: "Scored criteria" },
             ].map((item) => (
               <div key={item.label} className={`glass-card ${styles.summaryCard}`}>
                 <div className={styles.summaryValue} style={{ "--metric-color": item.color } as CSSProperties}>{item.val}</div>
@@ -302,7 +281,7 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
                           className={`progress-fill ${styles.criterionProgressFill}`}
                           style={{
                             "--progress-width": `${averageScorePercent}%`,
-                            "--progress-bg": averageScorePercent >= 90 ? "linear-gradient(90deg,#10b981,#34d399)" : averageScorePercent >= 75 ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "linear-gradient(90deg,#f59e0b,#fbbf24)",
+                            "--progress-bg": averageScorePercent >= 90 ? "linear-gradient(90deg,var(--color-emerald),var(--color-badge-success-text))" : averageScorePercent >= 75 ? "linear-gradient(90deg,var(--color-primary),var(--color-violet))" : "linear-gradient(90deg,var(--color-amber),var(--color-badge-warning-text))",
                           } as CSSProperties}
                         />
                       </div>

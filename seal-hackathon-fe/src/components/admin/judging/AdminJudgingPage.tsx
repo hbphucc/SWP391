@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Target, Clock, CheckCircle, AlertCircle, ChevronRight, RefreshCw, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -32,9 +33,9 @@ type EventDto = {
 };
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
-  pending: <AlertCircle size={14} style={{ color: "#f59e0b" }} />,
-  scored:  <Clock size={14} style={{ color: "#06b6d4" }} />,
-  locked:  <CheckCircle size={14} style={{ color: "#10b981" }} />,
+  pending: <AlertCircle size={14} style={{ color: "var(--color-amber)" }} />,
+  scored:  <Clock size={14} style={{ color: "var(--color-cyan)" }} />,
+  locked:  <CheckCircle size={14} style={{ color: "var(--color-emerald)" }} />,
 };
 
 export default function JudgingQueuePage() {
@@ -45,34 +46,37 @@ export default function JudgingQueuePage() {
   const eventFromUrl = searchParams.get("event") ?? "";
   const selectedEventId = eventFromUrl;
   const [filter, setFilter] = useState("all");
-  const [events, setEvents] = useState<EventDto[]>([]);
-  const [queue, setQueue] = useState<SubmissionQueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const loadQueue = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [queueData, eventData] = await Promise.all([
-        apiRequest<SubmissionQueueItem[]>("/submissions/scoring-queue"),
-        apiRequest<EventDto[]>("/Events"),
-      ]);
-      setQueue(queueData);
-      setEvents(eventData);
-    } catch (err) {
-      setQueue([]);
-      message.error(err instanceof Error ? err.message : "Could not load scoring queue.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+  const {
+    data: queue = [],
+    isLoading: queueLoading,
+    error: queueError,
+    refetch: refetchQueue,
+  } = useQuery({
+    queryKey: ["scoring-queue"],
+    queryFn: () => apiRequest<SubmissionQueueItem[]>("/submissions/scoring-queue"),
+  });
+
+  const {
+    data: events = [],
+    isLoading: eventsLoading,
+    error: eventsError,
+    refetch: refetchEvents,
+  } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+
+  const loading = queueLoading || eventsLoading;
+  const loadQueue = () => {
+    refetchQueue();
+    refetchEvents();
+  };
 
   useEffect(() => {
-    const trigger = async () => {
-      await Promise.resolve();
-      void loadQueue();
-    };
-    void trigger();
-  }, [loadQueue]);
+    const err = queueError ?? eventsError;
+    if (err) message.error(err instanceof Error ? err.message : "Could not load scoring queue.");
+  }, [queueError, eventsError, message]);
 
   const handleEventChange = (eventId: string) => {
     setFilter("all");
@@ -123,9 +127,9 @@ export default function JudgingQueuePage() {
 
       <div className="grid-3" style={{ marginBottom: "2rem" }}>
         {[
-          { label: "Pending",  val: eventQueue.filter(q => q.status === "pending").length, color: "#f59e0b" },
-          { label: "In Draft", val: eventQueue.filter(q => q.status === "scored").length,  color: "#06b6d4" },
-          { label: "Locked",   val: eventQueue.filter(q => q.status === "locked").length,  color: "#10b981" },
+          { label: "Pending",  val: eventQueue.filter(q => q.status === "pending").length, color: "var(--color-amber)" },
+          { label: "In Draft", val: eventQueue.filter(q => q.status === "scored").length,  color: "var(--color-cyan)" },
+          { label: "Locked",   val: eventQueue.filter(q => q.status === "locked").length,  color: "var(--color-emerald)" },
         ].map(s => (
           <div key={s.label} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
             <div style={{ fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: s.color }}>{s.val}</div>

@@ -8,6 +8,7 @@ import SubmissionsView from "@/components/submissions/SubmissionsView";
 import RankingsView from "@/components/rankings/RankingsView";
 import PrizesView from "@/components/prizes/PrizesView";
 import PendingInvitesBanner from "@/components/dashboard/PendingInvitesBanner";
+import DashboardWelcomeHint from "@/components/dashboard/DashboardWelcomeHint";
 import DashboardStatsGrid from "@/components/dashboard/DashboardStatsGrid";
 import DashboardOverviewPanel from "@/components/dashboard/DashboardOverviewPanel";
 import { useDashboardData } from "./useDashboardData";
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const {
     activeTab, setActiveTab,
     filteredEvents,
+    isLoading,
     receivedInvites,
     metrics,
     activities,
@@ -54,6 +56,8 @@ export default function DashboardPage() {
         )}
       </div>
 
+      <DashboardWelcomeHint isAdmin={isAdmin} />
+
       <PendingInvitesBanner
         invites={receivedInvites}
         myTeam={myTeam}
@@ -76,6 +80,7 @@ export default function DashboardPage() {
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 filteredEvents={filteredEvents}
+                isLoading={isLoading}
                 userRoles={userRoles}
                 myRegistrations={myRegistrations}
                 onRegisterEvent={handleRegisterEvent}

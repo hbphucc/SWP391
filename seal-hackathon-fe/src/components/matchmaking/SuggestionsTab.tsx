@@ -96,7 +96,7 @@ export default function SuggestionsTab({
                   </div>
 
                   {user.matchReasons && user.matchReasons.length > 0 && (
-                    <div style={{ fontSize: "0.8rem", color: "#f59e0b", marginBottom: "1rem" }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--color-amber)", marginBottom: "1rem" }}>
                       Match reasons: {user.matchReasons.join(", ")}
                     </div>
                   )}

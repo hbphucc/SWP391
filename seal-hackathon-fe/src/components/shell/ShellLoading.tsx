@@ -20,7 +20,7 @@ export default function ShellLoading({ label }: { label: string }) {
           width: 36,
           height: 36,
           border: "3px solid rgba(99,102,241,0.3)",
-          borderTop: "3px solid #6366f1",
+          borderTop: "3px solid var(--color-primary)",
           borderRadius: "50%",
           animation: "spin 0.8s linear infinite",
         }}

@@ -1,5 +1,7 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Clock, MessageSquare, Lock, CheckCircle, ChevronLeft, Send, AlertCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -42,44 +44,37 @@ interface ScoreSubmissionFormProps {
 export default function ScoreSubmissionForm({ submissionId, backHref, readOnly = false }: ScoreSubmissionFormProps) {
   const { message, modal } = App.useApp();
 
-  const [data, setData] = useState<EvaluationData | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [locked, setLocked] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [savingAction, setSavingAction] = useState<null | "draft" | "final">(null);
   const saving = savingAction !== null;
 
   const isLocked = locked || readOnly;
 
+  const { data = null, isLoading: loading, error } = useQuery({
+    queryKey: ["judge-evaluation", submissionId],
+    queryFn: () => apiRequest<EvaluationData>(`/judge/scores/evaluation/${submissionId}`),
+  });
+
   useEffect(() => {
-    let active = true;
+    if (error) message.error(error instanceof Error ? error.message : "Failed to load evaluation data.");
+  }, [error, message]);
 
-    apiRequest<EvaluationData>(`/judge/scores/evaluation/${submissionId}`)
-      .then((res) => {
-        if (!active) return;
-        setData(res);
-        setLocked(res.isLocked);
-
-        const initScores: Record<string, number> = {};
-        const initComments: Record<string, string> = {};
-        res.criteria.forEach((c) => {
-          initScores[c.criteriaId] = c.scoreValue ?? 0;
-          initComments[c.criteriaId] = c.comment ?? "";
-        });
-        setScores(initScores);
-        setComments(initComments);
-      })
-      .catch((err) => {
-        if (!active) return;
-        message.error(err instanceof Error ? err.message : "Failed to load evaluation data.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => { active = false; };
-  }, [submissionId, message]);
+  // Seed the editable rubric (scores/comments/locked) from the loaded evaluation.
+  // Runs when the evaluation data changes (load/refetch), not on every keystroke.
+  useEffect(() => {
+    if (!data) return;
+    setLocked(data.isLocked);
+    const initScores: Record<string, number> = {};
+    const initComments: Record<string, string> = {};
+    data.criteria.forEach((c) => {
+      initScores[c.criteriaId] = c.scoreValue ?? 0;
+      initComments[c.criteriaId] = c.comment ?? "";
+    });
+    setScores(initScores);
+    setComments(initComments);
+  }, [data]);
 
   const handleSave = async (finalize: boolean) => {
     if (!data || saving) return;
@@ -117,7 +112,7 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
     });
   };
 
-  const getScoreColor = (s: number) => s >= 80 ? "#10b981" : s >= 60 ? "#f59e0b" : "#f43f5e";
+  const getScoreColor = (s: number) => s >= 80 ? "var(--color-emerald)" : s >= 60 ? "var(--color-amber)" : "var(--color-rose)";
 
   if (loading) {
     return (

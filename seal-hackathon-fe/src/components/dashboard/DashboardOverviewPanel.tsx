@@ -13,13 +13,14 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 const ACTIVITY_COLOR: Record<string, string> = {
-  info: "#6366f1", success: "#10b981", warning: "#f59e0b", error: "#f43f5e",
+  info: "var(--color-primary)", success: "var(--color-emerald)", warning: "var(--color-amber)", error: "var(--color-rose)",
 };
 
 interface DashboardOverviewPanelProps {
   activeTab: "all" | "active" | "upcoming";
   setActiveTab: (tab: "all" | "active" | "upcoming") => void;
   filteredEvents: MappedEvent[];
+  isLoading: boolean;
   userRoles: string[];
   myRegistrations: string[];
   onRegisterEvent: (eventId: string, role: string) => void;
@@ -30,7 +31,7 @@ interface DashboardOverviewPanelProps {
 }
 
 export default function DashboardOverviewPanel({
-  activeTab, setActiveTab, filteredEvents, userRoles, myRegistrations, onRegisterEvent,
+  activeTab, setActiveTab, filteredEvents, isLoading, userRoles, myRegistrations, onRegisterEvent,
   deadlines, isAdmin, canJudge, activities,
 }: DashboardOverviewPanelProps) {
   return (
@@ -61,7 +62,14 @@ export default function DashboardOverviewPanel({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {filteredEvents.map((ev) => (
+            {isLoading && Array.from({ length: 3 }).map((_, i) => (
+              <div key={`skel-${i}`} className={`glass-card ${styles.eventSkeleton}`} aria-hidden>
+                <span className={`skeleton ${styles.skelLineLg}`} />
+                <span className={`skeleton ${styles.skelLineSm}`} />
+                <span className={`skeleton ${styles.skelLineRow}`} />
+              </div>
+            ))}
+            {!isLoading && filteredEvents.map((ev) => (
               <Link key={ev.id} href={`/dashboard/events/${ev.id}`} style={{ textDecoration: "none" }}>
                 <div className={`glass-card ${styles.eventCard}`}>
                   <div className={styles.eventTop}>
@@ -104,10 +112,30 @@ export default function DashboardOverviewPanel({
                 </div>
               </Link>
             ))}
-            {filteredEvents.length === 0 && (
+            {!isLoading && filteredEvents.length === 0 && (
                <div className="empty-state">
                  <Calendar size={48} className="empty-icon" />
-                 <div className="empty-title">No events found</div>
+                 <div className="empty-title">
+                   {activeTab === "active"
+                     ? "No active events right now"
+                     : activeTab === "upcoming"
+                     ? "No upcoming events scheduled"
+                     : "No events yet"}
+                 </div>
+                 <div className="empty-desc">
+                   {isAdmin
+                     ? "Create your first hackathon to start onboarding teams."
+                     : "When events open for registration, they'll appear here."}
+                 </div>
+                 {isAdmin ? (
+                   <Link href="/admin/events?action=create" className="btn btn-primary btn-sm">
+                     <Calendar size={14} /> Create Event
+                   </Link>
+                 ) : (
+                   <Link href="/dashboard/events" className="btn btn-secondary btn-sm">
+                     Browse all events <ArrowRight size={14} />
+                   </Link>
+                 )}
                </div>
             )}
           </div>
@@ -146,11 +174,11 @@ export default function DashboardOverviewPanel({
           </div>
           <div className={styles.quickActions}>
             {[
-              ...(isAdmin ? [{ label: "Create Event", href: "/admin/events?action=create", icon: Calendar, color: "#6366f1" }] : []),
-              { label: "Register Team",   href: "/dashboard?tab=team",   icon: Users,   color: "#8b5cf6" },
+              ...(isAdmin ? [{ label: "Create Event", href: "/admin/events?action=create", icon: Calendar, color: "var(--color-primary)" }] : []),
+              { label: "Register Team",   href: "/dashboard?tab=team",   icon: Users,   color: "var(--color-violet)" },
               // Scoring is only accessible to Judges/Admins — don't tease it to Members.
-              ...(canJudge ? [{ label: "Score Submissions", href: "/dashboard/judging", icon: Target, color: "#06b6d4" }] : []),
-              { label: "View Results",    href: "/dashboard?tab=results",    icon: Trophy,  color: "#f59e0b" },
+              ...(canJudge ? [{ label: "Score Submissions", href: "/dashboard/judging", icon: Target, color: "var(--color-cyan)" }] : []),
+              { label: "View Results",    href: "/dashboard?tab=results",    icon: Trophy,  color: "var(--color-amber)" },
             ].map(q => {
               const Icon = q.icon;
               return (
@@ -172,7 +200,7 @@ export default function DashboardOverviewPanel({
             {activities.length === 0 ? (
               <div style={{ padding: "1rem", color: "var(--color-text-3)", fontSize: "0.85rem" }}>No recent activity.</div>
             ) : activities.map((a, i) => {
-              const color = ACTIVITY_COLOR[a.type] || "#6366f1";
+              const color = ACTIVITY_COLOR[a.type] || "var(--color-primary)";
               return (
                 <div key={i} className={styles.activityItem}>
                   <div className={styles.activityIcon} style={{ background: `${color}22` }}>

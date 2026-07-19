@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useState, type CSSProperties } from "react";
+import React, { useEffect, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Cloud, HardDrive, FileText, Image as ImageIcon, FileArchive, FileCode, FileQuestion, RefreshCw, ChevronRight } from "lucide-react";
 import { App } from "antd";
@@ -35,34 +36,28 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  "Images": "#10b981", // Emerald
-  "PDFs": "#06b6d4", // Teal
-  "Archives": "#f59e0b", // Amber
-  "Code & Text": "#8b5cf6", // Purple
+  "Images": "var(--color-emerald)", // Emerald
+  "PDFs": "var(--color-cyan)", // Teal
+  "Archives": "var(--color-amber)", // Amber
+  "Code & Text": "var(--color-violet)", // Purple
   "Others": "#64748b", // Slate
 };
 
 export default function StoragePage() {
   const { message } = App.useApp();
-  const [stats, setStats] = useState<StorageStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadStats = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<StorageStats>("/Documents/storage-stats");
-      setStats(data);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load storage stats.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+  const {
+    data: stats = null,
+    isLoading: loading,
+    error,
+    refetch: loadStats,
+  } = useQuery({
+    queryKey: ["storage-stats"],
+    queryFn: () => apiRequest<StorageStats>("/Documents/storage-stats"),
+  });
 
   useEffect(() => {
-    const timer = setTimeout(() => void loadStats(), 0);
-    return () => clearTimeout(timer);
-  }, [loadStats]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load storage stats.");
+  }, [error, message]);
 
   if (loading) {
     return (
@@ -86,7 +81,7 @@ export default function StoragePage() {
             <Cloud size={28} /> Cloud Storage
           </h1>
         </div>
-        <button className="btn btn-secondary btn-icon" onClick={loadStats} disabled={loading} title="Refresh Statistics">
+        <button className="btn btn-secondary btn-icon" onClick={() => loadStats()} disabled={loading} title="Refresh Statistics">
           <RefreshCw size={15} />
         </button>
       </div>
@@ -115,7 +110,7 @@ export default function StoragePage() {
           {stats && stats.categories.length > 0 ? (
             <div className={styles.segments}>
               {stats.categories.map((cat) => {
-                const color = CATEGORY_COLORS[cat.name] || "#6366f1";
+                const color = CATEGORY_COLORS[cat.name] || "var(--color-primary)";
                 // Convert category percentage relative to the overall quota
                 const quotaPercent = (cat.size / totalQuota) * 100;
                 if (quotaPercent <= 0) return null;
@@ -158,7 +153,7 @@ export default function StoragePage() {
         <div className={styles.categoryStack}>
           {stats?.categories.map((cat) => {
             const Icon = CATEGORY_ICONS[cat.name] || FileQuestion;
-            const color = CATEGORY_COLORS[cat.name] || "#6366f1";
+            const color = CATEGORY_COLORS[cat.name] || "var(--color-primary)";
             return (
               <div key={cat.name} className={styles.categoryRow}>
                 <div className={styles.categoryIcon} style={{ "--category-bg": `${color}15`, "--category-color": color } as CSSProperties}>

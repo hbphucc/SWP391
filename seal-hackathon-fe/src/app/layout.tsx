@@ -1,12 +1,29 @@
-/* eslint-disable @next/next/no-page-custom-font */
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Inter, Outfit } from "next/font/google";
 import ThemeProvider from "../components/ThemeProvider";
 import AuthProvider from "../components/AuthProvider";
 import QueryProvider from "../components/QueryProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import FloatingThemeToggle from "../components/FloatingThemeToggle";
 import "./globals.css";
+
+// Self-hosted at build time by next/font, so there is no render-blocking
+// request to fonts.googleapis.com and no FOUT. Exposed as CSS variables that
+// globals.css reads through --font-sans / --font-display.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-outfit",
+  display: "swap",
+});
 
 const themeBootstrap = `
 (function() {
@@ -41,13 +58,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${outfit.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
         <QueryProvider>

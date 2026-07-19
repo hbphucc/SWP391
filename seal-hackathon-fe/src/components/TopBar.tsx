@@ -1,7 +1,8 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useRef, useEffect, useContext, useCallback } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search, Bell, Menu, Sun, Moon, ChevronDown, Settings, User, LogOut, Languages } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { App, Dropdown } from "antd";
@@ -33,7 +34,9 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const { user: currentUser, logout } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [avatar, setAvatar] = useState<string | null>(null);
+  // Avatar comes from /Auth/me (server truth); AuthProvider.refresh() after
+  // an upload re-renders this with the new URL — no client storage involved.
+  const avatar = currentUser ? resolveApiUrl(currentUser.avatarUrl) : null;
   const [themeIconMounted, setThemeIconMounted] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setThemeIconMounted(true), 0);
@@ -44,7 +47,12 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ type: string; title: string; link: string }[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
-  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  // Shares the ["notifications"] cache with the notifications page, so marking
+  // items read there refreshes this badge automatically (same query key).
+  const { data: notifications = [], refetch: loadNotifications } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiRequest<NotificationDto[]>("/notifications"),
+  });
   const [language, setLanguage] = useState("en");
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const searchEventsRef = useRef<{ eventId: string; eventName: string }[] | null>(null);
@@ -88,25 +96,6 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     },
   }));
 
-  const loadNotifications = useCallback(async () => {
-    try {
-      setNotifications(await apiRequest<NotificationDto[]>("/notifications"));
-    } catch {
-      setNotifications([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!currentUser) {
-        setAvatar(null);
-      } else {
-        setAvatar(resolveApiUrl(currentUser.avatarUrl));
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [currentUser]);
-
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
@@ -115,15 +104,10 @@ export default function TopBar({ onMenuToggle, sidebarCollapsed }: TopBarProps) 
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    const id = window.setTimeout(() => {
-      void loadNotifications();
-    }, 3000);
-
     return () => {
-      window.clearTimeout(id);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [loadNotifications]);
+  }, []);
 
   const markAllRead = async () => {
     try {

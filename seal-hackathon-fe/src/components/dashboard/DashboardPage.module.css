@@ -19,14 +19,12 @@
   position: relative;
   overflow: hidden;
 }
-.eventCard::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--gradient-primary);
-  border-radius: 0 2px 2px 0;
-}
+
+/* Event card skeleton (loading) */
+.eventSkeleton { padding: 1.25rem 1.5rem; }
+.skelLineLg  { width: 55%; height: 1rem;    border-radius: var(--radius-sm); }
+.skelLineSm  { width: 35%; height: 0.7rem;  margin-top: 0.7rem; border-radius: var(--radius-sm); }
+.skelLineRow { width: 70%; height: 0.7rem;  margin-top: 0.9rem; border-radius: var(--radius-sm); }
 .eventTop {
   display: flex;
   align-items: flex-start;

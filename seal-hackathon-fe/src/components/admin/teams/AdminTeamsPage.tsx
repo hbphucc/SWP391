@@ -1,6 +1,8 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Users, Search, CheckCircle, XCircle, Shield, Filter, RefreshCw, CalendarDays, UserCheck } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -41,41 +43,42 @@ type JudgeAssignment = {
 
 export default function AdminTeamsPage() {
   const { message, modal } = App.useApp();
-  const [events, setEvents] = useState<EventDto[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
-  const [teams, setTeams] = useState<AdminTeam[]>([]);
-  const [judgeAssignments, setJudgeAssignments] = useState<JudgeAssignment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   // Per-row action guard against double-clicks (`approve-<id>` / `reject-<id>`).
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  const loadTeams = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [teamData, eventData, assignmentData] = await Promise.all([
-        apiRequest<AdminTeam[]>("/admin/teams"),
-        apiRequest<EventDto[]>("/Events"),
-        apiRequest<JudgeAssignment[]>("/admin/judge-assignments"),
-      ]);
-      setTeams(teamData);
-      setEvents(eventData);
-      setJudgeAssignments(assignmentData);
-      setSelectedEventId((current) => eventData.some((event) => event.eventId === current) ? current : "");
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load teams.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+  const teamsQuery = useQuery({
+    queryKey: ["admin-teams"],
+    queryFn: () => apiRequest<AdminTeam[]>("/admin/teams"),
+  });
+  const eventsQuery = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+  const assignmentsQuery = useQuery({
+    queryKey: ["admin-judge-assignments"],
+    queryFn: () => apiRequest<JudgeAssignment[]>("/admin/judge-assignments"),
+  });
+
+  const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data]);
+  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  const judgeAssignments = useMemo(() => assignmentsQuery.data ?? [], [assignmentsQuery.data]);
+  const loading = teamsQuery.isFetching || eventsQuery.isFetching || assignmentsQuery.isFetching;
+  const loadError = teamsQuery.error ?? eventsQuery.error ?? assignmentsQuery.error;
+
+  const loadTeams = () =>
+    Promise.all([teamsQuery.refetch(), eventsQuery.refetch(), assignmentsQuery.refetch()]);
+
+  // Reset the event selection if the chosen event disappears from the list.
+  useEffect(() => {
+    setSelectedEventId((current) => (events.some((event) => event.eventId === current) ? current : ""));
+  }, [events]);
 
   useEffect(() => {
-    const id = window.setTimeout(() => {
-      void loadTeams();
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, [loadTeams]);
+    if (loadError) message.error(loadError instanceof Error ? loadError.message : "Could not load teams.");
+  }, [loadError, message]);
 
   const handleUpdateStatus = async (teamId: string, action: "approve" | "reject") => {
     if (busyAction) return;
@@ -173,8 +176,8 @@ export default function AdminTeamsPage() {
       <div className="grid-4" style={{ marginBottom: "2rem" }}>
         {[
           { label: "All Teams", val: eventTeams.length, color: "var(--color-primary)", filterValue: "All" },
-          { label: "Pending", val: eventTeams.filter((team) => team.status === "Pending").length, color: "#f59e0b", filterValue: "Pending" },
-          { label: "Approved", val: eventTeams.filter((team) => team.status === "Approved").length, color: "#10b981", filterValue: "Approved" },
+          { label: "Pending", val: eventTeams.filter((team) => team.status === "Pending").length, color: "var(--color-amber)", filterValue: "Pending" },
+          { label: "Approved", val: eventTeams.filter((team) => team.status === "Approved").length, color: "var(--color-emerald)", filterValue: "Approved" },
           { label: "Eliminated", val: eventTeams.filter((team) => team.status === "Eliminated").length, color: "#ef4444", filterValue: "Eliminated" },
         ].map((stat) => (
           <div

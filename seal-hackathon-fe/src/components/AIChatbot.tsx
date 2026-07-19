@@ -174,7 +174,7 @@ export default function AIChatbot() {
               <Avatar icon={<RobotOutlined />} style={{ backgroundColor: "#3b82f6" }} />
               <div>
                 <div style={{ fontWeight: "bold", fontSize: 15 }}>SEAL AI Assistant</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>FAQ guide</div>
+                <div style={{ fontSize: 11, color: "var(--color-text-2)" }}>FAQ guide</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -239,14 +239,14 @@ export default function AIChatbot() {
                         }
                         setIsOpen(false);
                       }}
-                      style={{ alignSelf: "flex-start", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 12 }}
+                      style={{ alignSelf: "flex-start", background: "var(--color-amber)", color: "#fff", border: "none", borderRadius: 12 }}
                     >
                       {msg.action.label}
                     </Button>
                   )}
                 </div>
 
-                {msg.sender === "user" && <Avatar icon={<UserOutlined />} size="small" style={{ backgroundColor: "#94a3b8" }} />}
+                {msg.sender === "user" && <Avatar icon={<UserOutlined />} size="small" style={{ backgroundColor: "var(--color-text-2)" }} />}
               </div>
             ))}
             <div ref={messagesEndRef} />

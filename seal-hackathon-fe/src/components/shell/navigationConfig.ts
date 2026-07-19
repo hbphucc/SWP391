@@ -73,6 +73,7 @@ export const NAV_ITEMS: NavItem[] = [
   // NavItem has no dynamic badge field; the pending count renders on the
   // mentor page's WorkspaceTabs badge instead.
   { id: "mentor-invitations", label: "Invitations", href: "/mentor?tab=invitations", icon: Mail, roles: ["Mentor", "Admin"], portal: "mentor", section: "Main" },
+  { id: "mentor-documents", label: "Documents", href: "/mentor/documents", icon: FileText, roles: ["Mentor", "Admin"], portal: "mentor", section: "Content" },
 ];
 
 // Section render order is the same for every portal (matches the original

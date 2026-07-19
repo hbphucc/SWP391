@@ -1,153 +1,38 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { App, Input } from "antd";
+import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 import { toApiDate, toDateTimeLocal, validateDateChain } from "./eventFormHelpers";
+import {
+  type EventDto,
+  type RoundDto,
+  INITIAL_EDIT_FORM,
+  INITIAL_ROUND_EDIT_FORM,
+} from "./adminEventsTypes";
+import { useEventModals } from "./useEventModals";
+import { useCreateEventForm } from "./useCreateEventForm";
 
-/* ─── Types ─── */
-export type RoundDto = {
-  roundId: string;
-  roundName: string;
-  roundOrder: number;
-  maxTeamsAdvancing: number;
-  passThreshold?: number | null;
-  submissionDeadline: string | null;
-  hasSubmissions: boolean;
-  promptDocumentId?: string | null;
-  promptFileName?: string | null;
-};
-
-
-export type EventDto = {
-  eventId: string;
-  eventName: string;
-  description?: string | null;
-  registrationStartDate: string;
-  registrationEndDate: string;
-  startDate: string;
-  endDate: string;
-  status: string;
-  hasSubmissions: boolean;
-  rounds: RoundDto[];
-};
-
-export type TrackOption = {
-  trackId: string;
-  name: string;
-  description?: string | null;
-};
-
-type CriteriaDraft = {
-  id: number;
-  name: string;
-  weight: string;
-  maxScore: string;
-};
-
-type RoundDraft = {
-  id: number;
-  name: string;
-  topN: string;
-  passThreshold: string;
-  deadline: string;
-  promptDocumentId: string | null;
-  promptFileName: string | null;
-  criteria: CriteriaDraft[];
-};
-
-/* ─── Create-form defaults ─── */
-const INITIAL_EVENT_FORM = {
-  eventName: "",
-  description: "",
-  registrationStartDate: "",
-  registrationEndDate: "",
-  startDate: "",
-  endDate: "",
-  posterUrl: null as string | null,
-  winnerImageUrl: null as string | null,
-};
-const INITIAL_EDIT_FORM = {
-  registrationStartDate: "",
-  registrationEndDate: "",
-  startDate: "",
-  endDate: "",
-};
-const INITIAL_ROUND_EDIT_FORM = {
-  roundName: "",
-  deadline: "",
-  roundOrder: "",
-  maxTeamsAdvancing: "",
-  passThreshold: "",
-  promptDocumentId: null as string | null,
-  promptFileName: null as string | null,
-};
-const INITIAL_ROUND = (): RoundDraft => ({
-  id: Date.now(),
-  name: "",
-  topN: "5",
-  passThreshold: "",
-  deadline: "",
-  promptDocumentId: null as string | null,
-  promptFileName: null as string | null,
-  criteria: [],
-});
-const INITIAL_PRIZE = () => ({
-  id: Date.now(),
-  title: "",
-  amount: "",
-  description: "",
-  rank: 1,
-});
+// Re-exported so the view components that import these from here keep working.
+export type { EventDto, RoundDto, TrackOption } from "./adminEventsTypes";
 
 export function useAdminEventsData() {
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
+  const { confirmAsync, promptReasonAsync } = useEventModals();
 
-  // Promise-based wrappers around AntD's `modal` API. They give the same
-  // imperative shape as window.confirm/prompt (await + boolean/string), so the
-  // call sites stay readable while gaining theme-consistent dialogs.
-  const confirmAsync = (title: string, content?: string): Promise<boolean> =>
-    new Promise((resolve) => {
-      modal.confirm({
-        title,
-        content,
-        okText: "Confirm",
-        cancelText: "Cancel",
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false),
-      });
-    });
-
-  const promptReasonAsync = (title: string, placeholder?: string): Promise<string | null> =>
-    new Promise((resolve) => {
-      let value = "";
-      modal.confirm({
-        title,
-        content: (
-          <Input.TextArea
-            rows={3}
-            placeholder={placeholder}
-            onChange={(e) => { value = e.target.value; }}
-          />
-        ),
-        okText: "Submit",
-        cancelText: "Cancel",
-        onOk: () => resolve(value),
-        onCancel: () => resolve(null),
-      });
-    });
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
   /* ── View toggle ──
-   * `?action=create` deep-links straight into Step 1 of the wizard. This is the
-   * landing target for redirects from the deprecated /dashboard/events/create route
-   * and the dashboard's "New Event" / "Create Event" quick actions. */
+   * `?action=create` deep-links straight into Step 1 of the wizard — the landing
+   * target for redirects from the deprecated /dashboard/events/create route and
+   * the dashboard's "New Event" / "Create Event" quick actions. */
   const initialView = searchParams.get("action") === "create" ? "create" : "list";
   const [view, setView] = useState<"list" | "create">(initialView);
 
   /* ── Events list ── */
-  const [events, setEvents] = useState<EventDto[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(() => searchParams.get("event") || "");
 
   // Keeps the `event` query param in sync so the Events/Tracks/Criteria/Prizes/
@@ -158,7 +43,7 @@ export function useAdminEventsData() {
     if (id) params.set("event", id); else params.delete("event");
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [searchParams, router, pathname]);
-  const [loading, setLoading] = useState(true);
+
   const [saving, setSaving] = useState(false);
   const [advancingId, setAdvancingId] = useState("");
   const [editingTime, setEditingTime] = useState(false);
@@ -169,74 +54,41 @@ export function useAdminEventsData() {
   const [roundEditForm, setRoundEditForm] = useState(INITIAL_ROUND_EDIT_FORM);
   const [deletingRoundId, setDeletingRoundId] = useState("");
 
-  /* ── Create form ── */
-  const [eventForm, setEventForm] = useState(INITIAL_EVENT_FORM);
-  const [rounds, setRounds] = useState<RoundDraft[]>([{ id: 1, name: "Qualifying Round", topN: "10", passThreshold: "", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
-  const [prizes, setPrizes] = useState<ReturnType<typeof INITIAL_PRIZE>[]>([]);
-  const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
-  // Active section anchor for the sticky TOC sidebar. Used purely for the
-  // "current section" highlight; clicking a TOC item smooth-scrolls to the
-  // anchor and the IntersectionObserver below updates this on scroll.
-  const [activeSection, setActiveSection] = useState<"general" | "timeline" | "rounds" | "prizes" | "tracks">("general");
-  const [submitting, setSubmitting] = useState(false);
-  // Track catalog loaded from the backend (/api/tracks). When present the wizard
-  // sends track IDs; if it's empty/unreachable we fall back to the static labels.
-  const [trackCatalog, setTrackCatalog] = useState<TrackOption[]>([]);
-  const usingCatalog = trackCatalog.length > 0;
-  /* ── Inline "Create Track" modal (Step 3) ── */
-  const [trackModalOpen, setTrackModalOpen] = useState(false);
-  const [creatingTrack, setCreatingTrack] = useState(false);
-  const [trackForm, setTrackForm] = useState({ name: "", description: "", isActive: true });
-
   /* ─────────────── Load events ─────────────── */
-  const loadEventsData = useCallback(
-    async (active: { value: boolean }) => {
-      try {
-        const data = await apiRequest<EventDto[]>("/Events");
-        if (!active.value) return;
-        setEvents(data);
-        setSelectedEventId((cur) =>
-          data.some((event) => event.eventId === cur) ? cur : data[0]?.eventId || "",
-        );
-      } catch (err) {
-        if (!active.value) return;
-        message.error(err instanceof Error ? err.message : "Could not load events.");
-        setEvents([]);
-        setSelectedEventId("");
-      } finally {
-        if (active.value) setLoading(false);
-      }
-    },
-    [message],
-  );
+  const {
+    data: events = [],
+    isLoading: loading,
+    error,
+    refetch: refetchEvents,
+  } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
 
   useEffect(() => {
-    const active = { value: true };
-    // Defer out of the synchronous effect body (react-hooks/set-state-in-effect):
-    // loadEventsData sets state only after an awaited fetch and respects the `active`
-    // guard, so the microtask hop keeps observable behavior identical.
-    void Promise.resolve().then(() => loadEventsData(active));
+    if (error) message.error(error instanceof Error ? error.message : "Could not load events.");
+  }, [error, message]);
 
-    // Load the active track catalog for the create wizard. A failure is non-fatal:
-    // we fall back to the static TRACKS_OPTIONS labels.
-    void apiRequest<TrackOption[]>("/tracks?activeOnly=true")
-      .then((data) => { if (active.value) setTrackCatalog(data); })
-      .catch(() => { /* fall back to static labels */ });
-
-    return () => { active.value = false; };
-  }, [loadEventsData]);
+  // Keep the selection valid once events load; don't clobber the URL-seeded id
+  // while the list is still empty (initial load / transient error).
+  useEffect(() => {
+    if (events.length === 0) return;
+    setSelectedEventId((cur) => (events.some((event) => event.eventId === cur) ? cur : events[0].eventId));
+  }, [events]);
 
   const refreshEvents = useCallback(async () => {
-    setLoading(true);
-    const active = { value: true };
-    await loadEventsData(active);
-  }, [loadEventsData]);
+    await refetchEvents();
+  }, [refetchEvents]);
 
   const selectedEvent = useMemo(
     () => events.find((ev) => ev.eventId === selectedEventId),
     [events, selectedEventId],
   );
 
+  /* ─────────────── Create wizard ─────────────── */
+  const createForm = useCreateEventForm({ refreshEvents, setView });
+
+  /* ─────────────── Event time editing ─────────────── */
   const beginEditTime = () => {
     if (!selectedEvent) return;
     setEditForm({
@@ -318,7 +170,7 @@ export function useAdminEventsData() {
     }
   };
 
-  /* ─────────────── Save deadlines ─────────────── */
+  /* ─────────────── Round editing ─────────────── */
   const beginEditRound = (round: RoundDto) => {
     setRoundEditForm({
       roundName: round.roundName,
@@ -378,9 +230,7 @@ export function useAdminEventsData() {
           roundName: round.hasSubmissions ? round.roundName : roundEditForm.roundName.trim(),
           submissionDeadline,
           roundOrder: round.hasSubmissions ? round.roundOrder : roundOrder,
-          maxTeamsAdvancing: round.hasSubmissions
-            ? round.maxTeamsAdvancing
-            : maxTeamsAdvancing,
+          maxTeamsAdvancing: round.hasSubmissions ? round.maxTeamsAdvancing : maxTeamsAdvancing,
           passThreshold: round.hasSubmissions ? round.passThreshold ?? null : passThreshold,
           promptDocumentId: roundEditForm.promptDocumentId || null,
         }),
@@ -425,19 +275,15 @@ export function useAdminEventsData() {
         ? `The top ${round.maxTeamsAdvancing} teams (by average score) will move to the next round; others will be eliminated.`
         : "Teams whose score meets the pass threshold will move to the next round; others will be eliminated.";
     const ok = await confirmAsync(confirmTitle, confirmContent);
-    if (!ok) {
-      return;
-    }
+    if (!ok) return;
+
     setAdvancingId(roundId);
     try {
       const res = await apiRequest<{
         message: string;
         teamsNeedingJudges?: number;
         toRound?: { roundId: string; roundName: string };
-      }>(
-        `/admin/rounds/${roundId}/advance`,
-        { method: "POST" }
-      );
+      }>(`/admin/rounds/${roundId}/advance`, { method: "POST" });
       message.success(res.message || "Round advanced successfully.");
       // After a non-final advance, surface how many teams in the new round have no
       // judge yet. Admins routinely forget to re-assign judges per round because
@@ -456,6 +302,7 @@ export function useAdminEventsData() {
     }
   };
 
+  /* ─────────────── Event lifecycle ─────────────── */
   const handlePublishEvent = async (id: string) => {
     if (!await confirmAsync("Publish this event?", "It will become visible to participants.")) return;
     setUpdatingEvent(true);
@@ -505,7 +352,7 @@ export function useAdminEventsData() {
     try {
       await apiRequest(`/Events/${id}/cancel`, {
         method: "POST",
-        body: JSON.stringify({ reason: reason.trim() || null })
+        body: JSON.stringify({ reason: reason.trim() || null }),
       });
       message.success("Event cancelled successfully.");
       await refreshEvents();
@@ -516,174 +363,18 @@ export function useAdminEventsData() {
     }
   };
 
-  /* ─────────────── Create event ─────────────── */
-  const addRound = () => setRounds((rs) => [...rs, { ...INITIAL_ROUND(), name: `Round ${rs.length + 1}` }]);
-  const removeRound = (id: number) => setRounds((rs) => rs.filter((r) => r.id !== id));
-  const addPrize = () => setPrizes((ps) => [...ps, { ...INITIAL_PRIZE(), id: Date.now(), rank: ps.length + 1 }]);
-  const removePrize = (id: number) => setPrizes((ps) => ps.filter((p) => p.id !== id));
-  const toggleTrack = (t: string) =>
-    setSelectedTracks((sel) => (sel.includes(t) ? sel.filter((x) => x !== t) : [...sel, t]));
-
-  const openTrackModal = () => {
-    setTrackForm({ name: "", description: "", isActive: true });
-    setTrackModalOpen(true);
-  };
-
-  // Creates a catalog track inline, then refreshes the picker and auto-selects it —
-  // all without leaving the wizard or touching the event/round/track form state.
-  const handleCreateTrack = async () => {
-    if (creatingTrack) return; // double-submit guard
-    const name = trackForm.name.trim();
-    if (!name) { message.error("Track name is required."); return; }
-
-    setCreatingTrack(true);
-    try {
-      const created = await apiRequest<{ trackId: string }>("/tracks", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          description: trackForm.description.trim() || null,
-          isActive: trackForm.isActive,
-        }),
-      });
-
-      // Refresh the catalog from the backend (authoritative) without a page reload.
-      const fresh = await apiRequest<TrackOption[]>("/tracks?activeOnly=true");
-      setTrackCatalog(fresh);
-
-      // Preserve existing valid selections; auto-select the new track if active.
-      const validIds = new Set(fresh.map((t) => t.trackId));
-      setSelectedTracks((prev) => {
-        const kept = prev.filter((id) => validIds.has(id));
-        return validIds.has(created.trackId) && !kept.includes(created.trackId)
-          ? [...kept, created.trackId]
-          : kept;
-      });
-
-      setTrackModalOpen(false);
-      message.success(
-        trackForm.isActive
-          ? `Track "${name}" created and selected.`
-          : `Track "${name}" created (inactive, not selected).`,
-      );
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not create track.");
-    } finally {
-      setCreatingTrack(false);
-    }
-  };
-
-  const handleCreateEvent = async () => {
-    if (!eventForm.eventName.trim()) { message.error("Please enter an event name."); return; }
-
-    const chainError = validateDateChain(eventForm);
-    if (chainError) { message.error(chainError); return; }
-
-    if (rounds.length === 0) { message.error("At least one round is required."); return; }
-    if (rounds.some((r) => !r.name.trim() || !r.deadline)) { message.error("Every round needs a name and submission deadline."); return; }
-    if (rounds.some((r) => r.criteria.length === 0)) { message.error("Every round must have at least one scoring criteria."); return; }
-    if (rounds.some((r) => r.criteria.some(c => !c.name.trim()))) { message.error("Every criteria needs a name."); return; }
-    if (rounds.some((r) => {
-      const totalWeight = r.criteria.reduce((sum, c) => sum + (Number(c.weight) || 0), 0);
-      return totalWeight !== 100;
-    })) {
-      message.error("The total weight (%) of criteria for each round must equal exactly 100.");
-      return;
-    }
-    if (rounds.some((r) => {
-      if (r.passThreshold.trim() === "") return false;
-      const value = Number(r.passThreshold);
-      return !Number.isFinite(value) || value < 0 || value > 100;
-    })) {
-      message.error("Pass threshold must be between 0 and 100, or left blank for the default.");
-      return;
-    }
-
-    if (prizes.some((p) => !p.title.trim())) { message.error("Every prize needs a title."); return; }
-
-    if (!usingCatalog && selectedTracks.length > 0) {
-      message.error("Track catalog is unavailable — cannot attach tracks. Try again in a moment, or create the event without tracks and add categories later.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // Single atomic POST: event + rounds + track-categories commit together.
-      // If the backend rejects any part (date chain, deadline outside range, etc.),
-      // nothing is written and the wizard stays open so the admin can fix and retry.
-      await apiRequest("/Events", {
-        method: "POST",
-        body: JSON.stringify({
-          eventName: eventForm.eventName.trim(),
-          description: eventForm.description.trim() || null,
-          // toApiDate() emits UTC ISO 8601 via Date.toISOString(), so the server
-          // never has to guess the browser's local offset.
-          registrationStartDate: toApiDate(eventForm.registrationStartDate),
-          registrationEndDate: toApiDate(eventForm.registrationEndDate),
-          startDate: toApiDate(eventForm.startDate),
-          endDate: toApiDate(eventForm.endDate),
-          trackIds: usingCatalog ? selectedTracks : [],
-          posterUrl: eventForm.posterUrl,
-          winnerImageUrl: eventForm.winnerImageUrl,
-          rounds: rounds.map((r, i) => ({
-            roundName: r.name.trim(),
-            submissionDeadline: toApiDate(r.deadline),
-            roundOrder: i + 1,
-            maxTeamsAdvancing: Number(r.topN) || 0,
-            passThreshold: r.passThreshold.trim() === "" ? null : Number(r.passThreshold),
-            promptDocumentId: r.promptDocumentId || null,
-            criteria: r.criteria.map((c) => ({
-              criteriaName: c.name.trim(),
-              maxScore: 100,
-              weight: Number(c.weight) || 1,
-            })),
-          })),
-          // Prizes created here apply event-wide across every track (no per-track
-          // scoping from this flow).
-          prizes: prizes.map((p) => ({
-            title: p.title.trim(),
-            amount: p.amount.trim() || null,
-            description: p.description.trim() || null,
-            rank: Number(p.rank) || 0,
-          })),
-        }),
-      });
-
-      message.success("Event created successfully.");
-      setEventForm({ ...INITIAL_EVENT_FORM });
-      setRounds([{ id: 1, name: "Qualifying Round", topN: "10", passThreshold: "", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] }]);
-      setPrizes([]);
-      setSelectedTracks([]);
-      setActiveSection("general");
-      setView("list");
-      await refreshEvents();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not create event.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return {
     view, setView,
     events, selectedEventId, selectEvent, selectedEvent,
     loading, saving, advancingId,
     editingTime, setEditingTime, editForm, setEditForm, updatingEvent, deletingEvent,
     editingRoundId, setEditingRoundId, roundEditForm, setRoundEditForm, deletingRoundId,
-    eventForm, setEventForm,
-    rounds, setRounds,
-    prizes, setPrizes,
-    selectedTracks,
-    activeSection, setActiveSection,
-    submitting,
-    trackCatalog, usingCatalog,
-    trackModalOpen, setTrackModalOpen, creatingTrack, trackForm, setTrackForm,
     eventHasStarted,
     refreshEvents,
     beginEditTime, handleUpdateEventTime, handleDeleteEvent,
     beginEditRound, handleUpdateRound, handleDeleteRound, handleAdvanceRound,
     handlePublishEvent, handleStartEvent, handleCompleteEvent, handleCancelEvent,
-    addRound, removeRound, addPrize, removePrize, toggleTrack,
-    openTrackModal, handleCreateTrack, handleCreateEvent,
+    // Create wizard (state + actions) spread from its focused hook.
+    ...createForm,
   };
 }

@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Target, ChevronRight, RefreshCw, ExternalLink, ShieldOff, CheckCircle, XCircle,
   AlertCircle, CalendarDays, Trophy, ListChecks, Clock, Hourglass, Search,
@@ -119,11 +120,6 @@ export default function JudgingPortalPage() {
   const isAdmin = user?.roles.includes("Admin") ?? false;
   const canAccess = isJudge || isAdmin;
 
-  const [dashboard, setDashboard] = useState<JudgeDashboard | null>(null);
-  const [teams, setTeams] = useState<AssignedTeam[]>([]);
-  const [kickRequests, setKickRequests] = useState<KickRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errored, setErrored] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   // Filters
@@ -131,48 +127,43 @@ export default function JudgingPortalPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
 
-  const loadKickRequests = useCallback(async () => {
-    try {
-      const data = await apiRequest<KickRequest[]>("/judge/kick-requests");
-      setKickRequests(data);
-    } catch (err) {
-      // Network/5xx must not blank the page or log the user out.
-      if (!isAuthError(err)) setKickRequests([]);
-    }
-  }, []);
+  // All judge data is gated on the Judge role. Auth (401/403) errors must not
+  // blank the page or toast — they're handled by the auth layer, not here.
+  const dashboardQuery = useQuery({
+    queryKey: ["judge-dashboard"],
+    queryFn: () => apiRequest<JudgeDashboard>("/judge/dashboard"),
+    enabled: isJudge,
+  });
+  const teamsQuery = useQuery({
+    queryKey: ["judge-teams"],
+    queryFn: () => apiRequest<AssignedTeam[]>("/judge/teams"),
+    enabled: isJudge,
+  });
+  const kickQuery = useQuery({
+    queryKey: ["judge-kick-requests"],
+    queryFn: () => apiRequest<KickRequest[]>("/judge/kick-requests"),
+    enabled: isJudge,
+  });
 
-  const loadJudgeData = useCallback(async () => {
-    setLoading(true);
-    setErrored(false);
-    try {
-      const [dash, teamData] = await Promise.all([
-        apiRequest<JudgeDashboard>("/judge/dashboard"),
-        apiRequest<AssignedTeam[]>("/judge/teams"),
-      ]);
-      setDashboard(dash);
-      setTeams(teamData);
-      await loadKickRequests();
-    } catch (err) {
-      setErrored(true);
-      if (!isAuthError(err)) {
-        message.error(err instanceof Error ? err.message : "Could not load your judging data.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [message, loadKickRequests]);
+  const dashboard = dashboardQuery.data ?? null;
+  const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data]);
+  const kickRequests = kickQuery.data ?? [];
+  const loading = isJudge && (dashboardQuery.isLoading || teamsQuery.isLoading);
+  const dataError = dashboardQuery.error ?? teamsQuery.error;
+  const errored = !!dataError && !isAuthError(dataError);
 
   useEffect(() => {
-    if (authLoading || !isJudge) {
-      if (!authLoading) {
-        const timer = setTimeout(() => setLoading(false), 0);
-        return () => clearTimeout(timer);
-      }
-      return;
+    if (dataError && !isAuthError(dataError)) {
+      message.error(dataError instanceof Error ? dataError.message : "Could not load your judging data.");
     }
-    const timer = setTimeout(() => loadJudgeData(), 0);
-    return () => clearTimeout(timer);
-  }, [authLoading, isJudge, loadJudgeData]);
+  }, [dataError, message]);
+
+  const loadJudgeData = () => {
+    dashboardQuery.refetch();
+    teamsQuery.refetch();
+    kickQuery.refetch();
+  };
+  const loadKickRequests = () => kickQuery.refetch();
 
   const eventOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -410,15 +401,15 @@ export default function JudgingPortalPage() {
         <>
           {/* ─── Stats (always visible) ─────────────────────────── */}
           <div className={`grid-4 ${styles.statsGrid}`}>
-            <StatCard value={stats?.totalAssignedTeams ?? 0} label="Assigned Teams" color="#6366f1" Icon={ListChecks}
+            <StatCard value={stats?.totalAssignedTeams ?? 0} label="Assigned Teams" color="var(--color-primary)" Icon={ListChecks}
               hint="Total teams across all rounds you are assigned to score." />
-            <StatCard value={stats?.judgedTeams ?? 0} label="Scored" color="#10b981" Icon={CheckCircle}
+            <StatCard value={stats?.judgedTeams ?? 0} label="Scored" color="var(--color-emerald)" Icon={CheckCircle}
               hint="Teams whose scores you have finalized (locked)." />
-            <StatCard value={stats?.notJudgedTeams ?? 0} label="Awaiting Your Score" color="#f59e0b" Icon={Hourglass}
+            <StatCard value={stats?.notJudgedTeams ?? 0} label="Awaiting Your Score" color="var(--color-amber)" Icon={Hourglass}
               hint="Submitted teams you have not finished scoring." />
             <StatCard
               value={stats?.nearestDeadline ? formatDate(stats.nearestDeadline) : "—"}
-              label="Nearest Deadline" color="#f43f5e" Icon={Clock}
+              label="Nearest Deadline" color="var(--color-rose)" Icon={Clock}
               hint={nearestDays !== null ? (nearestDays < 0 ? "Overdue" : `${nearestDays} day(s) left`) : undefined}
             />
           </div>

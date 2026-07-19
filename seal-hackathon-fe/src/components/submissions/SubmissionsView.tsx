@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 import { App } from "antd";
 import { apiRequest, fetchCurrentUser, apiDownload } from "@/lib/api";
@@ -53,57 +54,53 @@ export default function SubmissionsView() {
     description: "",
     consent: false,
   });
-  const [team, setTeam] = useState<TeamDto | null>(null);
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [evaluation, setEvaluation] = useState<EvaluationDto | null>(null);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [loadError, setLoadError] = useState("");
 
-  const isApproved = team?.status === "Approved" || team?.status === "Active" || team?.status === "Champion";
-
-  const loadSubmissionContext = async () => {
-    setLoading(true);
-    setLoadError("");
-
-    try {
+  // One query resolves the whole submission context: identity, the user's team,
+  // and (if a round is active) their submission for that round.
+  const {
+    data,
+    isLoading: loading,
+    error,
+    refetch: loadSubmissionContext,
+  } = useQuery({
+    queryKey: ["submission-context"],
+    queryFn: async () => {
       const [user, myTeam] = await Promise.all([
         fetchCurrentUser(),
         apiRequest<TeamDto>("/teams/my-team"),
       ]);
-
-      setCurrentUserId(user.id);
-      setTeam(myTeam);
-
+      let submission: SubmissionDto | null = null;
       if (myTeam.currentRound) {
         const submissions = await apiRequest<SubmissionDto[]>(`/submissions/team/${myTeam.teamId}`);
-        const currentSubmission = submissions.find((item) => item.round.roundId === myTeam.currentRound?.roundId);
-
-        if (currentSubmission) {
-          setIsSubmitted(true);
-          setEvaluation(currentSubmission.evaluation?.isScored ? currentSubmission.evaluation : null);
-          setForm((current) => ({
-            ...current,
-            repositoryUrl: currentSubmission.repositoryUrl ?? "",
-            demoUrl: currentSubmission.demoUrl ?? "",
-            slideUrl: currentSubmission.slideUrl ?? "",
-            videoUrl: "",
-          }));
-        } else {
-          setIsSubmitted(false);
-          setEvaluation(null);
-        }
+        submission = submissions.find((item) => item.round.roundId === myTeam.currentRound?.roundId) ?? null;
       }
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Could not load submission context.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return { user, team: myTeam, submission };
+    },
+  });
+
+  const team = data?.team ?? null;
+  const currentUserId = data?.user.id ?? "";
+  const isSubmitted = Boolean(data?.submission);
+  const evaluation = data?.submission?.evaluation?.isScored ? data.submission.evaluation : null;
+  const loadError = error ? (error instanceof Error ? error.message : "Could not load submission context.") : "";
+
+  const isApproved = team?.status === "Approved" || team?.status === "Active" || team?.status === "Champion";
+
+  // Prefill the editable form from the loaded submission (re-seeds after refetch,
+  // e.g. once a new submission lands).
   useEffect(() => {
-    void loadSubmissionContext();
-  }, []);
+    const submission = data?.submission;
+    if (submission) {
+      setForm((current) => ({
+        ...current,
+        repositoryUrl: submission.repositoryUrl ?? "",
+        demoUrl: submission.demoUrl ?? "",
+        slideUrl: submission.slideUrl ?? "",
+        videoUrl: "",
+      }));
+    }
+  }, [data?.submission]);
 
   const handleDownloadPrompt = async () => {
     if (!team?.promptDocumentId) return;
@@ -164,7 +161,6 @@ export default function SubmissionsView() {
       });
 
       message.success("Project submitted successfully.");
-      setIsSubmitted(true);
       await loadSubmissionContext();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not submit project.");
@@ -188,7 +184,7 @@ export default function SubmissionsView() {
         <AlertCircle size={48} className="empty-icon" />
         <div className="empty-title">Submission is not ready</div>
         <div className="empty-desc">{loadError}</div>
-        <button className="btn btn-secondary" onClick={loadSubmissionContext}>
+        <button className="btn btn-secondary" onClick={() => loadSubmissionContext()}>
           <RefreshCw size={15} /> Retry
         </button>
       </div>
