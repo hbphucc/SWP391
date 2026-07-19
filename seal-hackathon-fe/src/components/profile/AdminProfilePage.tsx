@@ -1,7 +1,9 @@
 ﻿"use client";
 /* eslint-disable @next/next/no-img-element */
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { User, Save, Upload, Mail, GraduationCap, Phone, Lock } from "lucide-react";
 import { App } from "antd";
 import { CurrentUser, apiRequest, apiUpload, fetchCurrentUser, resolveApiUrl } from "@/lib/api";
@@ -16,7 +18,6 @@ export default function AdminProfilePage() {
   const { refresh } = useAuth();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -24,15 +25,23 @@ export default function AdminProfilePage() {
     confirmPassword: "",
   });
 
+  const { data: loadedUser, isLoading: loading, error } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: fetchCurrentUser,
+  });
+
+  // Seed the editable form once from the server truth; mutations below re-source
+  // via AuthProvider.refresh().
   useEffect(() => {
-    fetchCurrentUser()
-      .then((currentUser) => {
-        setUser(currentUser);
-        setAvatarUrl(resolveApiUrl(currentUser.avatarUrl) ?? localStorage.getItem(`avatar_${currentUser.email}`));
-      })
-      .catch((err) => message.error(err instanceof Error ? err.message : "Could not load profile."))
-      .finally(() => setLoading(false));
-  }, [message]);
+    if (loadedUser && !user) {
+      setUser(loadedUser);
+      setAvatarUrl(resolveApiUrl(loadedUser.avatarUrl));
+    }
+  }, [loadedUser, user]);
+
+  useEffect(() => {
+    if (error) message.error(error instanceof Error ? error.message : "Could not load profile.");
+  }, [error, message]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,8 +89,6 @@ export default function AdminProfilePage() {
       const nextUser = refreshed ?? updated;
       setUser(nextUser);
       setAvatarUrl(resolveApiUrl(nextUser.avatarUrl));
-      localStorage.removeItem(`avatar_${user.email}`);
-      window.dispatchEvent(new Event("storage"));
       message.success("Avatar updated successfully.");
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not upload avatar.");

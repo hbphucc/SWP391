@@ -1,0 +1,121 @@
+.grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+  .hero { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+  .hero { grid-column: auto; }
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.35rem;
+  background: var(--color-surface);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-sm), var(--shadow-glass);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-glow), var(--shadow-glass);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* Hero stat: the one number the page is really about. */
+.hero {
+  background: var(--gradient-card);
+  padding: 1.6rem 1.75rem;
+  gap: 1.25rem;
+}
+
+.icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.hero .icon { width: 56px; height: 56px; }
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text);
+  font-size: 1.65rem;
+  font-variant-numeric: tabular-nums;
+}
+.hero .value { font-size: 2.6rem; }
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--color-text-2);
+  margin-top: 0.35rem;
+  font-weight: 500;
+}
+.hero .label { font-size: 0.9rem; }
+
+.hintIcon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-3);
+  cursor: help;
+  border-radius: var(--radius-full);
+  transition: color var(--transition-fast);
+}
+.hintIcon:hover,
+.hintIcon:focus-visible {
+  color: var(--color-primary-2);
+  outline: none;
+}
+.hintIcon:focus-visible {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+}
+
+.context {
+  font-size: 0.74rem;
+  color: var(--color-text-3);
+  margin-top: 0.15rem;
+}
+
+/* Skeleton loading */
+.skelValue {
+  width: 3ch;
+  height: 1.65rem;
+  border-radius: var(--radius-sm);
+}
+.hero .skelValue { width: 2.5ch; height: 2.6rem; }
+.skelLabel {
+  width: 8ch;
+  height: 0.72rem;
+  margin-top: 0.55rem;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+  .card:hover { transform: none; }
+}

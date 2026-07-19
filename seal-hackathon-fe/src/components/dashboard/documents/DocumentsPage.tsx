@@ -1,5 +1,7 @@
 "use client";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FileText, Download, Upload, Trash2, Search, X } from "lucide-react";
 import { App } from "antd";
 import { apiRequest, apiUpload, apiDownload } from "@/lib/api";
@@ -106,72 +108,59 @@ export default function DocumentsPage() {
 
   const { message, modal } = App.useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [docs, setDocs] = useState<DocumentDto[]>([]);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [events, setEvents] = useState<EventOption[]>([]);
-  const [registeredEventIds, setRegisteredEventIds] = useState<string[]>([]);
   const [selectedRegisteredEventId, setSelectedRegisteredEventId] = useState("all");
   const [selectedEventId, setSelectedEventId] = useState<string>("global");
   const [searchText, setSearchText] = useState("");
   const [typeFilter, setTypeFilter] = useState<DocumentTypeFilter>("all");
-  const [mentorTeams, setMentorTeams] = useState<MentorTeam[]>([]);
   const [viewContext, setViewContext] = useState<string>("official");
 
-  const loadEvents = useCallback(async () => {
-    try {
-      const data = await apiRequest<EventOption[]>("/Events");
-      setEvents(data.map(e => ({ eventId: e.eventId, eventName: e.eventName })));
-    } catch (err) {
-      message.warning(err instanceof Error ? err.message : "Could not load events for document filters.");
-    }
-  }, [message]);
+  const { data: events = [], error: eventsError } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventOption[]>("/Events"),
+  });
 
-  const loadRegistrations = useCallback(async () => {
-    if (!usesRegisteredEventFilter) return;
-    try {
-      const data = await apiRequest<string[]>("/Events/my-registrations");
-      setRegisteredEventIds(data);
-      setSelectedRegisteredEventId((current) =>
-        current === "all" || data.includes(current) ? current : "all"
-      );
-    } catch (err) {
-      message.warning(err instanceof Error ? err.message : "Could not load registered events.");
-      setRegisteredEventIds([]);
-      setSelectedRegisteredEventId("all");
-    }
-  }, [message, usesRegisteredEventFilter]);
+  const { data: registeredEventIds = [], error: registrationsError } = useQuery({
+    queryKey: ["my-registrations"],
+    queryFn: () => apiRequest<string[]>("/Events/my-registrations"),
+    enabled: !!usesRegisteredEventFilter,
+  });
 
-  const loadMentorTeams = useCallback(async () => {
-    if (!isMentor) return;
-    try {
-      const data = await apiRequest<MentorTeam[]>("/mentor/teams");
-      setMentorTeams(data);
-    } catch (err) {
-      message.warning(err instanceof Error ? err.message : "Could not load mentor team filters.");
-    }
-  }, [isMentor, message]);
+  const { data: mentorTeams = [], error: mentorTeamsError } = useQuery({
+    queryKey: ["mentor-teams"],
+    queryFn: () => apiRequest<MentorTeam[]>("/mentor/teams"),
+    enabled: !!isMentor,
+  });
 
-  const loadDocs = useCallback(async () => {
-    try {
-      const data = await apiRequest<DocumentDto[]>("/Documents");
-      setDocs(data);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load documents.");
-      setDocs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+  const {
+    data: docs = [],
+    isLoading: loading,
+    error: docsError,
+    refetch: loadDocs,
+  } = useQuery({
+    queryKey: ["documents"],
+    queryFn: () => apiRequest<DocumentDto[]>("/Documents"),
+  });
+
+  // Keep the registered-event filter valid when the registration list changes.
+  useEffect(() => {
+    setSelectedRegisteredEventId((current) =>
+      current === "all" || registeredEventIds.includes(current) ? current : "all",
+    );
+  }, [registeredEventIds]);
 
   useEffect(() => {
-    void Promise.resolve().then(async () => {
-      await loadEvents();
-      await loadRegistrations();
-      await loadDocs();
-      await loadMentorTeams();
-    });
-  }, [loadDocs, loadEvents, loadMentorTeams, loadRegistrations]);
+    if (eventsError) message.warning(eventsError instanceof Error ? eventsError.message : "Could not load events for document filters.");
+  }, [eventsError, message]);
+  useEffect(() => {
+    if (registrationsError) message.warning(registrationsError instanceof Error ? registrationsError.message : "Could not load registered events.");
+  }, [registrationsError, message]);
+  useEffect(() => {
+    if (mentorTeamsError) message.warning(mentorTeamsError instanceof Error ? mentorTeamsError.message : "Could not load mentor team filters.");
+  }, [mentorTeamsError, message]);
+  useEffect(() => {
+    if (docsError) message.error(docsError instanceof Error ? docsError.message : "Could not load documents.");
+  }, [docsError, message]);
 
   const registeredEvents = useMemo(() => {
     if (!usesRegisteredEventFilter) return [];

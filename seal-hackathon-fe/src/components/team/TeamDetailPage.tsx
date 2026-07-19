@@ -1,5 +1,6 @@
 "use client";
-import React, { use, useState, useEffect } from "react";
+import React, { use, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Award, ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
@@ -50,35 +51,21 @@ type TeamData = {
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [tab, setTab] = useState("members");
-  const [team, setTeam] = useState<TeamData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    
-    apiRequest<TeamData>(`/teams/${id}`)
-      .then((data) => {
-        if (active) {
-          setTeam(data);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Could not load team details.");
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
+  const {
+    data: team = null,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["team", id],
+    queryFn: () => apiRequest<TeamData>(`/teams/${id}`),
+  });
 
-    return () => {
-      active = false;
-    };
-  }, [id]);
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Could not load team details."
+    : null;
 
   if (loading) {
     return (

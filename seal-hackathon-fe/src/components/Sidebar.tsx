@@ -3,13 +3,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
 import { ChevronLeft, LogOut, Menu, Trophy } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { useAuth } from "./AuthProvider";
+import { resolveApiUrl } from "@/lib/api";
 import { getVisibleNav } from "./shell/navigationConfig";
 import type { Portal } from "./shell/routePolicies";
-import { resolveApiUrl } from "@/lib/api";
 
 interface SidebarProps {
   portal: Portal;
@@ -30,18 +29,9 @@ export default function Sidebar({
   const router = useRouter();
   const { user: currentUser, logout } = useAuth();
 
-  const [avatar, setAvatar] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!currentUser) {
-        setAvatar(null);
-      } else {
-        setAvatar(resolveApiUrl(currentUser.avatarUrl));
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [currentUser]);
+  // Avatar comes from /Auth/me (server truth); AuthProvider.refresh() after
+  // an upload re-renders this with the new URL — no client storage involved.
+  const avatar = currentUser ? resolveApiUrl(currentUser.avatarUrl) : null;
 
   const handleLogout = async () => {
     // Capture role BEFORE logout — once logout() resolves, currentUser is null.

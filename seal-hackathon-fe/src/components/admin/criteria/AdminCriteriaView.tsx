@@ -1,5 +1,6 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { App, Table, Tag, Modal, Button, Input, InputNumber } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -31,9 +32,6 @@ export default function AdminCriteriaView({
   rounds: { roundId: string; roundName: string }[];
 }) {
   const { message } = App.useApp();
-  const [rows, setRows] = useState<CriteriaRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRound, setSelectedRound] = useState<{ roundId: string; roundName: string } | null>(null);
   const [editingCriteria, setEditingCriteria] = useState<CriteriaDto[]>([]);
@@ -42,33 +40,31 @@ export default function AdminCriteriaView({
 
   const roundIds = rounds.map((r) => r.roundId).join(",");
 
-  const loadCriteriaList = useCallback(async () => {
-    setLoading(true);
-    try {
-      const built = await Promise.all(
-        rounds.map(async (round) => {
+  // One query fans out to each round's criteria endpoint (per-round failures
+  // degrade to an empty list, as before). Keyed by the round-id set.
+  const {
+    data: rows = [],
+    isFetching: loading,
+    error,
+    refetch: loadCriteriaList,
+  } = useQuery({
+    queryKey: ["round-criteria", roundIds],
+    queryFn: () =>
+      Promise.all(
+        rounds.map(async (round): Promise<CriteriaRow> => {
           try {
             const criteria = await apiRequest<CriteriaDto[]>(`/rounds/${round.roundId}/criteria`);
             return { key: round.roundId, round: round.roundName, criteria: criteria || [] };
           } catch {
             return { key: round.roundId, round: round.roundName, criteria: [] };
           }
-        })
-      );
-      setRows(built);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load criteria.");
-      setRows([]);
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message, roundIds]);
+        }),
+      ),
+  });
 
   useEffect(() => {
-    const timer = setTimeout(() => void loadCriteriaList(), 0);
-    return () => clearTimeout(timer);
-  }, [loadCriteriaList]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load criteria.");
+  }, [error, message]);
 
   const openManageModal = (record: CriteriaRow) => {
     setSelectedRound({ roundId: record.key, roundName: record.round });

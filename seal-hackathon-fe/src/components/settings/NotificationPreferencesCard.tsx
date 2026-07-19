@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App } from "antd";
 import { Bell } from "lucide-react";
 import { apiRequest } from "@/lib/api";
@@ -9,49 +10,48 @@ type NotificationPreferences = {
   emailNotificationsEnabled: boolean;
 };
 
+const PREFERENCES_KEY = ["notification-preferences"];
+
 export default function NotificationPreferencesCard() {
   const { message } = App.useApp();
-  const [preferences, setPreferences] = useState<NotificationPreferences>({
-    emailNotificationsEnabled: true,
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
-  const loadPreferences = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<NotificationPreferences>("/Auth/notification-preferences");
-      setPreferences(data);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load notification preferences.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+  const {
+    data: preferences = { emailNotificationsEnabled: true },
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: PREFERENCES_KEY,
+    queryFn: () => apiRequest<NotificationPreferences>("/Auth/notification-preferences"),
+  });
 
   useEffect(() => {
-    void Promise.resolve().then(() => loadPreferences());
-  }, [loadPreferences]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load notification preferences.");
+  }, [error, message]);
 
-  const updateEmailPreference = async (enabled: boolean) => {
-    const previous = preferences;
-    setPreferences({ emailNotificationsEnabled: enabled });
-    setSaving(true);
-
-    try {
-      const data = await apiRequest<NotificationPreferences>("/Auth/notification-preferences", {
+  // Optimistically flip the toggle, roll back on failure — same UX as before,
+  // now with the cache as the single source of truth.
+  const { mutate: updateEmailPreference, isPending: saving } = useMutation({
+    mutationFn: (enabled: boolean) =>
+      apiRequest<NotificationPreferences>("/Auth/notification-preferences", {
         method: "PUT",
         body: JSON.stringify({ emailNotificationsEnabled: enabled }),
-      });
-      setPreferences(data);
-      message.success("Notification preferences saved.");
-    } catch (err) {
-      setPreferences(previous);
+      }),
+    onMutate: async (enabled) => {
+      await queryClient.cancelQueries({ queryKey: PREFERENCES_KEY });
+      const previous = queryClient.getQueryData<NotificationPreferences>(PREFERENCES_KEY);
+      queryClient.setQueryData<NotificationPreferences>(PREFERENCES_KEY, { emailNotificationsEnabled: enabled });
+      return { previous };
+    },
+    onError: (err, _enabled, context) => {
+      if (context?.previous) queryClient.setQueryData(PREFERENCES_KEY, context.previous);
       message.error(err instanceof Error ? err.message : "Could not save notification preferences.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(PREFERENCES_KEY, data);
+      message.success("Notification preferences saved.");
+    },
+  });
 
   return (
     <div className={`glass-card ${styles.cardSpacing}`}>

@@ -22,7 +22,7 @@ function PendingTeamsPanel({ teams, loading, busyAction, onAction }: PendingTeam
     <div className="section" style={{ marginBottom: "2rem" }}>
       <div className="section-header">
         <span className="section-title">
-          <UserCheck size={16} style={{ color: "#8b5cf6" }} /> Pending Team Approvals
+          <UserCheck size={16} style={{ color: "var(--color-violet)" }} /> Pending Team Approvals
         </span>
         <Link href="/admin/teams">
           <button className="btn btn-ghost btn-sm">Manage Teams <ChevronRight size={14} /></button>
@@ -43,11 +43,11 @@ function PendingTeamsPanel({ teams, loading, busyAction, onAction }: PendingTeam
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}
+                <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "var(--color-emerald)", border: "1px solid rgba(16,185,129,0.3)" }}
                   onClick={() => onAction(t.teamId, "approve")} disabled={busyAction !== null}>
                   <CheckCircle size={14} style={{ marginRight: 4 }} /> Approve
                 </button>
-                <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e", border: "1px solid rgba(244,63,94,0.3)" }}
+                <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "var(--color-rose)", border: "1px solid rgba(244,63,94,0.3)" }}
                   onClick={() => onAction(t.teamId, "reject")} disabled={busyAction !== null}>
                   <XCircle size={14} style={{ marginRight: 4 }} /> Reject
                 </button>

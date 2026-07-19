@@ -1,6 +1,8 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserCheck, Shield, RefreshCw, XCircle, Target } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -64,20 +66,11 @@ type RoundSummaryDto = {
  */
 export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const { message, modal } = App.useApp();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"mentor" | "judge" | "summary">("mentor");
-  const [roundSummary, setRoundSummary] = useState<RoundSummaryDto[]>([]);
-  const [loading, setLoading] = useState(true);
   // Per-action guard against double-clicks (`remove-<id>`).
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  // Mentor tab state — mentors are now invited by team leaders and confirmed by
-  // the mentor accepting; admin only reviews the list and can force-remove one.
-  const [mentorAssignments, setMentorAssignments] = useState<MentorAssignment[]>([]);
-
-  // Judge tab state
-  const [rounds, setRounds] = useState<RoundDto[]>([]);
-  const [categories, setCategories] = useState<CategoryDto[]>([]);
-  const [judgeAssignments, setJudgeAssignments] = useState<JudgeAssignmentDto[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedJudgeId, setSelectedJudgeId] = useState("");
@@ -85,102 +78,89 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   // Non-empty = specific per-team assignments.
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
-  const [judges, setJudges] = useState<UserDto[]>([]);
+  // Each tab's data is a role/tab-gated query. `judge-assignments` is additionally
+  // keyed by the selected round (omitting it returns every assignment for the event).
+  const mentorAssignmentsQuery = useQuery({
+    queryKey: ["mentor-assignments", eventId],
+    queryFn: () => apiRequest<MentorAssignment[]>(`/admin/mentors/assignments?eventId=${eventId}`),
+    enabled: activeTab === "mentor" && !!eventId,
+  });
+  const roundSummaryQuery = useQuery({
+    queryKey: ["round-summary", eventId],
+    queryFn: () => apiRequest<RoundSummaryDto[]>(`/admin/analytics/event/${eventId}/round-summary`),
+    enabled: activeTab === "summary" && !!eventId,
+  });
+  const roundsQuery = useQuery({
+    queryKey: ["event-rounds", eventId],
+    queryFn: () => apiRequest<RoundDto[]>(`/events/${eventId}/rounds`),
+    enabled: activeTab === "judge" && !!eventId,
+  });
+  const categoriesQuery = useQuery({
+    queryKey: ["event-categories", eventId],
+    queryFn: () => apiRequest<CategoryDto[]>(`/events/${eventId}/categories`),
+    enabled: activeTab === "judge" && !!eventId,
+  });
+  const judgesQuery = useQuery({
+    queryKey: ["registered-judges", eventId],
+    queryFn: () => apiRequest<UserDto[]>(`/admin/events/${eventId}/registered-judges`),
+    enabled: activeTab === "judge" && !!eventId,
+  });
+  const judgeAssignmentsQuery = useQuery({
+    queryKey: ["judge-assignments", eventId, selectedRoundId],
+    queryFn: () => {
+      const qs = new URLSearchParams({ eventId });
+      if (selectedRoundId) qs.set("roundId", selectedRoundId);
+      return apiRequest<JudgeAssignmentDto[]>(`/admin/judge-assignments?${qs.toString()}`);
+    },
+    enabled: activeTab === "judge" && !!eventId,
+  });
+
+  const mentorAssignments = mentorAssignmentsQuery.data ?? [];
+  const roundSummary = roundSummaryQuery.data ?? [];
+  const rounds = useMemo(() => roundsQuery.data ?? [], [roundsQuery.data]);
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
+  const judges = useMemo(() => judgesQuery.data ?? [], [judgesQuery.data]);
+  const judgeAssignments = useMemo(() => judgeAssignmentsQuery.data ?? [], [judgeAssignmentsQuery.data]);
+  const loading =
+    activeTab === "mentor"
+      ? mentorAssignmentsQuery.isFetching
+      : activeTab === "summary"
+        ? roundSummaryQuery.isFetching
+        : judgeAssignmentsQuery.isFetching;
+
+  useEffect(() => {
+    if (mentorAssignmentsQuery.error) message.error(mentorAssignmentsQuery.error instanceof Error ? mentorAssignmentsQuery.error.message : "Could not load mentor assignments.");
+  }, [mentorAssignmentsQuery.error, message]);
+  useEffect(() => {
+    if (roundSummaryQuery.error) message.error(roundSummaryQuery.error instanceof Error ? roundSummaryQuery.error.message : "Could not load round summary.");
+  }, [roundSummaryQuery.error, message]);
+  useEffect(() => {
+    if (judgeAssignmentsQuery.error) message.error(judgeAssignmentsQuery.error instanceof Error ? judgeAssignmentsQuery.error.message : "Could not load judge assignments.");
+  }, [judgeAssignmentsQuery.error, message]);
+  useEffect(() => {
+    if (judgesQuery.error) message.error(judgesQuery.error instanceof Error ? judgesQuery.error.message : "Could not load judges.");
+  }, [judgesQuery.error, message]);
+  useEffect(() => {
+    const e = roundsQuery.error ?? categoriesQuery.error;
+    if (e) message.error(e instanceof Error ? e.message : "Could not load rounds/categories.");
+  }, [roundsQuery.error, categoriesQuery.error, message]);
 
   const currentCategoryTeams = useMemo<CategoryTeam[]>(() => {
     if (!selectedCategoryId) return [];
     return categories.find((c) => c.categoryId === selectedCategoryId)?.teams ?? [];
   }, [selectedCategoryId, categories]);
 
-  const loadMentorData = async () => {
-    setLoading(true);
-    try {
-      setMentorAssignments(await apiRequest<MentorAssignment[]>(`/admin/mentors/assignments?eventId=${eventId}`));
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load mentor assignments.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // roundId is additive — omitting it returns every judge assignment for the event.
-  const loadJudgeData = async (roundId?: string) => {
-    setLoading(true);
-    try {
-      const qs = new URLSearchParams({ eventId });
-      if (roundId) qs.set("roundId", roundId);
-      setJudgeAssignments(await apiRequest<JudgeAssignmentDto[]>(`/admin/judge-assignments?${qs.toString()}`));
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load judge assignments.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Default the judge selection to the first registered judge (preserve any pick).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (activeTab === "mentor") {
-        void loadMentorData();
-      } else if (activeTab === "judge") {
-        void loadJudgeData();
-      } else if (activeTab === "summary") {
-        void (async () => {
-          setLoading(true);
-          try {
-            setRoundSummary(await apiRequest<RoundSummaryDto[]>(`/admin/analytics/event/${eventId}/round-summary`));
-          } catch (err) {
-            message.error(err instanceof Error ? err.message : "Could not load round summary.");
-            setRoundSummary([]);
-          } finally {
-            setLoading(false);
-          }
-        })();
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, eventId]);
+    if (judges.length > 0) setSelectedJudgeId((curr) => curr || judges[0].id);
+  }, [judges]);
 
+  // On rounds/categories (re)load — i.e. when the event changes — snap the round
+  // and category selection to the first of each, mirroring the old behavior.
   useEffect(() => {
-    if (activeTab !== "judge") {
-      const timer = setTimeout(() => setJudges([]), 0);
-      return () => clearTimeout(timer);
-    }
-    (async () => {
-      try {
-        const fetchedJudges = await apiRequest<UserDto[]>(`/admin/events/${eventId}/registered-judges`);
-        setJudges(fetchedJudges);
-        setSelectedJudgeId((curr) => curr || fetchedJudges[0]?.id || "");
-      } catch (err) {
-        message.error(err instanceof Error ? err.message : "Could not load judges.");
-      }
-    })();
-  }, [eventId, activeTab, message]);
-
-  // When event changes, refetch its rounds + categories (with their teams).
-  useEffect(() => {
-    if (activeTab !== "judge") {
-      const timer = setTimeout(() => {
-        setRounds([]);
-        setCategories([]);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-    (async () => {
-      try {
-        const [roundData, categoryData] = await Promise.all([
-          apiRequest<RoundDto[]>(`/events/${eventId}/rounds`),
-          apiRequest<CategoryDto[]>(`/events/${eventId}/categories`),
-        ]);
-        setRounds(roundData);
-        setCategories(categoryData);
-        setSelectedRoundId(roundData[0]?.roundId || "");
-        setSelectedCategoryId(categoryData[0]?.categoryId || "");
-      } catch (err) {
-        message.error(err instanceof Error ? err.message : "Could not load rounds/categories.");
-      }
-    })();
-  }, [eventId, activeTab, message]);
+    setSelectedRoundId(rounds[0]?.roundId || "");
+    setSelectedCategoryId(categories[0]?.categoryId || "");
+  }, [rounds, categories]);
 
   // Synchronize Judge and Team selection with existing assignments when round, category, or judge changes
   useEffect(() => {
@@ -232,21 +212,12 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
     return () => clearTimeout(timer);
   }, [selectedRoundId, selectedCategoryId, selectedJudgeId, judgeAssignments, activeTab]);
 
-  // Re-fetch the judge assignment list whenever the round filter changes, so the
-  // "Active Judge Assignments" panel matches the form above it.
-  useEffect(() => {
-    if (activeTab !== "judge") return;
-    const timer = setTimeout(() => {
-      void loadJudgeData(selectedRoundId || undefined);
-    }, 0);
-    return () => clearTimeout(timer);
-    // intentional: judgeData reload owns its own loading state
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, selectedRoundId, activeTab]);
+  // The judge-assignments query is keyed by selectedRoundId, so it refetches
+  // automatically when the round filter changes — no separate effect needed.
 
   const handleRefresh = () => {
-    if (activeTab === "mentor") void loadMentorData();
-    else if (activeTab === "judge") void loadJudgeData(selectedRoundId || undefined);
+    if (activeTab === "mentor") void mentorAssignmentsQuery.refetch();
+    else if (activeTab === "judge") void judgeAssignmentsQuery.refetch();
   };
 
   const handleDeactivateMentor = (assignment: MentorAssignment) => {
@@ -259,7 +230,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         try {
           await apiRequest(`/admin/mentors/assignments/${assignment.id}`, { method: "DELETE" });
           message.success("Assignment deactivated.");
-          await loadMentorData();
+          await queryClient.invalidateQueries({ queryKey: ["mentor-assignments", eventId] });
         } catch (err) {
           message.error(err instanceof Error ? err.message : "Could not deactivate assignment.");
         } finally {
@@ -293,7 +264,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
           : "Judge assigned to entire category.",
       );
       setSelectedTeamIds([]);
-      await loadJudgeData(selectedRoundId || undefined);
+      await queryClient.invalidateQueries({ queryKey: ["judge-assignments"] });
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not assign judge.");
     } finally {
@@ -312,7 +283,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         try {
           await apiRequest(`/admin/judge-assignments/${assignment.assignmentId}`, { method: "DELETE" });
           message.success("Judge assignment removed.");
-          await loadJudgeData(selectedRoundId || undefined);
+          await queryClient.invalidateQueries({ queryKey: ["judge-assignments"] });
         } catch (err) {
           message.error(err instanceof Error ? err.message : "Could not remove judge assignment.");
         } finally {

@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Download, FileText, RotateCcw, Search, Shield } from "lucide-react";
 import { App, Table, Tag, Input } from "antd";
 import { apiRequest, fetchCurrentUser } from "@/lib/api";
@@ -18,10 +19,6 @@ interface AuditLogItem {
 
 export default function AuditLogsPage() {
   const { message } = App.useApp();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [logs, setLogs] = useState<AuditLogItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [entityFilter, setEntityFilter] = useState("all");
@@ -29,31 +26,28 @@ export default function AuditLogsPage() {
   const [dateFilter, setDateFilter] = useState("all");
   const [filterNow, setFilterNow] = useState(() => Date.now());
 
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<AuditLogItem[]>("/admin/audit-logs");
-      setLogs(data);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load audit logs.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+  // Gate the page on the current user's Admin role; on error the user stays non-admin.
+  const { data: currentUser, isLoading: authLoading } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: fetchCurrentUser,
+  });
+  const isAdmin = currentUser?.roles.includes("Admin") ?? false;
+  const authChecked = !authLoading;
+
+  const {
+    data: logs = [],
+    isFetching: loading,
+    error: logsError,
+    refetch: loadLogs,
+  } = useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: () => apiRequest<AuditLogItem[]>("/admin/audit-logs"),
+    enabled: isAdmin,
+  });
 
   useEffect(() => {
-    fetchCurrentUser()
-      .then((user) => setIsAdmin(user.roles.includes("Admin")))
-      .catch(() => setIsAdmin(false))
-      .finally(() => setAuthChecked(true));
-  }, []);
-
-  useEffect(() => {
-    if (isAdmin) {
-      const timer = setTimeout(() => void loadLogs(), 0);
-      return () => clearTimeout(timer);
-    }
-  }, [isAdmin, loadLogs]);
+    if (logsError) message.error(logsError instanceof Error ? logsError.message : "Could not load audit logs.");
+  }, [logsError, message]);
 
   const filteredLogs = useMemo(() => {
     const query = searchText.toLowerCase();
@@ -217,7 +211,7 @@ export default function AuditLogsPage() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <button className="btn btn-secondary btn-icon" onClick={loadLogs} disabled={loading} title="Refresh logs">
+          <button className="btn btn-secondary btn-icon" onClick={() => loadLogs()} disabled={loading} title="Refresh logs">
             <RotateCcw size={15} />
           </button>
           <button className="btn btn-secondary" onClick={exportCsv} disabled={filteredLogs.length === 0}>

@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Users, Bot, Globe, Smartphone, Shield, Lightbulb, Search, RefreshCw } from "lucide-react";
 import { App, Input } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -20,60 +21,51 @@ type CategoryDto = {
 
 export default function UserTracksPage() {
   const { message } = App.useApp();
-  const [events, setEvents] = useState<EventDto[]>([]);
   const [eventId, setEventId] = useState("");
-  const [tracks, setTracks] = useState<CategoryDto[]>([]);
   const [searchText, setSearchText] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  const loadEvents = async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<EventDto[]>("/Events");
-      setEvents(data);
-      setEventId((current) => current || data[0]?.eventId || "");
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load events.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data: events = [],
+    isLoading: eventsLoading,
+    error: eventsError,
+    refetch: refetchEvents,
+  } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+
+  // Default to the first event once events load, while nothing is selected yet.
+  useEffect(() => {
+    if (!eventId && events.length > 0) setEventId(events[0].eventId);
+  }, [events, eventId]);
+
+  const {
+    data: tracks = [],
+    isLoading: tracksLoading,
+    error: tracksError,
+    refetch: refetchTracks,
+  } = useQuery({
+    queryKey: ["event-categories", eventId],
+    queryFn: () => apiRequest<CategoryDto[]>(`/events/${eventId}/categories`),
+    enabled: !!eventId,
+  });
 
   useEffect(() => {
-    void loadEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+    if (eventsError) message.error(eventsError instanceof Error ? eventsError.message : "Could not load events.");
+  }, [eventsError, message]);
   useEffect(() => {
-    if (!eventId) {
-      return;
-    }
+    if (tracksError) message.error(tracksError instanceof Error ? tracksError.message : "Could not load categories.");
+  }, [tracksError, message]);
 
-    let active = true;
-    setLoading(true);
-    apiRequest<CategoryDto[]>(`/events/${eventId}/categories`)
-      .then((data) => {
-        if (active) setTracks(data);
-      })
-      .catch((err) => {
-        if (active) message.error(err instanceof Error ? err.message : "Could not load categories.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [eventId, message]);
+  const loading = eventsLoading || (!!eventId && tracksLoading);
 
   const getIcon = (name: string) => {
-    if (!name) return <Lightbulb size={24} style={{ color: "#f59e0b" }} />;
-    if (name.toLowerCase().includes("ai") || name.toLowerCase().includes("bot")) return <Bot size={24} style={{ color: "#10b981" }} />;
+    if (!name) return <Lightbulb size={24} style={{ color: "var(--color-amber)" }} />;
+    if (name.toLowerCase().includes("ai") || name.toLowerCase().includes("bot")) return <Bot size={24} style={{ color: "var(--color-emerald)" }} />;
     if (name.toLowerCase().includes("web") || name.toLowerCase().includes("globe")) return <Globe size={24} style={{ color: "#3b82f6" }} />;
-    if (name.toLowerCase().includes("mobile") || name.toLowerCase().includes("app")) return <Smartphone size={24} style={{ color: "#8b5cf6" }} />;
+    if (name.toLowerCase().includes("mobile") || name.toLowerCase().includes("app")) return <Smartphone size={24} style={{ color: "var(--color-violet)" }} />;
     if (name.toLowerCase().includes("security") || name.toLowerCase().includes("shield")) return <Shield size={24} style={{ color: "#ef4444" }} />;
-    return <Lightbulb size={24} style={{ color: "#f59e0b" }} />;
+    return <Lightbulb size={24} style={{ color: "var(--color-amber)" }} />;
   };
 
   const filteredTracks = tracks.filter(t =>
@@ -100,7 +92,7 @@ export default function UserTracksPage() {
             className={styles.searchInput}
             prefix={<Search size={16} />}
           />
-          <button className="btn btn-secondary btn-icon" onClick={loadEvents} disabled={loading}>
+          <button className="btn btn-secondary btn-icon" onClick={() => { refetchEvents(); refetchTracks(); }} disabled={loading}>
             <RefreshCw size={15} />
           </button>
         </div>

@@ -8,6 +8,7 @@ import { App } from "antd";
 import { ArrowLeft, Building2, CheckCircle, Code2, GraduationCap, Lock, Mail, Phone, Trophy, User } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { getRoleLandingPath } from "@/components/shell/routePolicies";
 import { PASSWORD_PATTERN, PASSWORD_RULE_MESSAGE } from "@/lib/constants";
 import { DEVELOPER_ROLES, PROGRAMMING_LANGUAGES } from "@/lib/developerProfile";
 import styles from "./Auth.module.css";
@@ -55,8 +56,7 @@ export default function RegisterPage() {
       }
 
       message.success("Logged in successfully via Google!");
-      const fallback = signedIn.roles.includes("Admin") ? "/admin" : "/dashboard";
-      router.push(fallback);
+      router.push(getRoleLandingPath(signedIn.roles));
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Google login failed. Please try again.");
     } finally {

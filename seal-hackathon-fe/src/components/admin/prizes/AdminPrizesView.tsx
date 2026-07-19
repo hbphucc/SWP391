@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Typography, Table, Button, Space, Card, Drawer, Form, Input, InputNumber, App, Tag } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { apiRequest } from "@/lib/api";
@@ -27,39 +28,27 @@ type PrizeFormValues = {
 
 export default function AdminPrizesView({ eventId }: { eventId: string }) {
   const { message, modal } = App.useApp();
-  const [prizes, setPrizes] = useState<PrizeDto[]>([]);
   const [searchText, setSearchText] = useState("");
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<PrizeFormValues>();
 
-  const loadPrizes = async () => {
-    if (!eventId) {
-      setPrizes([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      setPrizes(await apiRequest<PrizeDto[]>(`/Prizes?eventId=${eventId}`));
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load prizes.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data: prizes = [],
+    isFetching: loading,
+    error,
+    refetch: loadPrizes,
+  } = useQuery({
+    queryKey: ["prizes", eventId],
+    queryFn: () => apiRequest<PrizeDto[]>(`/Prizes?eventId=${eventId}`),
+    enabled: !!eventId,
+  });
 
   useEffect(() => {
-    if (!eventId) return;
-    let active = true;
-    apiRequest<PrizeDto[]>(`/Prizes?eventId=${eventId}`)
-      .then((data) => { if (active) setPrizes(data); })
-      .catch((err) => { if (active) message.error(err instanceof Error ? err.message : "Could not load prizes."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [eventId, message]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load prizes.");
+  }, [error, message]);
 
   const showCreateDrawer = () => {
     setIsEditMode(false);
@@ -178,7 +167,7 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
           prefix={<SearchOutlined />}
         />
         <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={loadPrizes} disabled={!eventId || loading} />
+          <Button icon={<ReloadOutlined />} onClick={() => loadPrizes()} disabled={!eventId || loading} />
           <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: "20px" }} disabled={!eventId}>
             Create Prize
           </Button>

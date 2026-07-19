@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Users, UserPlus, CheckCircle, XCircle, Mail, Shield, Building2 } from "lucide-react";
 import { App, Table, Tag, Button, Modal, Form, Input, Select } from "antd";
 import { apiRequest, fetchCurrentUser } from "@/lib/api";
@@ -48,25 +49,31 @@ interface CreateJudgeValues {
 
 export default function UsersPage() {
   const { message, modal } = App.useApp();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("approved");
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [roleRequests, setRoleRequests] = useState<RoleRequestItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Per-row action guard (`approve-<id>` / `reject-<id>`) against double-clicks.
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [createdJudge, setCreatedJudge] = useState<CreatedJudge | null>(null);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: currentUser, isLoading: authLoading } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: fetchCurrentUser,
+  });
+  const isAdmin = currentUser?.roles.includes("Admin") ?? false;
+  const authChecked = !authLoading;
+
+  const {
+    data: users = [],
+    isFetching: usersFetching,
+    error: usersError,
+    refetch: loadUsers,
+  } = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: async () => {
       const data = await apiRequest<BackendUser[]>("/admin/users");
-      setUsers(data.map((user) => {
-        const mappedRole = user.roles?.includes("Admin") ? "Admin" 
+      return data.map<UserItem>((user) => {
+        const mappedRole = user.roles?.includes("Admin") ? "Admin"
             : user.roles?.includes("Mentor") ? "Mentor"
             : user.roles?.includes("Judge") ? "Judge"
             : "Member";
@@ -79,20 +86,22 @@ export default function UsersPage() {
           status: user.isApproved ? "Approved" : "Pending",
           uni: user.schoolName ?? "-",
         };
-      }));
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load users.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+      });
+    },
+    enabled: isAdmin,
+  });
 
-  const loadRoleRequests = useCallback(async () => {
-    setLoading(true);
-    try {
+  const {
+    data: roleRequests = [],
+    isFetching: roleRequestsFetching,
+    error: roleRequestsError,
+    refetch: loadRoleRequests,
+  } = useQuery({
+    queryKey: ["admin-role-requests"],
+    queryFn: async () => {
       const data = await apiRequest<{ id: string; fullName: string; email: string; roles?: string[]; requestedRole?: string; schoolName?: string | null }[]>("/admin/users/role-requests");
-      setRoleRequests(data.map((user) => {
-        const currentRole = user.roles?.includes("Admin") ? "Admin" 
+      return data.map<RoleRequestItem>((user) => {
+        const currentRole = user.roles?.includes("Admin") ? "Admin"
             : user.roles?.includes("Mentor") ? "Mentor"
             : user.roles?.includes("Judge") ? "Judge"
             : "Member";
@@ -104,13 +113,19 @@ export default function UsersPage() {
           requestedRole: user.requestedRole ?? "",
           uni: user.schoolName ?? "-",
         };
-      }));
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load role requests.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+      });
+    },
+    enabled: isAdmin,
+  });
+
+  const loading = usersFetching || roleRequestsFetching;
+
+  useEffect(() => {
+    if (usersError) message.error(usersError instanceof Error ? usersError.message : "Could not load users.");
+  }, [usersError, message]);
+  useEffect(() => {
+    if (roleRequestsError) message.error(roleRequestsError instanceof Error ? roleRequestsError.message : "Could not load role requests.");
+  }, [roleRequestsError, message]);
 
   const handleRoleRequest = async (userId: string, approve: boolean, requestedRole: string) => {
     const actionKey = `${approve ? "approve" : "reject"}-role-${userId}`;
@@ -145,24 +160,6 @@ export default function UsersPage() {
       setBusyAction(null);
     }
   };
-
-  useEffect(() => {
-    fetchCurrentUser()
-      .then((user) => setIsAdmin(user.roles.includes("Admin")))
-      .catch(() => setIsAdmin(false))
-      .finally(() => setAuthChecked(true));
-  }, []);
-
-  useEffect(() => {
-    if (isAdmin) {
-      const trigger = async () => {
-        await Promise.resolve();
-        void loadUsers();
-        void loadRoleRequests();
-      };
-      void trigger();
-    }
-  }, [isAdmin, loadUsers, loadRoleRequests]);
 
   const handleApprove = async (id: string) => {
     if (busyAction) return;
@@ -382,7 +379,7 @@ export default function UsersPage() {
         {createdJudge ? (
           <div style={{ padding: "10px 0" }}>
             <div style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
-              <strong style={{ color: "#10b981", display: "block", marginBottom: "0.5rem" }}>Account Generated Successfully!</strong>
+              <strong style={{ color: "var(--color-emerald)", display: "block", marginBottom: "0.5rem" }}>Account Generated Successfully!</strong>
               <p style={{ fontSize: "0.85rem", color: "var(--color-text-2)", margin: 0 }}>
                 Please copy the temporary credentials below. The password will only be shown once.
               </p>

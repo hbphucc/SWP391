@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Trophy, Medal, Award, Download, Crown, RefreshCw } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -56,9 +57,9 @@ type EventReportRow = {
 };
 
 const RANK_ICON: Record<number, React.ReactNode> = {
-  1: <Trophy size={16} style={{ color: "#f59e0b" }} />,
-  2: <Medal size={16} style={{ color: "#94a3b8" }} />,
-  3: <Award size={16} style={{ color: "#b45309" }} />,
+  1: <Trophy size={16} style={{ color: "var(--color-medal-gold)" }} />,
+  2: <Medal size={16} style={{ color: "var(--color-medal-silver)" }} />,
+  3: <Award size={16} style={{ color: "var(--color-medal-bronze)" }} />,
 };
 
 /**
@@ -68,64 +69,62 @@ const RANK_ICON: Record<number, React.ReactNode> = {
  */
 export default function RankingsView({ embedded = false }: { embedded?: boolean }) {
   const { message } = App.useApp();
-  const [events, setEvents] = useState<EventDto[]>([]);
   const [eventId, setEventId] = useState("");
   const [roundId, setRoundId] = useState("");
   const [categoryId, setCategoryId] = useState("all");
-  const [rankings, setRankings] = useState<RankingDto[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const {
+    data: events = [],
+    isLoading: eventsLoading,
+    error: eventsError,
+  } = useQuery({
+    queryKey: ["events"],
+    queryFn: () => apiRequest<EventDto[]>("/Events"),
+  });
+
+  // Seed the selection to the first event/round once events arrive (only while
+  // nothing is selected yet), preserving the previous load-then-default behavior.
+  useEffect(() => {
+    if (!eventId && events.length > 0) {
+      setEventId(events[0].eventId);
+      setRoundId(events[0].rounds?.[0]?.roundId || "");
+    }
+  }, [events, eventId]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.eventId === eventId) ?? null,
     [events, eventId],
   );
 
-  const loadEvents = async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<EventDto[]>("/Events");
-      setEvents(data);
-      const firstEvent = data[0];
-      if (!eventId) {
-        setEventId(firstEvent?.eventId || "");
-        setRoundId(firstEvent?.rounds?.[0]?.roundId || "");
-      }
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load events.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const rankingsPath =
+    roundId === "overall"
+      ? categoryId === "all"
+        ? `/ranking/event/${eventId}`
+        : `/ranking/category/${categoryId}/event/${eventId}`
+      : categoryId === "all"
+        ? `/ranking/round/${roundId}`
+        : `/ranking/category/${categoryId}/round/${roundId}`;
 
-  const loadRankings = async () => {
-    if (!roundId) {
-      setRankings([]);
-      return;
-    }
+  const {
+    data: rankings = [],
+    isLoading: rankingsLoading,
+    error: rankingsError,
+    refetch: refetchRankings,
+  } = useQuery({
+    queryKey: ["rankings", eventId, roundId, categoryId],
+    queryFn: () => apiRequest<RankingDto[]>(rankingsPath),
+    enabled: !!roundId,
+  });
 
-    setLoading(true);
-    try {
-      const path =
-        roundId === "overall"
-          ? (categoryId === "all"
-              ? `/ranking/event/${eventId}`
-              : `/ranking/category/${categoryId}/event/${eventId}`)
-          : (categoryId === "all"
-              ? `/ranking/round/${roundId}`
-              : `/ranking/category/${categoryId}/round/${roundId}`);
-      setRankings(await apiRequest<RankingDto[]>(path));
-    } catch (err) {
-      setRankings([]);
-      message.error(err instanceof Error ? err.message : "Could not load rankings.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Surface fetch failures as toasts, matching the prior imperative behavior.
   useEffect(() => {
-    void loadEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (eventsError) message.error(eventsError instanceof Error ? eventsError.message : "Could not load events.");
+  }, [eventsError, message]);
+  useEffect(() => {
+    if (rankingsError) message.error(rankingsError instanceof Error ? rankingsError.message : "Could not load rankings.");
+  }, [rankingsError, message]);
+
+  const loading = eventsLoading || (!!roundId && rankingsLoading);
 
   const handleEventChange = (nextEventId: string) => {
     const nextEvent = events.find((event) => event.eventId === nextEventId);
@@ -133,11 +132,6 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
     setRoundId(nextEvent?.rounds[0]?.roundId || "");
     setCategoryId("all");
   };
-
-  useEffect(() => {
-    void loadRankings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundId, categoryId]);
 
   // Prefix cells that spreadsheet apps would interpret as formulas (CSV injection).
   const sanitizeCsvCell = (cell: string | number | null | undefined) => {
@@ -254,7 +248,7 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
               <option key={category.categoryId} value={category.categoryId}>{category.categoryName}</option>
             ))}
           </select>
-          <button className="btn btn-secondary btn-icon" onClick={loadRankings} disabled={loading || !roundId}>
+          <button className="btn btn-secondary btn-icon" onClick={() => refetchRankings()} disabled={loading || !roundId}>
             <RefreshCw size={15} />
           </button>
           <button className="btn btn-secondary" onClick={exportCsv} disabled={rankings.length === 0}>
@@ -287,11 +281,11 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
         <>
           <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", alignItems: "flex-end", justifyContent: "center" }}>
             {topThree.map((item, index) => (
-              <div key={item.submissionId} className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: `3px solid ${item.rank === 1 ? "#f59e0b" : item.rank === 2 ? "#94a3b8" : "#b45309"}`, paddingTop: index === 0 ? "2rem" : "1.5rem", transform: item.rank === 1 ? "translateY(-12px)" : undefined }}>
-                <div style={{ display: "flex", justifyContent: "center" }}><Crown size={item.rank === 1 ? 42 : 32} style={{ color: item.rank === 1 ? "#f59e0b" : item.rank === 2 ? "#94a3b8" : "#b45309" }} /></div>
+              <div key={item.submissionId} className="glass-card" style={{ flex: 1, textAlign: "center", borderTop: `3px solid ${item.rank === 1 ? "var(--color-medal-gold)" : item.rank === 2 ? "var(--color-medal-silver)" : "var(--color-medal-bronze)"}`, paddingTop: index === 0 ? "2rem" : "1.5rem", transform: item.rank === 1 ? "translateY(-12px)" : undefined }}>
+                <div style={{ display: "flex", justifyContent: "center" }}><Crown size={item.rank === 1 ? 42 : 32} style={{ color: item.rank === 1 ? "var(--color-medal-gold)" : item.rank === 2 ? "var(--color-medal-silver)" : "var(--color-medal-bronze)" }} /></div>
                 <div style={{ fontWeight: 800, marginTop: "0.5rem" }}>{item.teamName}</div>
                 <div style={{ fontSize: "0.8rem", color: "var(--color-text-3)" }}>{item.categoryName ?? "Category"}</div>
-                <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: item.rank === 1 ? "#f59e0b" : item.rank === 2 ? "#94a3b8" : "#b45309", marginTop: "0.5rem" }}>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, fontFamily: "var(--font-display)", color: item.rank === 1 ? "var(--color-medal-gold)" : item.rank === 2 ? "var(--color-medal-silver)" : "var(--color-medal-bronze)", marginTop: "0.5rem" }}>
                   {item.totalScore.toFixed(2)}
                 </div>
               </div>
@@ -309,7 +303,7 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                         {RANK_ICON[r.rank] || <span style={{ color: "var(--color-text-3)", fontWeight: 700 }}>#{r.rank}</span>}
-                        {r.rank <= 3 && <span style={{ fontWeight: 800, color: r.rank===1?"#f59e0b":r.rank===2?"#94a3b8":"#b45309" }}>#{r.rank}</span>}
+                        {r.rank <= 3 && <span style={{ fontWeight: 800, color: r.rank===1?"var(--color-medal-gold)":r.rank===2?"var(--color-medal-silver)":"var(--color-medal-bronze)" }}>#{r.rank}</span>}
                       </div>
                     </td>
                     <td className="table-cell-primary">{r.teamName}</td>
@@ -320,7 +314,7 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 800, fontSize: "1rem", fontFamily: "var(--font-display)", color: r.totalScore >= 80 ? "#10b981" : r.totalScore >= 60 ? "#f59e0b" : "#f43f5e" }}>
+                      <span style={{ fontWeight: 800, fontSize: "1rem", fontFamily: "var(--font-display)", color: r.totalScore >= 80 ? "var(--color-emerald)" : r.totalScore >= 60 ? "var(--color-amber)" : "var(--color-rose)" }}>
                         {r.totalScore.toFixed(2)}
                       </span>
                     </td>
@@ -338,7 +332,7 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
                     </td>
                     <td style={{ minWidth: 120 }}>
                       <div className="progress">
-                        <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, r.totalScore))}%`, background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }} />
+                        <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, r.totalScore))}%`, background: "linear-gradient(90deg, var(--color-primary), var(--color-violet))" }} />
                       </div>
                     </td>
                   </tr>

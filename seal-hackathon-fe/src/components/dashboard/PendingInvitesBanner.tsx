@@ -24,7 +24,7 @@ export default function PendingInvitesBanner({ invites, myTeam, currentUserId, o
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              borderLeft: "4px solid var(--color-primary)",
+              borderColor: "rgba(99, 102, 241, 0.35)",
               padding: "1.25rem 1.5rem",
             }}
           >
@@ -44,7 +44,7 @@ export default function PendingInvitesBanner({ invites, myTeam, currentUserId, o
                 <Users size={20} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: "1.1rem", color: "var(--color-text-1)" }}>
+                <h4 style={{ margin: 0, fontSize: "1.1rem", color: "var(--color-text)" }}>
                   {isJoinRequest ? "Join Request" : "Team Invitation"}
                 </h4>
                 <p style={{ margin: "0.2rem 0 0", color: "var(--color-text-3)", fontSize: "0.9rem" }}>

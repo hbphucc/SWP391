@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Send, Bell, List, RefreshCw, Users } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -18,39 +19,21 @@ export default function AdminSystemNotifications() {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [notifType, setNotifType] = useState("info");
-  const [history, setHistory] = useState<BroadcastHistory[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const loadHistory = async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<BroadcastHistory[]>("/notifications/broadcast-history");
-      setHistory(data);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to load broadcast history.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data: history = [],
+    isFetching: loading,
+    error,
+    refetch: loadHistory,
+  } = useQuery({
+    queryKey: ["broadcast-history"],
+    queryFn: () => apiRequest<BroadcastHistory[]>("/notifications/broadcast-history"),
+  });
 
   useEffect(() => {
-    let active = true;
-
-    apiRequest<BroadcastHistory[]>("/notifications/broadcast-history")
-      .then((data) => {
-        if (active) setHistory(data);
-      })
-      .catch((err) => {
-        if (!active) return;
-        message.error(err instanceof Error ? err.message : "Failed to load broadcast history.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => { active = false; };
-  }, [message]);
+    if (error) message.error(error instanceof Error ? error.message : "Failed to load broadcast history.");
+  }, [error, message]);
 
   const sendBroadcast = async () => {
     setSending(true);
@@ -89,7 +72,7 @@ export default function AdminSystemNotifications() {
         <div>
           <h1 className="page-title">System Notifications</h1>
         </div>
-        <button className="btn btn-secondary" onClick={loadHistory} disabled={loading}>
+        <button className="btn btn-secondary" onClick={() => loadHistory()} disabled={loading}>
           <RefreshCw size={15} /> Refresh
         </button>
       </div>

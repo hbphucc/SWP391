@@ -44,11 +44,11 @@ function PendingUsersPanel({ users, loading, busyAction, onAction }: PendingUser
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}
+                <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "var(--color-emerald)", border: "1px solid rgba(16,185,129,0.3)" }}
                   onClick={() => onAction(u.id, "approve")} disabled={busyAction !== null}>
                   <CheckCircle size={14} style={{ marginRight: 4 }} /> Approve
                 </button>
-                <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e", border: "1px solid rgba(244,63,94,0.3)" }}
+                <button className="btn btn-sm" style={{ background: "rgba(244,63,94,0.15)", color: "var(--color-rose)", border: "1px solid rgba(244,63,94,0.3)" }}
                   onClick={() => onAction(u.id, "reject")} disabled={busyAction !== null}>
                   <XCircle size={14} style={{ marginRight: 4 }} /> Reject
                 </button>

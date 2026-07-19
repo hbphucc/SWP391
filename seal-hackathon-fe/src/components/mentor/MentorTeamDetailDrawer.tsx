@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, FileText, Send, Users } from "lucide-react";
 import { App, Drawer, Empty, Spin } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -56,41 +57,19 @@ function getStatusBadgeClass(status: string) {
 
 export default function MentorTeamDetailDrawer({ open, teamId, onClose }: MentorTeamDetailDrawerProps) {
   const { message } = App.useApp();
-  const [team, setTeam] = useState<MentorTeamDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  const {
+    data: team = null,
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: ["mentor-team", teamId],
+    queryFn: () => apiRequest<MentorTeamDetail>(`/mentor/teams/${teamId}`),
+    enabled: open && !!teamId,
+  });
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadTeam = async () => {
-      // Microtask hop keeps setState out of the synchronous effect body
-      // (react-hooks/set-state-in-effect), matching the codebase pattern.
-      await Promise.resolve();
-      if (cancelled) return;
-
-      if (!open || !teamId) {
-        setTeam(null);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const data = await apiRequest<MentorTeamDetail>(`/mentor/teams/${teamId}`);
-        if (!cancelled) setTeam(data);
-      } catch {
-        if (!cancelled) {
-          setTeam(null);
-          message.error("Could not load team details.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void loadTeam();
-    return () => { cancelled = true; };
-  }, [open, teamId, message]);
+    if (error) message.error("Could not load team details.");
+  }, [error, message]);
 
   return (
     <Drawer

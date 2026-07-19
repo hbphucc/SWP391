@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users, FileEdit, MessageSquare, Clipboard, Send, Eye, Mail, Search, Filter } from "lucide-react";
 import { App, Modal, Input, Spin, Empty, Tag } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -30,59 +31,38 @@ interface MentorTeam {
 
 export default function MentorWorkspacePage() {
   const { message } = App.useApp();
-  const [teams, setTeams] = useState<MentorTeam[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<MentorTeam | null>(null);
   const [detailTeamId, setDetailTeamId] = useState<string | null>(null);
-  const [pendingInvitationCount, setPendingInvitationCount] = useState(0);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [eventFilter, setEventFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
 
-  const loadTeams = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<MentorTeam[]>("/mentor/teams");
-      setTeams(data);
-    } catch {
-      message.error("Could not load assigned teams.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
-
-  // Monotonic sequence so an older in-flight count fetch can never overwrite
-  // a newer count (e.g. the panel reporting fresh data after accept/reject).
-  const invitationCountSeqRef = useRef(0);
-
-  const loadInvitationCount = useCallback(async () => {
-    const seq = ++invitationCountSeqRef.current;
-    try {
-      const data = await apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations");
-      if (seq === invitationCountSeqRef.current) setPendingInvitationCount(data.length);
-    } catch {
-      if (seq === invitationCountSeqRef.current) setPendingInvitationCount(0);
-    }
-  }, []);
-
-  const reportInvitationCount = useCallback((count: number) => {
-    // The panel's report reflects the freshest server state — invalidate any
-    // older page-level fetch still in flight.
-    invitationCountSeqRef.current++;
-    setPendingInvitationCount(count);
-  }, []);
+  const {
+    data: teams = [],
+    isLoading: loading,
+    error,
+    refetch: loadTeams,
+  } = useQuery({
+    queryKey: ["mentor-teams"],
+    queryFn: () => apiRequest<MentorTeam[]>("/mentor/teams"),
+  });
 
   useEffect(() => {
-    const trigger = async () => {
-      await Promise.resolve();
-      void loadTeams();
-      void loadInvitationCount();
-    };
-    void trigger();
-  }, [loadTeams, loadInvitationCount]);
+    if (error) message.error("Could not load assigned teams.");
+  }, [error, message]);
+
+  // Invitation badge derives from the same ["mentor-invitations"] cache the
+  // panel uses, so accept/reject there updates this count automatically — no
+  // separate fetch or out-of-order guard needed.
+  const { data: invitations = [] } = useQuery({
+    queryKey: ["mentor-invitations"],
+    queryFn: () => apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations"),
+  });
+  const pendingInvitationCount = invitations.length;
 
   const stats = useMemo(
     () => [
@@ -91,13 +71,13 @@ export default function MentorWorkspacePage() {
         icon: Send,
         label: "With Submissions",
         value: teams.filter((t) => t.latestSubmission).length,
-        color: "#10b981",
+        color: "var(--color-emerald)",
       },
       {
         icon: MessageSquare,
         label: "Notes Given",
         value: teams.filter((t) => t.notes).length,
-        color: "#f59e0b",
+        color: "var(--color-amber)",
       },
     ],
     [teams]
@@ -155,10 +135,10 @@ export default function MentorWorkspacePage() {
     }
   };
 
-  const handleInvitationsChanged = useCallback(() => {
-    void loadTeams();
-    void loadInvitationCount();
-  }, [loadTeams, loadInvitationCount]);
+  const handleInvitationsChanged = () => {
+    void queryClient.invalidateQueries({ queryKey: ["mentor-teams"] });
+    void queryClient.invalidateQueries({ queryKey: ["mentor-invitations"] });
+  };
 
   const renderTeamsTab = () => (
     teams.length === 0 ? (
@@ -286,7 +266,7 @@ export default function MentorWorkspacePage() {
       label: "Invitations",
       icon: Mail,
       badge: pendingInvitationCount,
-      render: () => <MentorInvitationsPanel onChange={handleInvitationsChanged} onCountChange={reportInvitationCount} />,
+      render: () => <MentorInvitationsPanel onChange={handleInvitationsChanged} />,
     },
   ];
 

@@ -1,5 +1,7 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { App, Drawer, Select } from "antd";
 import { Plus, Trash2, UserPlus, Users, GraduationCap } from "lucide-react";
 import { ApiError, apiRequest } from "@/lib/api";
@@ -53,8 +55,6 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
   // rows are fine; we strip them at submit time.
   const [memberInputs, setMemberInputs] = useState<string[]>(["", ""]);
   const [mentorId, setMentorId] = useState<string | undefined>(undefined);
-  const [mentors, setMentors] = useState<CreateTeamMentorOption[]>([]);
-  const [loadingMentors, setLoadingMentors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number | null>(null);
@@ -107,36 +107,30 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
   // event server-side, so we pass this with the /teams/mentors fetch.
   const effectiveEventId = categories.find((c) => c.categoryId === effectiveCategoryId)?.eventId ?? "";
 
-  // Fetch mentors whenever the selected event changes. The backend now scopes
-  // the response to mentors registered for that event, so a stale list from a
-  // different event would mislead the leader.
+  // Fetch mentors whenever the selected event changes. The backend scopes the
+  // response to mentors registered for that event, so a stale list from a
+  // different event would mislead the leader. Keyed by event id + gated on the
+  // drawer being open so we don't fetch for a closed/eventless drawer.
+  const {
+    data: mentors = [],
+    isFetching: loadingMentors,
+    error: mentorsError,
+  } = useQuery({
+    queryKey: ["team-mentors", effectiveEventId],
+    queryFn: () =>
+      apiRequest<CreateTeamMentorOption[]>(`/teams/mentors?eventId=${encodeURIComponent(effectiveEventId)}`),
+    enabled: open && !!effectiveEventId,
+  });
+
   useEffect(() => {
-    if (!open || !effectiveEventId) {
-      void Promise.resolve().then(() => setMentors([]));
-      return;
-    }
-    let cancelled = false;
-    void Promise.resolve().then(async () => {
-      if (cancelled) return;
-      setLoadingMentors(true);
-      try {
-        const list = await apiRequest<CreateTeamMentorOption[]>(
-          `/teams/mentors?eventId=${encodeURIComponent(effectiveEventId)}`,
-        );
-        if (!cancelled) {
-          setMentors(list);
-          // Clear a previously chosen mentor that is no longer in the new
-          // event's registered roster.
-          setMentorId((prev) => (prev && list.some((m) => m.id === prev) ? prev : undefined));
-        }
-      } catch {
-        if (!cancelled) message.error("Could not load mentor list.");
-      } finally {
-        if (!cancelled) setLoadingMentors(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [open, effectiveEventId, message]);
+    if (mentorsError) message.error("Could not load mentor list.");
+  }, [mentorsError, message]);
+
+  // Clear a previously chosen mentor that is no longer in the current roster.
+  // The functional update bails out when unchanged, so this is loop-safe.
+  useEffect(() => {
+    setMentorId((prev) => (prev && mentors.some((m) => m.id === prev) ? prev : undefined));
+  }, [mentors]);
 
   const resetForm = () => {
     setTeamName("");

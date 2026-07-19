@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { GraduationCap } from "lucide-react";
 import { App, Empty, Spin } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -22,38 +23,27 @@ interface MentorInvitationsPanelProps {
 
 export default function MentorInvitationsPanel({ onChange, onCountChange }: MentorInvitationsPanelProps) {
   const { message } = App.useApp();
-  const [invitations, setInvitations] = useState<MentorInvitationDto[]>([]);
-  const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
-  const mountedRef = useRef(true);
+
+  const {
+    data: invitations = [],
+    isLoading: loading,
+    error,
+    refetch: loadInvitations,
+  } = useQuery({
+    queryKey: ["mentor-invitations"],
+    queryFn: () => apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations"),
+  });
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+    if (error) message.error("Could not load mentor invitations.");
+  }, [error, message]);
 
-  const loadInvitations = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations");
-      if (!mountedRef.current) return;
-      setInvitations(data);
-      onCountChange?.(data.length);
-    } catch {
-      if (!mountedRef.current) return;
-      setInvitations([]);
-      onCountChange?.(0);
-      message.error("Could not load mentor invitations.");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [message, onCountChange]);
-
+  // Report the pending count to the parent (drives the tab badge); on error the
+  // list stays [] so this reports 0, matching the previous behavior.
   useEffect(() => {
-    // Microtask hop keeps setState out of the synchronous effect body
-    // (react-hooks/set-state-in-effect), matching the codebase pattern.
-    void Promise.resolve().then(() => loadInvitations());
-  }, [loadInvitations]);
+    onCountChange?.(invitations.length);
+  }, [invitations.length, onCountChange]);
 
   const handleAccept = async (assignmentId: string, teamName: string) => {
     setSubmittingId(assignmentId);

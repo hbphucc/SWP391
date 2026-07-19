@@ -43,7 +43,7 @@ export default function TeamFinalResultsBanner({ myTeam }: TeamFinalResultsBanne
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: isChampion ? "#fbbf24" : "#6366f1",
+          color: isChampion ? "#fbbf24" : "var(--color-primary)",
           flexShrink: 0
         }}
       >

@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Bell, CheckCircle } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
@@ -15,44 +16,19 @@ type NotificationDto = {
 
 export default function UserNotificationsPage() {
   const { message } = App.useApp();
-  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: notifications = [],
+    isLoading: loading,
+    error,
+    refetch: refreshNotifications,
+  } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiRequest<NotificationDto[]>("/notifications"),
+  });
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const data = await apiRequest<NotificationDto[]>("/notifications");
-        if (active) {
-          setNotifications(data);
-        }
-      } catch (err) {
-        if (active) {
-          message.error(err instanceof Error ? err.message : "Could not load notifications.");
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [message]);
-
-  const refreshNotifications = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<NotificationDto[]>("/notifications");
-      setNotifications(data);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load notifications.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+    if (error) message.error(error instanceof Error ? error.message : "Could not load notifications.");
+  }, [error, message]);
 
   const markAllRead = async () => {
     try {

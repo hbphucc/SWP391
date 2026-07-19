@@ -6,6 +6,7 @@ import { App } from "antd";
 import { Key, Mail, Shield } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { getRoleLandingPath } from "@/components/shell/routePolicies";
 import styles from "./Auth.module.css";
 
 export default function AdminLogin() {
@@ -36,7 +37,7 @@ export default function AdminLogin() {
 
       if (!user.roles.includes("Admin")) {
         message.error("Access denied. Admin privileges required.");
-        router.push("/dashboard");
+        router.push(getRoleLandingPath(user.roles));
         return;
       }
 

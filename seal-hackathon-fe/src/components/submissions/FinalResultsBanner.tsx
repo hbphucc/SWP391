@@ -11,7 +11,7 @@ export default function FinalResultsBanner({ finalRank, finalPrize }: FinalResul
   return (
     <div className="glass-card" style={{ marginBottom: "1.5rem", border: "1px solid rgba(245,158,11,0.3)", background: "linear-gradient(45deg, rgba(245,158,11,0.05), transparent)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        <div style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", padding: "0.75rem", borderRadius: "50%" }}>
+        <div style={{ background: "rgba(245,158,11,0.15)", color: "var(--color-amber)", padding: "0.75rem", borderRadius: "50%" }}>
           <Trophy size={24} />
         </div>
         <div>

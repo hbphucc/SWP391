@@ -1,25 +1,76 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { App } from "antd";
-import { CurrentUser, apiRequest, fetchCurrentUser, ApiError } from "@/lib/api";
+import { apiRequest, fetchCurrentUser } from "@/lib/api";
 import type { EventDto, InvitationResponse, MentorInvitationDto, MentorOption, TeamDto, TeamMember } from "./teamTypes";
 
 export function useTeamsData() {
   const { message, modal } = App.useApp();
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [myTeam, setMyTeam] = useState<TeamDto | null>(null);
-  const [events, setEvents] = useState<EventDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [memberCodeToAdd, setMemberCodeToAdd] = useState("");
   const [draftTeamName, setDraftTeamName] = useState("");
   const [newLeaderCodeOrEmail, setNewLeaderCodeOrEmail] = useState("");
-  const [receivedInvites, setReceivedInvites] = useState<InvitationResponse[]>([]);
-  const hasTeamRef = useRef<boolean>(false);
-  const [mentoringTeams, setMentoringTeams] = useState<TeamDto[]>([]);
-  const [judgingTeams, setJudgingTeams] = useState<TeamDto[]>([]);
-  const [mentorInvitations, setMentorInvitations] = useState<MentorInvitationDto[]>([]);
+
+  const { data: currentUser = null } = useQuery({ queryKey: ["current-user"], queryFn: fetchCurrentUser });
+  const { data: events = [] } = useQuery({ queryKey: ["events"], queryFn: () => apiRequest<EventDto[]>("/Events") });
+
+  // Poll my-team every 3s and on window focus so invite acceptance / approval
+  // status propagates without a manual refresh (mirrors the old reloadTeamOnly).
+  const myTeamQuery = useQuery({
+    queryKey: ["my-team"],
+    queryFn: () => apiRequest<TeamDto>("/teams/my-team"),
+    retry: false,
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
+  });
+  const myTeam = myTeamQuery.data ?? null;
+  const hasTeam = !!myTeam;
+  const teamSettled = myTeamQuery.isFetched;
+  const roles = currentUser?.roles ?? [];
+  const isMentor = roles.includes("Mentor");
+  const isJudge = roles.includes("Judge");
+  const loading = myTeamQuery.isLoading;
+
+  // Role-scoped lists only matter when the user has no team of their own.
+  const { data: rawReceived = [] } = useQuery({
+    queryKey: ["team-invitations-received"],
+    queryFn: () => apiRequest<InvitationResponse[]>("/teams/invitations/received"),
+    enabled: teamSettled && !hasTeam && !isMentor && !isJudge,
+    refetchInterval: 3000,
+  });
+  const receivedInvites = useMemo(() => rawReceived.filter((inv) => inv.status === "Pending"), [rawReceived]);
+
+  const { data: mentoringTeams = [] } = useQuery({
+    queryKey: ["teams-mentoring"],
+    queryFn: () => apiRequest<TeamDto[]>("/teams/mentoring"),
+    enabled: teamSettled && !hasTeam && isMentor,
+  });
+  const { data: mentorInvitations = [] } = useQuery({
+    queryKey: ["mentor-invitations"],
+    queryFn: () => apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations"),
+    enabled: teamSettled && !hasTeam && isMentor,
+  });
+  const { data: judgingTeams = [] } = useQuery({
+    queryKey: ["teams-judging"],
+    queryFn: () => apiRequest<TeamDto[]>("/teams/judging"),
+    enabled: teamSettled && !hasTeam && isJudge,
+  });
+
+  // Seed the editable team name once the team loads (keep any in-progress edit).
+  useEffect(() => {
+    if (myTeam?.teamName) setDraftTeamName((cur) => cur || myTeam.teamName);
+  }, [myTeam?.teamName]);
+
+  const reloadTeamData = () => {
+    void queryClient.invalidateQueries({ queryKey: ["my-team"] });
+    void queryClient.invalidateQueries({ queryKey: ["team-invitations-received"] });
+    void queryClient.invalidateQueries({ queryKey: ["teams-mentoring"] });
+    void queryClient.invalidateQueries({ queryKey: ["mentor-invitations"] });
+    void queryClient.invalidateQueries({ queryKey: ["teams-judging"] });
+  };
 
   const [mentors, setMentors] = useState<MentorOption[]>([]);
   const [showMentorModal, setShowMentorModal] = useState(false);
@@ -104,136 +155,6 @@ export function useTeamsData() {
     });
   }, [myTeam, currentUser, canKickMembers]);
 
-  const loadPage = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [user, eventData] = await Promise.all([
-        fetchCurrentUser(),
-        apiRequest<EventDto[]>("/Events"),
-      ]);
-
-      setCurrentUser(user);
-      setEvents(eventData);
-      // Category preselection moved into CreateTeamDrawer (it defaults to the
-      // first option supplied via props); the page no longer tracks it.
-
-      let hasTeam = false;
-      try {
-        const team = await apiRequest<TeamDto>("/teams/my-team");
-        if (!team) {
-          throw new ApiError("Not joined", 404);
-        }
-        setMyTeam(team);
-        setDraftTeamName(team.teamName);
-        hasTeam = true;
-        hasTeamRef.current = true;
-      } catch (err) {
-        const isNotFound = err instanceof ApiError && err.status === 404;
-        const text = err instanceof Error ? err.message : "";
-        if (!isNotFound && !text.toLowerCase().includes("not joined") && !text.toLowerCase().includes("not found")) {
-          throw err;
-        }
-        setMyTeam(null);
-        hasTeamRef.current = false;
-      }
-
-      if (!hasTeam) {
-        if (user.roles?.includes("Mentor")) {
-          try {
-            const mentored = await apiRequest<TeamDto[]>("/teams/mentoring");
-            setMentoringTeams(mentored);
-          } catch {
-            setMentoringTeams([]);
-          }
-          try {
-            const invitations = await apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations");
-            setMentorInvitations(invitations);
-          } catch {
-            setMentorInvitations([]);
-          }
-        } else if (user.roles?.includes("Judge")) {
-          try {
-            const judging = await apiRequest<TeamDto[]>("/teams/judging");
-            setJudgingTeams(judging);
-          } catch {
-            setJudgingTeams([]);
-          }
-        } else {
-          try {
-            const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-            setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
-          } catch {
-            setReceivedInvites([]);
-          }
-        }
-      } else {
-        setReceivedInvites([]);
-      }
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not load team data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
-
-  const reloadTeamOnly = useCallback(async () => {
-    if (!hasTeamRef.current) {
-      try {
-        const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-        setReceivedInvites((current) => {
-          const pendingOnly = invites.filter((inv) => inv.status === "Pending");
-          if (JSON.stringify(current) !== JSON.stringify(pendingOnly)) {
-            return pendingOnly;
-          }
-          return current;
-        });
-      } catch {
-        setReceivedInvites([]);
-      }
-      return;
-    }
-
-    try {
-      const team = await apiRequest<TeamDto>("/teams/my-team");
-      if (!team) {
-        throw new ApiError("Not joined", 404);
-      }
-      setMyTeam((currentTeam) => {
-        if (JSON.stringify(currentTeam) !== JSON.stringify(team)) {
-          return team;
-        }
-        return currentTeam;
-      });
-      hasTeamRef.current = true;
-      setDraftTeamName((currentDraft) => {
-        if (!currentDraft && team.teamName) {
-          return team.teamName;
-        }
-        return currentDraft;
-      });
-      setReceivedInvites([]);
-    } catch (err) {
-      const isNotFound = err instanceof ApiError && err.status === 404;
-      const text = err instanceof Error ? err.message : "";
-      if (isNotFound || text.toLowerCase().includes("not joined") || text.toLowerCase().includes("not found")) {
-        setMyTeam(null);
-        hasTeamRef.current = false;
-        try {
-          const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-          setReceivedInvites((current) => {
-            const pendingOnly = invites.filter((inv) => inv.status === "Pending");
-            if (JSON.stringify(current) !== JSON.stringify(pendingOnly)) {
-              return pendingOnly;
-            }
-            return current;
-          });
-        } catch {
-          setReceivedInvites([]);
-        }
-      }
-    }
-  }, []);
-
   const handleAcceptInvite = async (id: string, teamName: string) => {
     try {
       await apiRequest(`/teams/invitations/${id}/accept`, { method: "POST" });
@@ -248,8 +169,7 @@ export function useTeamsData() {
     try {
       await apiRequest(`/teams/invitations/${id}/reject`, { method: "POST" });
       message.success("Invitation declined.");
-      const invites = await apiRequest<InvitationResponse[]>("/teams/invitations/received");
-      setReceivedInvites(invites.filter((inv) => inv.status === "Pending"));
+      void queryClient.invalidateQueries({ queryKey: ["team-invitations-received"] });
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to decline invitation.");
     }
@@ -259,7 +179,7 @@ export function useTeamsData() {
     try {
       await apiRequest(`/teams/mentor-invitations/${assignmentId}/accept`, { method: "POST" });
       message.success(`You are now mentoring ${teamName}.`);
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not accept invitation.");
     }
@@ -269,32 +189,11 @@ export function useTeamsData() {
     try {
       await apiRequest(`/teams/mentor-invitations/${assignmentId}/reject`, { method: "POST" });
       message.success("Invitation declined.");
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not decline invitation.");
     }
   };
-
-  useEffect(() => {
-    loadPage();
-  }, [loadPage]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      void reloadTeamOnly();
-    }, 3000);
-
-    const handleFocus = () => {
-      void reloadTeamOnly();
-    };
-
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      clearInterval(intervalId);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [reloadTeamOnly]);
 
   // Team creation is now driven by CreateTeamDrawer, which posts to /teams with
   // an optional MentorId and handles the EventNotPublished branching itself.
@@ -314,7 +213,7 @@ export function useTeamsData() {
       setMemberCodeToAdd("");
       setMemberSuggestions([]);
       setShowMemberSuggestions(false);
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not invite member.");
     } finally {
@@ -341,7 +240,7 @@ export function useTeamsData() {
           try {
             await apiRequest(`/teams/my-team/members/${encodeURIComponent(member.studentCode || member.email)}`, { method: "DELETE" });
             message.success("Member kicked successfully.");
-            await loadPage();
+            reloadTeamData();
           } catch (err) {
             message.error(err instanceof Error ? err.message : "Could not kick member.");
           }
@@ -363,7 +262,7 @@ export function useTeamsData() {
       setKickModalOpen(false);
       setMemberToKick(null);
       setKickReason("");
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not submit kick request.");
     } finally {
@@ -382,7 +281,7 @@ export function useTeamsData() {
       });
 
       message.success("Team updated successfully.");
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not update team.");
     } finally {
@@ -403,7 +302,7 @@ export function useTeamsData() {
         try {
           await apiRequest("/teams/leave", { method: "POST" });
           message.success(isDisband ? "Team disbanded successfully." : "You have left the team.");
-          await loadPage();
+          reloadTeamData();
         } catch (err) {
           message.error(err instanceof Error ? err.message : "Could not leave team.");
         }
@@ -423,7 +322,7 @@ export function useTeamsData() {
 
       message.success("Team leader transferred successfully.");
       setNewLeaderCodeOrEmail("");
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not transfer leader.");
     } finally {
@@ -460,7 +359,7 @@ export function useTeamsData() {
       message.success("Mentor invited. Waiting for them to accept.");
       setShowMentorModal(false);
       setMentorSearch("");
-      await loadPage();
+      reloadTeamData();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not assign mentor.");
     } finally {
@@ -482,7 +381,7 @@ export function useTeamsData() {
         try {
           await apiRequest("/teams/my-team/mentor", { method: "DELETE" });
           message.success(hasActiveMentor ? "Mentor removed successfully." : "Mentor invitation cancelled.");
-          await loadPage();
+          reloadTeamData();
         } catch (err) {
           message.error(err instanceof Error ? err.message : "Could not update mentor.");
         }
@@ -501,7 +400,7 @@ export function useTeamsData() {
     kickModalOpen, setKickModalOpen, memberToKick, setMemberToKick, kickReason, setKickReason,
     memberSuggestions, showMemberSuggestions,
     categories, hasActiveEvents, isLeader, canModifyMembers, canKickMembers, showActions,
-    loadPage,
+    loadPage: reloadTeamData,
     handleAcceptInvite, handleDeclineInvite, handleAcceptMentorInvite, handleRejectMentorInvite,
     handleMemberInputChange, selectMemberSuggestion,
     handleAddMember, handleRemoveMember, handleSubmitKickRequest,
