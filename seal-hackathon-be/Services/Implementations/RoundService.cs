@@ -233,7 +233,7 @@ namespace SEAL.NET.Services.Implementations
                     .ToListAsync();
 
                 if (!finalTeams.Any())
-                    return ServiceResult.BadRequest("No active teams found for the final round.");
+                    return ServiceResult.BadRequest("No active teams found for the final round (they may have already been processed).");
 
                 var eventPrizes = await _context.Prizes
                     .Where(p => p.EventId == currentRound.EventId)
@@ -360,7 +360,7 @@ namespace SEAL.NET.Services.Implementations
                 .ToListAsync();
 
             if (!teams.Any())
-                return ServiceResult.BadRequest("No active teams found for this round.");
+                return ServiceResult.BadRequest("No active teams found for this round (they may have already been advanced or eliminated).");
 
             // Threshold to be considered "passing". When the round has an explicit
             // PassThreshold we use it; otherwise we derive it from the criteria

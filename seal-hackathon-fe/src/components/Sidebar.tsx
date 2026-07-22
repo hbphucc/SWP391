@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, LogOut, Menu, Trophy } from "lucide-react";
 import styles from "./Sidebar.module.css";
@@ -90,8 +91,8 @@ export default function Sidebar({
         >
           {!collapsed && (
             <>
-              <div className={styles.logoIcon}>
-                <Trophy size={20} />
+              <div className={styles.logoIcon} style={{ background: "transparent", boxShadow: "none" }}>
+                <Image src="/images/logo.svg" alt="SEAL Logo" width={32} height={32} style={{ borderRadius: "var(--radius-md)" }} />
               </div>
 
               <div className={styles.logoText}>

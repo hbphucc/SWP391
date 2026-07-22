@@ -82,7 +82,6 @@ export function useTeamsData() {
   const [kickModalOpen, setKickModalOpen] = useState(false);
   const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
   const [kickReason, setKickReason] = useState("");
-
   const [memberSuggestions, setMemberSuggestions] = useState<{email: string, fullName: string, studentCode: string}[]>([]);
   const [showMemberSuggestions, setShowMemberSuggestions] = useState(false);
 

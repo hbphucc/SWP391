@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1A24" />
+      <stop offset="100%" stop-color="#0D0D14" />
+    </linearGradient>
+    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9333EA" /> <!-- Tím công nghệ -->
+      <stop offset="100%" stop-color="#3B82F6" /> <!-- Xanh dương -->
+    </linearGradient>
+  </defs>
+
+  <!-- Nền tối bo góc (Dark rounded background) -->
+  <rect x="25" y="25" width="450" height="450" rx="100" fill="url(#bg)" stroke="#2D2D3F" stroke-width="4"/>
+
+  <!-- Dấu ngoặc nhọn trái: < -->
+  <path d="M 160 170 L 80 250 L 160 330" fill="none" stroke="url(#brand)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Dấu ngoặc nhọn phải: > -->
+  <path d="M 340 170 L 420 250 L 340 330" fill="none" stroke="url(#brand)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Chữ S cách điệu ở giữa -->
+  <path d="M 280 180 C 210 180, 210 230, 250 245 C 290 260, 290 320, 220 320" fill="none" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
