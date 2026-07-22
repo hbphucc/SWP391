@@ -175,8 +175,8 @@ export default function JudgingPortalPage() {
     const q = search.trim().toLowerCase();
     return teams.filter((t) => {
       if (eventFilter && t.eventId !== eventFilter) return false;
-      if (statusFilter === "judged" && t.judgingStatus !== "Judged") return false;
-      if (statusFilter === "notjudged" && !(t.judgingStatus === "NotJudged" || t.judgingStatus === "InProgress")) return false;
+      if (statusFilter === "judged" && !(t.judgingStatus === "Judged" || t.judgingStatus === "InProgress")) return false;
+      if (statusFilter === "notjudged" && t.judgingStatus !== "NotJudged") return false;
       if (statusFilter === "submitted" && t.submissionStatus !== "Submitted") return false;
       if (statusFilter === "notsubmitted" && t.submissionStatus !== "NotSubmitted") return false;
       if (q && !t.teamName.toLowerCase().includes(q) && !(t.projectName ?? "").toLowerCase().includes(q)) return false;
@@ -490,8 +490,11 @@ function actionFor(t: AssignedTeam): { label: string; variant: string; disabled:
   if (t.submissionStatus === "NotSubmitted" || !t.submissionId) {
     return { label: "Awaiting submission", variant: "btn-secondary", disabled: true };
   }
-  if (t.judgingStatus === "Judged") return { label: "View Score", variant: "btn-secondary", disabled: false };
-  if (t.judgingStatus === "InProgress") return { label: "Continue", variant: "btn-primary", disabled: false };
+  if (t.judgingStatus === "Judged" || t.judgingStatus === "InProgress") {
+    return t.isLocked
+      ? { label: "View Score", variant: "btn-secondary", disabled: false }
+      : { label: "Edit Score", variant: "btn-primary", disabled: false };
+  }
   return { label: "Score", variant: "btn-primary", disabled: false };
 }
 

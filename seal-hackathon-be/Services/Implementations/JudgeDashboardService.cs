@@ -25,10 +25,8 @@ namespace SEAL.NET.Services.Implementations
                 TotalAssignedTeams = teams.Count,
                 SubmittedTeams = teams.Count(t => t.SubmissionStatus == JudgingStatuses.Submitted),
                 NotSubmittedTeams = teams.Count(t => t.SubmissionStatus == JudgingStatuses.NotSubmitted),
-                JudgedTeams = teams.Count(t => t.JudgingStatus == JudgingStatuses.Judged),
-                NotJudgedTeams = teams.Count(t =>
-                    t.JudgingStatus == JudgingStatuses.NotJudged ||
-                    t.JudgingStatus == JudgingStatuses.InProgress),
+                JudgedTeams = teams.Count(t => t.JudgingStatus == JudgingStatuses.Judged || t.JudgingStatus == JudgingStatuses.InProgress),
+                NotJudgedTeams = teams.Count(t => t.JudgingStatus == JudgingStatuses.NotJudged),
                 OngoingEvents = teams
                     .Where(t => t.EventStatus == nameof(EventStatus.Ongoing))
                     .Select(t => t.EventId)
@@ -59,7 +57,7 @@ namespace SEAL.NET.Services.Implementations
                 .Select(g =>
                 {
                     var submitted = g.Count(t => t.SubmissionStatus == JudgingStatuses.Submitted);
-                    var judged = g.Count(t => t.JudgingStatus == JudgingStatuses.Judged);
+                    var judged = g.Count(t => t.JudgingStatus == JudgingStatuses.Judged || t.JudgingStatus == JudgingStatuses.InProgress);
 
                     // "Current round" = the round with the nearest upcoming deadline,
                     // falling back to any round the judge is assigned to in this event.
@@ -81,9 +79,7 @@ namespace SEAL.NET.Services.Implementations
                         JudgingDeadline = currentRound.RoundDeadline,
                         AssignedTeams = g.Count(),
                         JudgedTeams = judged,
-                        NotJudgedTeams = g.Count(t =>
-                            t.JudgingStatus == JudgingStatuses.NotJudged ||
-                            t.JudgingStatus == JudgingStatuses.InProgress),
+                        NotJudgedTeams = g.Count(t => t.JudgingStatus == JudgingStatuses.NotJudged),
                         NotSubmittedTeams = g.Count(t => t.SubmissionStatus == JudgingStatuses.NotSubmitted),
                         ProgressPercentage = submitted == 0 ? 0 : Math.Round(judged * 100.0 / submitted, 1),
                     };
@@ -112,10 +108,8 @@ namespace SEAL.NET.Services.Implementations
             {
                 teams = status.ToLowerInvariant() switch
                 {
-                    "judged" => teams.Where(t => t.JudgingStatus == JudgingStatuses.Judged).ToList(),
-                    "notjudged" => teams.Where(t =>
-                        t.JudgingStatus == JudgingStatuses.NotJudged ||
-                        t.JudgingStatus == JudgingStatuses.InProgress).ToList(),
+                    "judged" => teams.Where(t => t.JudgingStatus == JudgingStatuses.Judged || t.JudgingStatus == JudgingStatuses.InProgress).ToList(),
+                    "notjudged" => teams.Where(t => t.JudgingStatus == JudgingStatuses.NotJudged).ToList(),
                     "inprogress" => teams.Where(t => t.JudgingStatus == JudgingStatuses.InProgress).ToList(),
                     "submitted" => teams.Where(t => t.SubmissionStatus == JudgingStatuses.Submitted).ToList(),
                     "notsubmitted" => teams.Where(t => t.SubmissionStatus == JudgingStatuses.NotSubmitted).ToList(),
