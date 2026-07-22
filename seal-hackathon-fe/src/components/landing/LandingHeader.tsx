@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Zap } from "lucide-react";
+import Image from "next/image";
 import styles from "./LandingPage.module.css";
 
 export default function LandingHeader() {
@@ -14,8 +14,8 @@ export default function LandingHeader() {
       className={styles.header}
     >
       <div className={styles.logo}>
-        <div className={styles.logoIcon}>
-          <Zap className={styles.logoIconGlyph} size={20} />
+        <div className={styles.logoIcon} style={{ background: "transparent", boxShadow: "none" }}>
+          <Image src="/images/logo.svg" alt="SEAL Logo" width={40} height={40} style={{ borderRadius: "var(--radius-md)" }} />
         </div>
         <span className={styles.logoText}>
           SEAL <span className={styles.logoAccent}>Hackathons</span>
