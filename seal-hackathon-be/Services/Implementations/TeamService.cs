@@ -378,11 +378,12 @@ namespace SEAL.NET.Services.Implementations
             if (team == null)
                 return ServiceResult.NotFound("You have not joined any team yet.");
 
-            var activeMentor = await _context.MentorAssignments
+            var activeMentorAssignment = await _context.MentorAssignments
                 .Where(ma => ma.TeamId == team.TeamId && ma.IsActive)
                 .Include(ma => ma.Mentor)
-                .Select(ma => ma.Mentor)
                 .FirstOrDefaultAsync();
+
+            var activeMentor = activeMentorAssignment?.Mentor;
 
             var pendingMentorInvite = await _context.MentorAssignments
                 .Where(ma => ma.TeamId == team.TeamId && ma.Status == InvitationStatus.Pending)
@@ -437,6 +438,7 @@ namespace SEAL.NET.Services.Implementations
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
                 },
+                mentorNotes = hideMentorAndJudge ? null : activeMentorAssignment?.Notes,
                 pendingMentorInvite = (hideMentorAndJudge || pendingMentorInvite == null) ? null : new
                 {
                     assignmentId = pendingMentorInvite.Id,
@@ -921,11 +923,12 @@ namespace SEAL.NET.Services.Implementations
             if (!isMember && !isPrivileged)
                 return ServiceResult.Forbidden();
 
-            var activeMentor = await _context.MentorAssignments
+            var activeMentorAssignment = await _context.MentorAssignments
                 .Where(ma => ma.TeamId == team.TeamId && ma.IsActive)
                 .Include(ma => ma.Mentor)
-                .Select(ma => ma.Mentor)
                 .FirstOrDefaultAsync();
+
+            var activeMentor = activeMentorAssignment?.Mentor;
 
             var pendingMentorInvite = await _context.MentorAssignments
                 .Where(ma => ma.TeamId == team.TeamId && ma.Status == InvitationStatus.Pending)
@@ -993,6 +996,7 @@ namespace SEAL.NET.Services.Implementations
                     email = activeMentor.Email,
                     schoolName = activeMentor.SchoolName
                 },
+                mentorNotes = hideMentorAndJudge ? null : activeMentorAssignment?.Notes,
                 pendingMentorInvite = (hideMentorAndJudge || pendingMentorInvite == null) ? null : new
                 {
                     assignmentId = pendingMentorInvite.Id,

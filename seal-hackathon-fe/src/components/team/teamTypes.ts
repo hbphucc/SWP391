@@ -31,6 +31,7 @@ export type TeamDto = {
     email: string;
     schoolName?: string | null;
   } | null;
+  mentorNotes?: string | null;
   pendingMentorInvite?: {
     assignmentId: string;
     mentorName: string;
