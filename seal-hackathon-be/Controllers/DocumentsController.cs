@@ -48,7 +48,8 @@ namespace SEAL.NET.Controllers
         [HttpGet("{id:guid}/download")]
         public async Task<IActionResult> Download(Guid id)
         {
-            var file = await _documentService.GetDownloadAsync(id);
+            var roles = User.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToList();
+            var file = await _documentService.GetDownloadAsync(id, TryGetCurrentUserId(), roles);
             if (file == null) return NotFound(new { message = "Document not found." });
 
             return File(file.Content, file.ContentType, file.FileName);

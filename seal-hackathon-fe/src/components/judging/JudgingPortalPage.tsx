@@ -6,7 +6,7 @@ import {
   AlertCircle, CalendarDays, Trophy, ListChecks, Clock, Hourglass, Search,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { App } from "antd";
 import { apiRequest, isAuthError } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
@@ -85,6 +85,13 @@ type KickRequest = {
 
 type StatusFilter = "all" | "judged" | "notjudged" | "submitted" | "notsubmitted";
 
+const STATUS_FILTERS: StatusFilter[] = ["all", "judged", "notjudged", "submitted", "notsubmitted"];
+
+/** Narrows an untrusted ?status= value, falling back to "all". */
+function parseStatusFilter(value: string | null): StatusFilter {
+  return STATUS_FILTERS.find((f) => f === value) ?? "all";
+}
+
 const FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "judged", label: "Scored" },
@@ -122,10 +129,43 @@ export default function JudgingPortalPage() {
 
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
-  // Filters
-  const [eventFilter, setEventFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // Filters. Event and status are seeded from (and written back to) the query
+  // string: scoring a submission unmounts this page, so state-only filters were
+  // lost on the way back and the judge landed on every event at once. The URL
+  // also makes a mid-session refresh non-destructive.
+  const searchParams = useSearchParams();
+  const [eventFilter, setEventFilter] = useState(() => searchParams.get("event") ?? "");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    () => parseStatusFilter(searchParams.get("status")),
+  );
   const [search, setSearch] = useState("");
+
+  // Carries the active filters onto the scoring page so its Back button can
+  // rebuild this exact queue rather than dropping the judge into every event.
+  const buildScoreQuery = () => {
+    const params = new URLSearchParams();
+    if (eventFilter) params.set("event", eventFilter);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  };
+
+  // Keeps the query string in step with a filter the judge just changed, without
+  // adding a history entry — Back should leave the queue, not undo a dropdown.
+  const syncFilters = (next: { event?: string; status?: StatusFilter }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const event = next.event ?? eventFilter;
+    const status = next.status ?? statusFilter;
+
+    if (event) params.set("event", event);
+    else params.delete("event");
+
+    if (status !== "all") params.set("status", status);
+    else params.delete("status");
+
+    const query = params.toString();
+    router.replace(query ? `/dashboard/judging?${query}` : "/dashboard/judging", { scroll: false });
+  };
 
   // All judge data is gated on the Judge role. Auth (401/403) errors must not
   // blank the page or toast — they're handled by the auth layer, not here.
@@ -200,7 +240,10 @@ export default function JudgingPortalPage() {
   const continueJudging = (eventId: string) => {
     setEventFilter(eventId);
     setStatusFilter("notjudged");
-    router.replace("/dashboard/judging?tab=queue", { scroll: false });
+    router.replace(
+      `/dashboard/judging?tab=queue&event=${encodeURIComponent(eventId)}&status=notjudged`,
+      { scroll: false },
+    );
   };
 
   // ─── Access / loading guards ──────────────────────────────────────
@@ -255,13 +298,13 @@ export default function JudgingPortalPage() {
           <input className={`form-input ${styles.searchInput}`} placeholder="Search team or project..."
             value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search teams" />
         </div>
-        <select className={`form-input ${styles.eventFilterSelect}`} value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} aria-label="Filter by event">
+        <select className={`form-input ${styles.eventFilterSelect}`} value={eventFilter} onChange={(e) => { setEventFilter(e.target.value); syncFilters({ event: e.target.value }); }} aria-label="Filter by event">
           <option value="">All events</option>
           {eventOptions.map((ev) => <option key={ev.id} value={ev.id}>{ev.label}</option>)}
         </select>
         <div className="tabs">
           {FILTERS.map((f) => (
-            <button key={f.key} className={`tab-btn ${statusFilter === f.key ? "active" : ""}`} onClick={() => setStatusFilter(f.key)}>
+            <button key={f.key} className={`tab-btn ${statusFilter === f.key ? "active" : ""}`} onClick={() => { setStatusFilter(f.key); syncFilters({ status: f.key }); }}>
               {f.label}
             </button>
           ))}
@@ -311,7 +354,7 @@ export default function JudgingPortalPage() {
                   {action.disabled ? (
                     <button className="btn btn-sm btn-secondary" disabled title="This team has not submitted yet">{action.label}</button>
                   ) : (
-                    <Link href={`/dashboard/judging/${t.submissionId}`}>
+                    <Link href={`/dashboard/judging/${t.submissionId}${buildScoreQuery()}`}>
                       <button className={`btn btn-sm ${action.variant}`}>{action.label} <ChevronRight size={13} /></button>
                     </Link>
                   )}
