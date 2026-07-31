@@ -26,6 +26,13 @@ namespace SEAL.NET.DTOs.Score
     {
         public Guid RoundId { get; set; }
         public string RoundName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Score the team must reach to pass this round, on the same 0..(weight total)
+        /// scale as the weighted total shown to the judge. Lets the UI colour that
+        /// total against the real bar instead of a hard-coded one.
+        /// </summary>
+        public decimal PassThreshold { get; set; }
     }
 
     public class CriterionScoreItemDto

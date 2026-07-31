@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy, Medal, Award, Download, Crown, RefreshCw } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import { scoreColor } from "@/lib/scoreColor";
 
 type EventDto = {
   eventId: string;
@@ -35,6 +36,10 @@ type RankingDto = {
   submittedRounds?: number;
   totalRounds?: number;
   totalScore: number;
+  // The score this round actually requires to pass, straight from the round's
+  // PassThreshold (or 40% of the criteria weight total). Optional so older
+  // cached responses still render.
+  passThreshold?: number;
   submittedAt: string;
 };
 
@@ -314,7 +319,7 @@ export default function RankingsView({ embedded = false }: { embedded?: boolean 
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 800, fontSize: "1rem", fontFamily: "var(--font-display)", color: r.totalScore >= 80 ? "var(--color-emerald)" : r.totalScore >= 60 ? "var(--color-amber)" : "var(--color-rose)" }}>
+                      <span style={{ fontWeight: 800, fontSize: "1rem", fontFamily: "var(--font-display)", color: scoreColor(r.totalScore, r.passThreshold) }}>
                         {r.totalScore.toFixed(2)}
                       </span>
                     </td>

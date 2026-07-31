@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
+import { ratioColor, scoreColor } from "@/lib/scoreColor";
 import styles from "./ScoreSubmissionForm.module.css";
 
 // Charts are client-only and heavy (recharts/d3). Load them lazily so the
@@ -31,7 +32,7 @@ type EvaluationData = {
   submittedAt: string;
   isLocked: boolean;
   team?: { teamId: string; teamName: string; category: string } | null;
-  round?: { roundId: string; roundName: string } | null;
+  round?: { roundId: string; roundName: string; passThreshold?: number } | null;
   criteria: CriterionItem[];
 };
 
@@ -112,8 +113,6 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
     });
   };
 
-  const getScoreColor = (s: number) => s >= 80 ? "var(--color-emerald)" : s >= 60 ? "var(--color-amber)" : "var(--color-rose)";
-
   if (loading) {
     return (
       <div className="empty-state">
@@ -133,6 +132,11 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
       </div>
     );
   }
+
+  // Two different scales live on this screen: the weighted total shares the
+  // 0..(weight total) rubric scale with the rankings, while each criterion runs
+  // 0..maxScore and so must be coloured on its own fraction, not this bar.
+  const passThreshold = data.round?.passThreshold;
 
   // Mirror the backend formula in SubmissionService.GetTeamSubmissions:
   // Σ ((score / maxScore) * weight). Falls back to 100 if maxScore is 0/missing
@@ -234,7 +238,7 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
             <div className={styles.rubricHeader}>
               <h4 className={styles.rubricHeaderTitle}>Scoring Rubric</h4>
               <div className={styles.weightedTotalWrap}>
-                <div className={styles.weightedTotalValue} style={{ color: getScoreColor(weightedTotal) }}>
+                <div className={styles.weightedTotalValue} style={{ color: scoreColor(weightedTotal, passThreshold) }}>
                   {weightedTotal.toFixed(1)}
                 </div>
                 <div className={styles.weightedTotalLabel}>Weighted total</div>
@@ -271,7 +275,7 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
                       </div>
                       <div className={styles.criterionScoreGroup}>
                         <span className="badge badge-neutral">{Number(c.weight)}%</span>
-                        <div className={styles.criterionScoreValue} style={{ color: getScoreColor(scores[c.criteriaId] ?? 0) }}>
+                        <div className={styles.criterionScoreValue} style={{ color: ratioColor(scores[c.criteriaId] ?? 0, Number(c.maxScore)) }}>
                           {scores[c.criteriaId] ?? 0}
                         </div>
                       </div>

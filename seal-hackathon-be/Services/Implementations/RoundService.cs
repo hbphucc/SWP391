@@ -240,6 +240,14 @@ namespace SEAL.NET.Services.Implementations
                     .OrderBy(p => p.Rank)
                     .ToListAsync();
 
+                // Same pass rule the intermediate rounds use. Without it the final
+                // round only ranked teams and left every one of them Approved, so a
+                // team that finished below the bar was never marked Eliminated.
+                var finalCriteriaWeightSum = await _context.Criteria
+                    .Where(c => c.RoundId == roundId)
+                    .SumAsync(c => (decimal?)c.Weight) ?? 0m;
+                var finalThreshold = currentRound.PassThreshold ?? (finalCriteriaWeightSum * 0.4m);
+
                 var groupedByFinalCategory = finalTeams.GroupBy(t => t.CategoryId);
                 var finalResults = new List<object>();
 
@@ -284,12 +292,17 @@ namespace SEAL.NET.Services.Implementations
                         int rank = i + 1;
                         item.Team.FinalRank = rank;
 
-                        var matchedPrize = eventPrizes.FirstOrDefault(p =>
+                        // Ranking alone is not a pass. A team below the threshold is
+                        // eliminated and takes neither the prize nor the Champion title,
+                        // even when it happens to top a category where everyone failed.
+                        var passedFinal = item.TotalScore >= finalThreshold;
+
+                        var matchedPrize = !passedFinal ? null : eventPrizes.FirstOrDefault(p =>
                             p.Rank == rank &&
                             !string.IsNullOrEmpty(p.Track) &&
                             p.Track.Equals(item.CategoryName, StringComparison.OrdinalIgnoreCase));
 
-                        if (matchedPrize == null)
+                        if (passedFinal && matchedPrize == null)
                         {
                             matchedPrize = eventPrizes.FirstOrDefault(p =>
                                 p.Rank == rank &&
@@ -301,7 +314,17 @@ namespace SEAL.NET.Services.Implementations
                             item.Team.FinalPrize = $"{matchedPrize.Title} ({matchedPrize.Amount})";
                         }
 
-                        if (rank == 1)
+                        if (!passedFinal)
+                        {
+                            item.Team.Status = TeamStatus.Eliminated;
+                            // Mirrors the intermediate-round wording, and asks the same
+                            // question it does: was anything submitted for THIS round.
+                            item.Team.EliminationReason = item.Team.Submissions.Any(s => s.RoundId == roundId)
+                                ? $"Eliminated because score was below the pass threshold ({finalThreshold:F1})."
+                                : "Eliminated because no project was submitted.";
+                            item.Team.EliminatedAt = DateTime.UtcNow;
+                        }
+                        else if (rank == 1)
                         {
                             item.Team.Status = TeamStatus.Champion;
                         }
@@ -319,7 +342,9 @@ namespace SEAL.NET.Services.Implementations
                         var memberIds = item.Team.Members.Select(m => m.UserId).ToList();
                         if (memberIds.Any())
                         {
-                          var notificationMessage = matchedPrize != null
+                          var notificationMessage = !passedFinal
+                            ? $"Your team {item.Team.TeamName} did not pass the final round of the {item.CategoryName} track. A score of {finalThreshold:F1} was required."
+                            : matchedPrize != null
                             ? $"Congratulations! Your team {item.Team.TeamName} finished in the Top {rank} of the {item.CategoryName} track. You have won the prize: {matchedPrize.Title} worth {matchedPrize.Amount}."
                             : $"Your team {item.Team.TeamName} has completed the competition in the Top {rank} of the {item.CategoryName} track.";
                             

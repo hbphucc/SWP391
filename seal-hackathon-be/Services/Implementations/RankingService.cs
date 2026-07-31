@@ -48,12 +48,28 @@ namespace SEAL.NET.Services.Implementations
             return totalRoundsScore / rounds.Count;
         }
 
+        /// <summary>
+        /// The score a team must reach to pass this round — the same rule
+        /// RoundService.AdvanceRoundAsync applies when it advances or eliminates.
+        /// Exposed on every ranking row so the UI can colour scores against the real
+        /// bar instead of guessing at a hard-coded one.
+        /// </summary>
+        private async Task<decimal> GetPassThresholdAsync(Round round)
+        {
+            var weightSum = await _context.Criteria
+                .Where(c => c.RoundId == round.RoundId)
+                .SumAsync(c => (decimal?)c.Weight) ?? 0m;
+
+            return round.PassThreshold ?? (weightSum * 0.4m);
+        }
+
         public async Task<object> GetRoundRankingAsync(Guid roundId)
         {
             var currentRound = await _context.Rounds.FirstOrDefaultAsync(r => r.RoundId == roundId);
             if (currentRound == null) return new List<object>();
 
             var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder);
+            var passThreshold = await GetPassThresholdAsync(currentRound);
 
             if (isFinalRound)
             {
@@ -133,6 +149,7 @@ namespace SEAL.NET.Services.Implementations
                     r.eliminationReason,
                     r.eliminatedAt,
                     r.totalScore,
+                    passThreshold,
                     r.submittedAt
                 });
             }
@@ -184,6 +201,7 @@ namespace SEAL.NET.Services.Implementations
                     r.eliminationReason,
                     r.eliminatedAt,
                     r.totalScore,
+                    passThreshold,
                     r.submittedAt
                 });
             }
@@ -195,6 +213,7 @@ namespace SEAL.NET.Services.Implementations
             if (currentRound == null) return new List<object>();
 
             var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder);
+            var passThreshold = await GetPassThresholdAsync(currentRound);
 
             if (isFinalRound)
             {
@@ -271,6 +290,7 @@ namespace SEAL.NET.Services.Implementations
                     r.eliminationReason,
                     r.eliminatedAt,
                     r.totalScore,
+                    passThreshold,
                     r.submittedAt
                 });
             }
@@ -319,6 +339,7 @@ namespace SEAL.NET.Services.Implementations
                     r.eliminationReason,
                     r.eliminatedAt,
                     r.totalScore,
+                    passThreshold,
                     r.submittedAt
                 });
             }
