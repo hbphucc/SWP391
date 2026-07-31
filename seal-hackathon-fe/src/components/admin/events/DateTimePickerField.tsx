@@ -13,7 +13,7 @@ export default function DateTimePickerField({ value, onChange, disabled = false 
 
   return (
     <DatePicker
-      showTime={{ format: "hh:mm A", use12Hours: true, minuteStep: 5 }}
+      showTime={{ format: "hh:mm A", use12Hours: true, minuteStep: 1 }}
       format="DD/MM/YYYY hh:mm A"
       value={pickerValue}
       onChange={(nextValue) => onChange(nextValue ? nextValue.format("YYYY-MM-DDTHH:mm") : "")}
