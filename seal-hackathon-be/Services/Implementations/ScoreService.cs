@@ -194,7 +194,12 @@ namespace SEAL.NET.Services.Implementations
                 Round = new EvaluationRoundDto
                 {
                     RoundId = submission.Round!.RoundId,
-                    RoundName = submission.Round.RoundName
+                    RoundName = submission.Round.RoundName,
+                    // Same rule RoundService.AdvanceRoundAsync applies when advancing
+                    // or eliminating: the round's own threshold, or 40% of the total
+                    // criteria weight when it has none.
+                    PassThreshold = submission.Round.PassThreshold
+                        ?? (criteria.Sum(c => c.Weight) * 0.4m)
                 },
                 Criteria = criteria.Select(c =>
                 {
