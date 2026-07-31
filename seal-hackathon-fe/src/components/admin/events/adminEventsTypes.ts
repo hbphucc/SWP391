@@ -34,7 +34,7 @@ export type TrackOption = {
   description?: string | null;
 };
 
-export type CriteriaDraft = {
+type CriteriaDraft = {
   id: number;
   name: string;
   weight: string;

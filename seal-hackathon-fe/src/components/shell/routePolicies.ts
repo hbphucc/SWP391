@@ -28,7 +28,7 @@ export type AccessPolicy = {
  * Prefix match: an entry covers its subpaths, so "/dashboard/teams" also covers
  * "/dashboard/teams/<id>".
  */
-export const ROLE_DENIED_ROUTES: Record<string, string[]> = {
+const ROLE_DENIED_ROUTES: Record<string, string[]> = {
   Mentor: ["/dashboard/teams", "/dashboard/submissions", "/dashboard/matchmaking"],
 };
 

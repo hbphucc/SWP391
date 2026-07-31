@@ -9,8 +9,6 @@ export const TRACKS_OPTIONS = [
   "Open Innovation",
 ];
 
-export const MAX_TEAM_MEMBERS = 5;
-
 // Mirrors the backend ASP.NET Identity password policy so users get a
 // friendly client-side message instead of raw Identity error strings.
 export const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{6,}$/;

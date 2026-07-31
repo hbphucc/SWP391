@@ -18,7 +18,7 @@ import { ApiError, apiRequest } from "@/lib/api";
  * onSuccess is invoked after the create call returns 200, so the parent page
  * can refresh its `myTeam` view without this component owning that state.
  */
-export type CreateTeamCategoryOption = {
+type CreateTeamCategoryOption = {
   categoryId: string;
   categoryName: string;
   eventId: string;
@@ -354,7 +354,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
             optionFilterProp="label"
             options={mentors.map((m) => ({
               value: m.id,
-              label: `${m.fullName} · ${m.availability}`,
+              label: m.fullName,
               // We render via children for the richer two-line look, but keep
               // `label` populated so antd's search-by-text works out of the box.
             }))}
@@ -363,12 +363,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
               if (!m) return opt.label;
               return (
                 <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-                  <span style={{ fontWeight: 600 }}>
-                    {m.fullName}{" "}
-                    <span style={{ fontSize: "0.72rem", color: m.availability === "Busy" ? "var(--color-warning)" : "var(--color-success)" }}>
-                      · {m.availability}
-                    </span>
-                  </span>
+                  <span style={{ fontWeight: 600 }}>{m.fullName}</span>
                   <span style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>
                     {m.email}
                     {m.schoolName ? ` · ${m.schoolName}` : ""}

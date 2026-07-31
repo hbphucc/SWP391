@@ -163,7 +163,7 @@ export function resolveApiUrl(path?: string | null): string | null {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function toCurrentUser(user: {
+function toCurrentUser(user: {
   id: string;
   fullName?: string;
   name?: string;

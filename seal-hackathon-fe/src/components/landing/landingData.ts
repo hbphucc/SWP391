@@ -1,11 +1,11 @@
-export interface RoundDto {
+interface RoundDto {
   roundId: string;
   roundName: string;
   roundOrder: number;
   submissionDeadline?: string | null;
 }
 
-export interface CategoryDto {
+interface CategoryDto {
   categoryId: string;
   categoryName: string;
   teamCount: number;
