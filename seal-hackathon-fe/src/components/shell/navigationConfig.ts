@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { Portal } from "./routePolicies";
 
-export type NavItem = {
+type NavItem = {
   id: string;
   label: string;
   href: string;
@@ -40,7 +40,7 @@ export type NavSection = {
 // Notifications, Criteria) already carries `roles: ["Admin"]`, so the
 // role check below already excludes them for non-admins — the extra rule
 // was redundant and is not reproduced here.
-export const NAV_ITEMS: NavItem[] = [
+const NAV_ITEMS: NavItem[] = [
   // --- Dashboard portal (Member / TeamLeader / Judge / Admin-while-here) ---
   { id: "dash-home", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: null, portal: "dashboard", section: "Main" },
   { id: "dash-events", label: "Events", href: "/dashboard/events", icon: Calendar, roles: null, portal: "dashboard", section: "Events" },

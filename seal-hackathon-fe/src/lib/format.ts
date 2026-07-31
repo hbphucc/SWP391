@@ -23,23 +23,6 @@ export function formatDateTime(value: string | null | undefined, fallback = "—
   });
 }
 
-/** Relative time ("3h ago", "in 2d"). Returns `fallback` if unparseable. */
-export function relativeTime(value: string | null | undefined, fallback = "—"): string {
-  if (!value) return fallback;
-  const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return fallback;
-  const diff = Date.now() - then;
-  const past = diff >= 0;
-  const mins = Math.floor(Math.abs(diff) / 60000);
-  if (mins < 1) return "just now";
-  const fmt = (n: number, unit: string) => (past ? `${n}${unit} ago` : `in ${n}${unit}`);
-  if (mins < 60) return fmt(mins, "m");
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return fmt(hours, "h");
-  const days = Math.floor(hours / 24);
-  return fmt(days, "d");
-}
-
 /** Days remaining until a deadline; negative means overdue. null if unparseable. */
 export function daysUntil(value: string | null | undefined): number | null {
   if (!value) return null;

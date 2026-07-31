@@ -55,7 +55,7 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   Rejected: { label: "Rejected", badge: "badge-danger", Icon: XCircle },
 };
 
-export function statusMeta(status: string | null | undefined): StatusMeta {
+function statusMeta(status: string | null | undefined): StatusMeta {
   if (!status) return { label: "—", badge: "badge-neutral", Icon: CircleDot };
   return STATUS_MAP[status] ?? { label: status, badge: "badge-neutral", Icon: CircleDot };
 }

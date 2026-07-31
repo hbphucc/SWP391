@@ -1,6 +1,6 @@
 import { Award, MessageSquare } from "lucide-react";
 
-export type CriterionFeedbackDto = {
+type CriterionFeedbackDto = {
   criteriaName: string;
   scoreValue: number;
   maxScore: number;
@@ -8,7 +8,7 @@ export type CriterionFeedbackDto = {
   comment?: string | null;
 };
 
-export type JudgeFeedbackDto = {
+type JudgeFeedbackDto = {
   judgeName: string;
   totalScore: number;
   criteria: CriterionFeedbackDto[];

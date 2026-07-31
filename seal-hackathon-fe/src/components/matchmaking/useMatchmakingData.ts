@@ -10,7 +10,7 @@ export interface UserData {
   roles: string[];
 }
 
-export interface TeamMemberData {
+interface TeamMemberData {
   userId: string;
   fullName: string;
   email: string;

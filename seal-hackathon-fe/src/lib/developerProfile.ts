@@ -4,8 +4,6 @@
 
 export const DEVELOPER_ROLES = ["Backend", "Frontend", "Fullstack"] as const;
 
-export type DeveloperRole = (typeof DEVELOPER_ROLES)[number];
-
 export const PROGRAMMING_LANGUAGES = [
   "C#",
   "Java",

@@ -1,5 +1,5 @@
 "use client";
-import React, { use, useState } from "react";
+import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Award, ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink } from "lucide-react";
 import Link from "next/link";

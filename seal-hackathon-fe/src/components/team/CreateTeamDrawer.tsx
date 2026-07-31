@@ -18,7 +18,7 @@ import { ApiError, apiRequest } from "@/lib/api";
  * onSuccess is invoked after the create call returns 200, so the parent page
  * can refresh its `myTeam` view without this component owning that state.
  */
-export type CreateTeamCategoryOption = {
+type CreateTeamCategoryOption = {
   categoryId: string;
   categoryName: string;
   eventId: string;
