@@ -1,4 +1,4 @@
-import { GraduationCap, Users } from "lucide-react";
+import { GraduationCap, MessageSquare, Users } from "lucide-react";
 import type { TeamDto } from "./teamTypes";
 
 interface MentorJudgePanelsProps {
@@ -53,6 +53,16 @@ export default function MentorJudgePanels({ myTeam, isLeader, onInviteMentorClic
             {myTeam.pendingMentorInvite && (
               <div style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--color-warning)" }}>
                 Invited {myTeam.pendingMentorInvite.mentorName} to replace the current mentor — waiting for them to accept.
+              </div>
+            )}
+            {myTeam.mentorNotes?.trim() && (
+              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--color-border-2)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem", fontSize: "0.78rem", fontWeight: 600, color: "var(--color-primary)" }}>
+                  <MessageSquare size={14} /> Mentor Notes
+                </div>
+                <div style={{ color: "var(--color-text-2)", fontSize: "0.9rem", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                  {myTeam.mentorNotes}
+                </div>
               </div>
             )}
           </div>
