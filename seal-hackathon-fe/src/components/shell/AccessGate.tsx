@@ -35,7 +35,13 @@ export default function AccessGate({ policy, children }: AccessGateProps) {
     if (loggingOut || isLoading) return;
 
     if (!user) {
-      router.push(policy.redirectUnauthenticatedTo(pathname));
+      // Carry the query string, not just the path. Screens that keep their
+      // state there — the judging queue's event/status filters, for one —
+      // otherwise come back stripped after signing in. Read from `window`
+      // rather than useSearchParams: this gate wraps every portal layout, and
+      // that hook would force a Suspense boundary onto all of them.
+      const search = typeof window === "undefined" ? "" : window.location.search;
+      router.push(policy.redirectUnauthenticatedTo(`${pathname}${search}`));
       return;
     }
 

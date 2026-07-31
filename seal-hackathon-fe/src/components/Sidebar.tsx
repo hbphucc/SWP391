@@ -4,7 +4,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, LogOut, Menu, Trophy } from "lucide-react";
+import { ChevronLeft, LogOut, Menu } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { useAuth } from "./AuthProvider";
 import { resolveApiUrl } from "@/lib/api";

@@ -18,13 +18,17 @@ namespace SEAL.NET.Services.Implementations
             _context = context;
         }
 
-        public async Task<ServiceResult> GetDocumentsAsync(Guid? currentUserId, IList<string> roles)
+        /// <summary>
+        /// Narrows <paramref name="query"/> to the documents this caller may see, and
+        /// returns the round metadata used to decorate prompt documents.
+        ///
+        /// Both the listing and the download endpoint go through here. Download used
+        /// to skip it entirely, so any signed-in user could pull any document by id —
+        /// the scoping below was only ever decorating the list.
+        /// </summary>
+        private async Task<(IQueryable<Document> Query, Dictionary<Guid, (Guid EventId, string EventName, string RoundName)> PromptRounds)>
+            ScopeToViewerAsync(IQueryable<Document> query, Guid? currentUserId, IList<string> roles)
         {
-            var query = _context.Documents.AsNoTracking()
-                .Include(d => d.Uploader)
-                .Include(d => d.Event)
-                .AsQueryable();
-
             var promptDocumentRounds = new Dictionary<Guid, (Guid EventId, string EventName, string RoundName)>();
 
             if (!roles.Contains("Admin") && currentUserId.HasValue)
@@ -71,6 +75,11 @@ namespace SEAL.NET.Services.Implementations
                     var promptDocumentIds = promptDocumentRounds.Keys.ToList();
 
                     query = query.Where(d =>
+                        // Your own uploads, always. Without this a mentor's upload
+                        // landed with EventId = null and an uploader who is not an
+                        // admin, matching none of the clauses below — the file was
+                        // stored but invisible to the person who had just sent it.
+                        d.UploaderId == currentUserId ||
                         (d.EventId == null && d.UploaderId.HasValue && adminUserIds.Contains(d.UploaderId.Value)) ||
                         (d.EventId != null && participatedEventIds.Contains(d.EventId.Value)) ||
                         promptDocumentIds.Contains(d.DocumentId) ||
@@ -90,6 +99,19 @@ namespace SEAL.NET.Services.Implementations
                     query = query.Where(d => d.UploaderId != null && teamMemberIds.Contains(d.UploaderId.Value));
                 }
             }
+
+            return (query, promptDocumentRounds);
+        }
+
+        public async Task<ServiceResult> GetDocumentsAsync(Guid? currentUserId, IList<string> roles)
+        {
+            var (query, promptDocumentRounds) = await ScopeToViewerAsync(
+                _context.Documents.AsNoTracking()
+                    .Include(d => d.Uploader)
+                    .Include(d => d.Event)
+                    .AsQueryable(),
+                currentUserId,
+                roles);
 
             var documents = await query
                 .OrderByDescending(d => d.UploadedAt)
@@ -132,13 +154,23 @@ namespace SEAL.NET.Services.Implementations
 
             using var ms = new MemoryStream();
             await content.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            // Checked against the bytes, not the caller's Content-Type header, which
+            // the browser supplies and an attacker controls outright.
+            var rejection = UploadedFileValidator.Validate(
+                fileName,
+                bytes.AsSpan(0, Math.Min(bytes.Length, UploadedFileValidator.SignatureProbeBytes)));
+
+            if (rejection != null)
+                return ServiceResult.BadRequest(rejection);
 
             var document = new Document
             {
                 FileName = Path.GetFileName(fileName),
                 ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
                 Size = length,
-                Content = ms.ToArray(),
+                Content = bytes,
                 UploaderId = uploaderId,
                 EventId = eventId
             };
@@ -156,10 +188,17 @@ namespace SEAL.NET.Services.Implementations
             });
         }
 
-        public async Task<DocumentDownload?> GetDownloadAsync(Guid id)
+        public async Task<DocumentDownload?> GetDownloadAsync(Guid id, Guid? currentUserId, IList<string> roles)
         {
-            var document = await _context.Documents.AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DocumentId == id);
+            // Same scope as the listing: a document the caller cannot see is
+            // reported as missing rather than served, so knowing an id is not by
+            // itself permission to read it.
+            var (query, _) = await ScopeToViewerAsync(
+                _context.Documents.AsNoTracking().AsQueryable(),
+                currentUserId,
+                roles);
+
+            var document = await query.FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (document == null) return null;
 
