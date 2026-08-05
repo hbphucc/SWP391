@@ -20,6 +20,8 @@ namespace SEAL.NET.Models.Entities
         /// sum to 100" behavior for rounds created before this column existed.
         /// </summary>
         public decimal? PassThreshold { get; set; }
+
+        public bool IsCompleted { get; set; } = false;
         
         public Guid? PromptDocumentId { get; set; }
         public Document? PromptDocument { get; set; }

@@ -43,9 +43,19 @@ namespace SEAL.NET.Services.Implementations
                     var adminRoleId = await _context.Roles.Where(r => r.Name == "Admin").Select(r => r.Id).FirstOrDefaultAsync();
                     var adminUserIds = await _context.UserRoles.Where(ur => ur.RoleId == adminRoleId).Select(ur => ur.UserId).ToListAsync();
 
-                    var mentoredTeamMemberIds = await _context.MentorAssignments
+                    var mentoredTeamIds = await _context.MentorAssignments
                         .Where(ma => ma.MentorUserId == currentUserId && ma.IsActive)
-                        .SelectMany(ma => ma.Team.Members.Select(tm => tm.UserId))
+                        .Select(ma => ma.TeamId)
+                        .ToListAsync();
+
+                    var mentoredTeamMemberIds = await _context.TeamMembers
+                        .Where(tm => mentoredTeamIds.Contains(tm.TeamId))
+                        .Select(tm => tm.UserId)
+                        .ToListAsync();
+
+                    var mentorChatDocIds = await _context.TeamChatMessages
+                        .Where(m => mentoredTeamIds.Contains(m.TeamId) && m.DocumentId != null)
+                        .Select(m => m.DocumentId!.Value)
                         .ToListAsync();
 
                     promptDocumentRounds = await _context.Rounds
@@ -75,28 +85,34 @@ namespace SEAL.NET.Services.Implementations
                     var promptDocumentIds = promptDocumentRounds.Keys.ToList();
 
                     query = query.Where(d =>
-                        // Your own uploads, always. Without this a mentor's upload
-                        // landed with EventId = null and an uploader who is not an
-                        // admin, matching none of the clauses below — the file was
-                        // stored but invisible to the person who had just sent it.
                         d.UploaderId == currentUserId ||
                         (d.EventId == null && d.UploaderId.HasValue && adminUserIds.Contains(d.UploaderId.Value)) ||
                         (d.EventId != null && participatedEventIds.Contains(d.EventId.Value)) ||
                         promptDocumentIds.Contains(d.DocumentId) ||
+                        mentorChatDocIds.Contains(d.DocumentId) ||
                         (d.UploaderId.HasValue && mentoredTeamMemberIds.Contains(d.UploaderId.Value))
                     );
                 }
                 else
                 {
-                    // Regular users: Only see documents uploaded by their team members
+                    var myTeamIds = await _context.TeamMembers
+                        .Where(tm => tm.UserId == currentUserId)
+                        .Select(tm => tm.TeamId)
+                        .ToListAsync();
+
                     var teamMemberIds = await _context.TeamMembers
-                        .Where(tm => _context.TeamMembers.Any(myTm => myTm.TeamId == tm.TeamId && myTm.UserId == currentUserId))
+                        .Where(tm => myTeamIds.Contains(tm.TeamId))
                         .Select(tm => tm.UserId)
                         .ToListAsync();
 
                     teamMemberIds.Add(currentUserId.Value);
 
-                    query = query.Where(d => d.UploaderId != null && teamMemberIds.Contains(d.UploaderId.Value));
+                    var chatDocIds = await _context.TeamChatMessages
+                        .Where(m => myTeamIds.Contains(m.TeamId) && m.DocumentId != null)
+                        .Select(m => m.DocumentId!.Value)
+                        .ToListAsync();
+
+                    query = query.Where(d => (d.UploaderId != null && teamMemberIds.Contains(d.UploaderId.Value)) || chatDocIds.Contains(d.DocumentId));
                 }
             }
 

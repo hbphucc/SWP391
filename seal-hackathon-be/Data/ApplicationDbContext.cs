@@ -29,6 +29,7 @@ namespace SEAL.NET.Data
         public DbSet<Prize> Prizes { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<KickRequest> KickRequests { get; set; }
+        public DbSet<TeamChatMessage> TeamChatMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -286,6 +287,24 @@ namespace SEAL.NET.Data
                 .WithMany()
                 .HasForeignKey(ja => ja.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<TeamChatMessage>()
+                .HasOne(tc => tc.Team)
+                .WithMany()
+                .HasForeignKey(tc => tc.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<TeamChatMessage>()
+                .HasOne(tc => tc.Sender)
+                .WithMany()
+                .HasForeignKey(tc => tc.SenderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<TeamChatMessage>()
+                .HasOne(tc => tc.AttachedDocument)
+                .WithMany()
+                .HasForeignKey(tc => tc.DocumentId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

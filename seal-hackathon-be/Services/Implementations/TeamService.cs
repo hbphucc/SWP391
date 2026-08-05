@@ -308,21 +308,7 @@ namespace SEAL.NET.Services.Implementations
                 });
             }
 
-            if (mentor != null)
-            {
-                // Invite only — the mentor becomes the team's actual mentor once they
-                // accept via POST /teams/mentor-invitations/{id}/accept.
-                _context.MentorAssignments.Add(new MentorAssignment
-                {
-                    MentorUserId = mentor.Id,
-                    TeamId = team.TeamId,
-                    AssignedByUserId = leaderId,
-                    Status = InvitationStatus.Pending,
-                    IsActive = false,
-                    AssignedAt = DateTime.UtcNow
-                });
-            }
-
+            // Mentor assignments are now handled directly by Admin.
             await _context.SaveChangesAsync();
 
             // Notify invited members only after the team is persisted, so a notify

@@ -85,6 +85,9 @@ export default function EventRoundsTab({
               {round.hasSubmissions && (
                 <span className="badge badge-neutral" style={{ marginTop: "0.5rem" }}>Has submissions | deadline only</span>
               )}
+              {round.isCompleted && (
+                <span className="badge badge-success" style={{ marginTop: "0.5rem", marginLeft: round.hasSubmissions ? "0.5rem" : "0" }}>✓ Concluded & Scores Revealed</span>
+              )}
             </div>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <button className="btn btn-secondary btn-sm" onClick={() => onBeginEditRound(round)} disabled={saving || deletingRoundId !== ""}>
@@ -96,11 +99,15 @@ export default function EventRoundsTab({
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => onAdvanceRound(round, index === selectedEvent.rounds.length - 1)}
-                disabled={advancingId !== "" || loading || saving || deletingRoundId !== "" || selectedEvent.status === "Completed"}
+                disabled={round.isCompleted || advancingId !== "" || loading || saving || deletingRoundId !== "" || selectedEvent.status === "Completed"}
               >
                 {advancingId === round.roundId
                   ? <span className="spinner" />
-                  : index === selectedEvent.rounds.length - 1 ? "End Competition" : "Advance Round"}
+                  : round.isCompleted || selectedEvent.status === "Completed"
+                    ? "Completed"
+                    : index === selectedEvent.rounds.length - 1
+                      ? "End Competition & Reveal Scores"
+                      : "End Round & Reveal Scores"}
               </button>
             </div>
           </div>

@@ -1,40 +1,15 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { App, Drawer, Select } from "antd";
-import { Plus, Trash2, UserPlus, Users, GraduationCap } from "lucide-react";
+import { App, Drawer } from "antd";
+import { Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { ApiError, apiRequest } from "@/lib/api";
 
-/**
- * Unified create-team drawer.
- *
- * Replaces the previous fragmented flow (inline form → create team → open
- * "Choose Mentor" modal as a second step) with one screen that captures
- * everything the backend needs in a single POST /teams call: name, category,
- * dynamic member list, and an optional mentor. The backend assigns the mentor
- * in the same SaveChangesAsync, so partial-success states are impossible.
- *
- * onSuccess is invoked after the create call returns 200, so the parent page
- * can refresh its `myTeam` view without this component owning that state.
- */
 type CreateTeamCategoryOption = {
   categoryId: string;
   categoryName: string;
   eventId: string;
   eventName: string;
   registrationEndDate: string;
-};
-
-export type CreateTeamMentorOption = {
-  id: string;
-  fullName: string;
-  email: string;
-  schoolName?: string | null;
-  developerRole?: string | null;
-  skills: string[];
-  teamsMentored: number;
-  availability: string;
 };
 
 type Props = {
@@ -51,10 +26,7 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
 
   const [teamName, setTeamName] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  // Dynamic list — each entry is one student code or email. Empty trailing
-  // rows are fine; we strip them at submit time.
   const [memberInputs, setMemberInputs] = useState<string[]>(["", ""]);
-  const [mentorId, setMentorId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
 
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number | null>(null);
@@ -95,48 +67,15 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
     setActiveSuggestionIndex(null);
   };
 
-  // The "selected" category we render. If the leader hasn't picked one yet we
-  // fall back to the first available — derived rather than copied into state to
-  // avoid a setState-in-effect cascade.
   const effectiveCategoryId =
     categoryId || (categories.length > 0 
       ? (categories.find(c => new Date(c.registrationEndDate) >= new Date())?.categoryId || categories[0].categoryId) 
       : "");
 
-  // The event the selected category belongs to. Mentors are scoped to a single
-  // event server-side, so we pass this with the /teams/mentors fetch.
-  const effectiveEventId = categories.find((c) => c.categoryId === effectiveCategoryId)?.eventId ?? "";
-
-  // Fetch mentors whenever the selected event changes. The backend scopes the
-  // response to mentors registered for that event, so a stale list from a
-  // different event would mislead the leader. Keyed by event id + gated on the
-  // drawer being open so we don't fetch for a closed/eventless drawer.
-  const {
-    data: mentors = [],
-    isFetching: loadingMentors,
-    error: mentorsError,
-  } = useQuery({
-    queryKey: ["team-mentors", effectiveEventId],
-    queryFn: () =>
-      apiRequest<CreateTeamMentorOption[]>(`/teams/mentors?eventId=${encodeURIComponent(effectiveEventId)}`),
-    enabled: open && !!effectiveEventId,
-  });
-
-  useEffect(() => {
-    if (mentorsError) message.error("Could not load mentor list.");
-  }, [mentorsError, message]);
-
-  // Clear a previously chosen mentor that is no longer in the current roster.
-  // The functional update bails out when unchanged, so this is loop-safe.
-  useEffect(() => {
-    setMentorId((prev) => (prev && mentors.some((m) => m.id === prev) ? prev : undefined));
-  }, [mentors]);
-
   const resetForm = () => {
     setTeamName("");
     setCategoryId("");
     setMemberInputs(["", ""]);
-    setMentorId(undefined);
   };
 
   const handleClose = () => {
@@ -171,7 +110,6 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
       return;
     }
 
-    // Reject duplicates before the backend has to.
     const uniq = new Set(trimmedMembers.map((s) => s.toLowerCase()));
     if (uniq.size !== trimmedMembers.length) {
       message.error("Member list contains duplicates.");
@@ -186,15 +124,11 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
           teamName: teamName.trim(),
           categoryId: effectiveCategoryId,
           memberStudentCodesOrEmails: trimmedMembers,
-          mentorId: mentorId ?? null,
+          mentorId: null,
         }),
       });
 
-      message.success(
-        mentorId
-          ? "Team registered. Mentor invited (waiting for them to accept) and invitations sent to members."
-          : "Team registered and invitations sent to members.",
-      );
+      message.success("Team registered and invitations sent to members.");
       resetForm();
       onClose();
       await onSuccess();
@@ -334,48 +268,6 @@ export default function CreateTeamDrawer({ open, onClose, onSuccess, categories 
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Optional mentor */}
-        <div className="form-group">
-          <label className="form-label" htmlFor="ct-mentor">
-            <GraduationCap size={13} /> Invite a Mentor (optional)
-          </label>
-          <Select
-            id="ct-mentor"
-            value={mentorId}
-            onChange={(v) => setMentorId(v)}
-            allowClear
-            showSearch
-            loading={loadingMentors}
-            placeholder={loadingMentors ? "Loading mentors..." : "Invite a mentor now, or invite later"}
-            disabled={submitting}
-            style={{ width: "100%" }}
-            optionFilterProp="label"
-            options={mentors.map((m) => ({
-              value: m.id,
-              label: m.fullName,
-              // We render via children for the richer two-line look, but keep
-              // `label` populated so antd's search-by-text works out of the box.
-            }))}
-            optionRender={(opt) => {
-              const m = mentors.find((x) => x.id === opt.value);
-              if (!m) return opt.label;
-              return (
-                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-                  <span style={{ fontWeight: 600 }}>{m.fullName}</span>
-                  <span style={{ fontSize: "0.78rem", color: "var(--color-text-3)" }}>
-                    {m.email}
-                    {m.schoolName ? ` · ${m.schoolName}` : ""}
-                    {` · mentoring ${m.teamsMentored}`}
-                  </span>
-                </div>
-              );
-            }}
-          />
-          <span className="form-hint">
-            The mentor must accept before they officially become your team&apos;s mentor. You can invite, change, or cancel the invitation after the team is created.
-          </span>
         </div>
       </div>
     </Drawer>

@@ -37,6 +37,10 @@ namespace SEAL.NET.Data
                   VALUES ('20260615154609_AddKickRequestsAndJudgeTeam', '8.0.27')
                   ON CONFLICT (""MigrationId"") DO NOTHING;");
 
+            // Ensure IsCompleted exists in Rounds table
+            await context.Database.ExecuteSqlRawAsync(
+                @"ALTER TABLE ""Rounds"" ADD COLUMN IF NOT EXISTS ""IsCompleted"" boolean NOT NULL DEFAULT false;");
+
             // 3. Run pending migrations (e.g. AddFinalRankAndPrize)
             await context.Database.MigrateAsync();
 

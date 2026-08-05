@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Prize;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -66,8 +67,11 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> CreatePrizeAsync(CreatePrizeRequest request)
         {
-            var eventExists = await _context.Events.AnyAsync(e => e.EventId == request.EventId);
-            if (!eventExists) return ServiceResult.BadRequest("Event not found.");
+            var eventItem = await _context.Events.FirstOrDefaultAsync(e => e.EventId == request.EventId);
+            if (eventItem == null) return ServiceResult.BadRequest("Event not found.");
+
+            if (IsEventLocked(eventItem))
+                return ServiceResult.BadRequest("Cannot modify prizes after the event has started or finished.");
 
             var prize = new Prize
             {
@@ -90,8 +94,11 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> UpdatePrizeAsync(Guid id, UpdatePrizeRequest request)
         {
-            var prize = await _context.Prizes.FirstOrDefaultAsync(p => p.PrizeId == id);
+            var prize = await _context.Prizes.Include(p => p.Event).FirstOrDefaultAsync(p => p.PrizeId == id);
             if (prize == null) return ServiceResult.NotFound("Prize not found.");
+
+            if (IsEventLocked(prize.Event))
+                return ServiceResult.BadRequest("Cannot modify prizes after the event has started or finished.");
 
             prize.Title = request.Title;
             prize.Amount = request.Amount;
@@ -105,12 +112,24 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> DeletePrizeAsync(Guid id)
         {
-            var prize = await _context.Prizes.FirstOrDefaultAsync(p => p.PrizeId == id);
+            var prize = await _context.Prizes.Include(p => p.Event).FirstOrDefaultAsync(p => p.PrizeId == id);
             if (prize == null) return ServiceResult.NotFound("Prize not found.");
+
+            if (IsEventLocked(prize.Event))
+                return ServiceResult.BadRequest("Cannot modify prizes after the event has started or finished.");
 
             _context.Prizes.Remove(prize);
             await _context.SaveChangesAsync();
             return ServiceResult.OkMessage("Prize deleted successfully.");
+        }
+
+        private static bool IsEventLocked(Event? eventItem)
+        {
+            if (eventItem == null) return false;
+            return eventItem.Status == EventStatus.Ongoing ||
+                   eventItem.Status == EventStatus.Completed ||
+                   eventItem.Status == EventStatus.Cancelled ||
+                   eventItem.StartDate <= DateTime.UtcNow;
         }
     }
 }

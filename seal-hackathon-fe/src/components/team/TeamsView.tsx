@@ -9,6 +9,7 @@ import AddMemberPanel from "./AddMemberPanel";
 import InviteMentorModal from "./InviteMentorModal";
 import KickRequestModal from "./KickRequestModal";
 import PendingInvitesBanner from "@/components/dashboard/PendingInvitesBanner";
+import TeamChatPanel from "./TeamChatPanel";
 
 export default function TeamsView() {
   const {
@@ -106,6 +107,10 @@ export default function TeamsView() {
         onInviteMentorClick={() => { loadMentors(); setShowMentorModal(true); }}
         onRemoveMentor={handleRemoveMentor}
       />
+
+      <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+        <TeamChatPanel teamId={myTeam.teamId} />
+      </div>
 
       {canModifyMembers && (
         <AddMemberPanel

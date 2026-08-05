@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Criteria;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -39,9 +40,15 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> CreateCriteriaAsync(Guid roundId, CreateCriteriaRequest request)
         {
-            var roundExists = await _context.Rounds.AnyAsync(r => r.RoundId == roundId);
-            if (!roundExists)
+            var round = await _context.Rounds
+                .Include(r => r.Event)
+                .FirstOrDefaultAsync(r => r.RoundId == roundId);
+
+            if (round == null)
                 return ServiceResult.NotFound("Round not found.");
+
+            if (IsEventLocked(round.Event))
+                return ServiceResult.BadRequest("Cannot modify criteria after the event has started or finished.");
 
             var currentTotalWeight = await _context.Criteria
                 .Where(c => c.RoundId == roundId)
@@ -78,10 +85,15 @@ namespace SEAL.NET.Services.Implementations
         public async Task<ServiceResult> UpdateCriteriaAsync(Guid roundId, Guid criteriaId, UpdateCriteriaRequest request)
         {
             var criteria = await _context.Criteria
+                .Include(c => c.Round)
+                    .ThenInclude(r => r.Event)
                 .FirstOrDefaultAsync(c => c.RoundId == roundId && c.CriteriaId == criteriaId);
 
             if (criteria == null)
                 return ServiceResult.NotFound("Criteria not found.");
+
+            if (IsEventLocked(criteria.Round?.Event))
+                return ServiceResult.BadRequest("Cannot modify criteria after the event has started or finished.");
 
             var otherWeights = await _context.Criteria
                 .Where(c => c.RoundId == roundId && c.CriteriaId != criteriaId)
@@ -103,10 +115,15 @@ namespace SEAL.NET.Services.Implementations
         {
             var criteria = await _context.Criteria
                 .Include(c => c.Scores)
+                .Include(c => c.Round)
+                    .ThenInclude(r => r.Event)
                 .FirstOrDefaultAsync(c => c.RoundId == roundId && c.CriteriaId == criteriaId);
 
             if (criteria == null)
                 return ServiceResult.NotFound("Criteria not found.");
+
+            if (IsEventLocked(criteria.Round?.Event))
+                return ServiceResult.BadRequest("Cannot modify criteria after the event has started or finished.");
 
             if (criteria.Scores.Any())
                 return ServiceResult.BadRequest("Cannot delete criteria because it already has scores.");
@@ -115,6 +132,15 @@ namespace SEAL.NET.Services.Implementations
             await _context.SaveChangesAsync();
 
             return ServiceResult.OkMessage("Criteria deleted successfully.");
+        }
+
+        private static bool IsEventLocked(Event? eventItem)
+        {
+            if (eventItem == null) return false;
+            return eventItem.Status == EventStatus.Ongoing ||
+                   eventItem.Status == EventStatus.Completed ||
+                   eventItem.Status == EventStatus.Cancelled ||
+                   eventItem.StartDate <= DateTime.UtcNow;
         }
     }
 }

@@ -10,7 +10,6 @@ import {
   Tag,
   Target,
   Bell,
-  Mail,
   CircleHelp,
 } from "lucide-react";
 import type { Portal } from "./routePolicies";
@@ -70,9 +69,6 @@ const NAV_ITEMS: NavItem[] = [
 
   // --- Mentor portal ---
   { id: "mentor-home", label: "Mentor Workspace", href: "/mentor", icon: LayoutDashboard, roles: ["Mentor", "Admin"], portals: ["mentor", "dashboard"], section: "Main" },
-  // NavItem has no dynamic badge field; the pending count renders on the
-  // mentor page's WorkspaceTabs badge instead.
-  { id: "mentor-invitations", label: "Invitations", href: "/mentor?tab=invitations", icon: Mail, roles: ["Mentor", "Admin"], portals: ["mentor", "dashboard"], section: "Main" },
   { id: "mentor-documents", label: "Documents", href: "/mentor/documents", icon: FileText, roles: ["Mentor", "Admin"], portals: ["mentor"], section: "Content" },
 ];
 

@@ -1,13 +1,14 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, FileEdit, MessageSquare, Clipboard, Send, Eye, Mail, Search, Filter } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Users, FileEdit, MessageSquare, Clipboard, Send, Eye, Search, Filter } from "lucide-react";
 import { App, Modal, Input, Spin, Empty, Tag } from "antd";
 import { apiRequest } from "@/lib/api";
 import StatCardRow from "@/components/workspace/StatCardRow";
 import WorkspaceTabs, { WorkspaceTab } from "@/components/workspace/WorkspaceTabs";
-import MentorInvitationsPanel, { MentorInvitationDto } from "@/components/mentor/MentorInvitationsPanel";
 import MentorTeamDetailDrawer from "@/components/mentor/MentorTeamDetailDrawer";
+import TeamChatPanel from "@/components/team/TeamChatPanel";
+import styles from "./MentorWorkspacePage.module.css";
 
 interface SubmissionData {
   submissionId: string;
@@ -31,7 +32,6 @@ interface MentorTeam {
 
 export default function MentorWorkspacePage() {
   const { message } = App.useApp();
-  const queryClient = useQueryClient();
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<MentorTeam | null>(null);
   const [detailTeamId, setDetailTeamId] = useState<string | null>(null);
@@ -40,6 +40,7 @@ export default function MentorWorkspacePage() {
   const [searchText, setSearchText] = useState("");
   const [eventFilter, setEventFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
+  const [activeChatTeamId, setActiveChatTeamId] = useState<string | null>(null);
 
   const {
     data: teams = [],
@@ -54,15 +55,6 @@ export default function MentorWorkspacePage() {
   useEffect(() => {
     if (error) message.error("Could not load assigned teams.");
   }, [error, message]);
-
-  // Invitation badge derives from the same ["mentor-invitations"] cache the
-  // panel uses, so accept/reject there updates this count automatically — no
-  // separate fetch or out-of-order guard needed.
-  const { data: invitations = [] } = useQuery({
-    queryKey: ["mentor-invitations"],
-    queryFn: () => apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations"),
-  });
-  const pendingInvitationCount = invitations.length;
 
   const stats = useMemo(
     () => [
@@ -133,11 +125,6 @@ export default function MentorWorkspacePage() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleInvitationsChanged = () => {
-    void queryClient.invalidateQueries({ queryKey: ["mentor-teams"] });
-    void queryClient.invalidateQueries({ queryKey: ["mentor-invitations"] });
   };
 
   const renderTeamsTab = () => (
@@ -259,15 +246,60 @@ export default function MentorWorkspacePage() {
     )
   );
 
+  const selectedChatTeam = teams.find((t) => t.teamId === activeChatTeamId) || teams[0] || null;
+
+  const renderChatTab = () => (
+    <div className={styles.chatSplitContainer}>
+      {teams.length === 0 ? (
+        <div className={styles.emptyStateCard}>
+          <Empty description="You are not assigned to any teams yet." />
+        </div>
+      ) : (
+        <>
+          <div className={styles.teamsSidebar}>
+            <div className={styles.sidebarHeader}>
+              <h4 className={styles.sidebarTitle}>Assigned Teams ({teams.length})</h4>
+              <p className={styles.sidebarSubtitle}>Select a team to open chat channel</p>
+            </div>
+            <div className={styles.teamList}>
+              {teams.map((t) => {
+                const isSelected = selectedChatTeam?.teamId === t.teamId;
+                return (
+                  <div
+                    key={t.teamId}
+                    onClick={() => setActiveChatTeamId(t.teamId)}
+                    className={`${styles.teamItem} ${isSelected ? styles.teamItemActive : ""}`}
+                  >
+                    <div className={styles.teamItemInfo}>
+                      <span className={`${styles.teamItemName} ${isSelected ? styles.teamItemNameActive : ""}`}>
+                        {t.teamName}
+                      </span>
+                      <span className={styles.teamItemMeta}>
+                        {t.eventName} • {t.categoryName}
+                      </span>
+                    </div>
+                    <span className={styles.memberCountBadge}>
+                      {t.membersCount} {t.membersCount === 1 ? "member" : "members"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className={styles.chatMainPanel}>
+            {selectedChatTeam ? (
+              <TeamChatPanel teamId={selectedChatTeam.teamId} />
+            ) : null}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   const tabs: WorkspaceTab[] = [
     { id: "teams", label: "Teams", icon: Users, render: renderTeamsTab },
-    {
-      id: "invitations",
-      label: "Invitations",
-      icon: Mail,
-      badge: pendingInvitationCount,
-      render: () => <MentorInvitationsPanel onChange={handleInvitationsChanged} />,
-    },
+    { id: "chat", label: "Mentor Chat", icon: MessageSquare, render: renderChatTab },
   ];
 
   if (loading) {

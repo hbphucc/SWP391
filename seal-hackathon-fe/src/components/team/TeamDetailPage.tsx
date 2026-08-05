@@ -1,9 +1,10 @@
 "use client";
 import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Award, ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink } from "lucide-react";
+import { AlertTriangle, Award, ChevronLeft, Users, Crown, Mail, Shield, BookOpen, ExternalLink, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
+import TeamChatPanel from "./TeamChatPanel";
 import styles from "./TeamDetailPage.module.css";
 
 type Member = {
@@ -135,6 +136,9 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         <button className={`tab-btn ${tab === "submissions" ? "active" : ""}`} onClick={() => setTab("submissions")}>
           <BookOpen size={14} className={styles.tabIcon} /> Submissions ({team.submissions.length})
         </button>
+        <button className={`tab-btn ${tab === "chat" ? "active" : ""}`} onClick={() => setTab("chat")}>
+          <MessageSquare size={14} className={styles.tabIcon} /> Mentor Chat
+        </button>
       </div>
 
       {tab === "members" && (
@@ -207,6 +211,12 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {tab === "chat" && (
+        <div className="mt-4">
+          <TeamChatPanel teamId={team.teamId} />
         </div>
       )}
     </div>

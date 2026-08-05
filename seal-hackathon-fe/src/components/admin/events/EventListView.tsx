@@ -107,7 +107,14 @@ export default function EventListView({ data }: EventListViewProps) {
                     id: "tracks",
                     label: "Tracks",
                     icon: Tag,
-                    render: () => <AdminTracksView eventId={selectedEvent.eventId} />,
+                    render: () => (
+                      <AdminTracksView
+                        eventId={selectedEvent.eventId}
+                        eventStatus={selectedEvent.status}
+                        eventStartDate={selectedEvent.startDate}
+                        eventHasStarted={eventHasStarted}
+                      />
+                    ),
                   },
                   {
                     id: "criteria",
@@ -117,6 +124,9 @@ export default function EventListView({ data }: EventListViewProps) {
                       <AdminCriteriaView
                         eventName={selectedEvent.eventName}
                         rounds={selectedEvent.rounds.map((r) => ({ roundId: r.roundId, roundName: r.roundName }))}
+                        eventStatus={selectedEvent.status}
+                        eventStartDate={selectedEvent.startDate}
+                        eventHasStarted={eventHasStarted}
                       />
                     ),
                   },
@@ -124,7 +134,14 @@ export default function EventListView({ data }: EventListViewProps) {
                     id: "prizes",
                     label: "Prizes",
                     icon: Award,
-                    render: () => <AdminPrizesView eventId={selectedEvent.eventId} />,
+                    render: () => (
+                      <AdminPrizesView
+                        eventId={selectedEvent.eventId}
+                        eventStatus={selectedEvent.status}
+                        eventStartDate={selectedEvent.startDate}
+                        eventHasStarted={eventHasStarted}
+                      />
+                    ),
                   },
                   {
                     id: "assignments",
