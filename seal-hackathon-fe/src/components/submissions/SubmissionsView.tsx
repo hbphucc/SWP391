@@ -142,6 +142,32 @@ export default function SubmissionsView() {
       return;
     }
 
+    const cleanRepo = form.repositoryUrl.trim().toLowerCase();
+    if (!cleanRepo.includes("github.com/")) {
+      message.error("GitHub Repository URL must be a valid GitHub repository link. YouTube or other external platforms are not permitted.");
+      return;
+    }
+
+    const cleanSlide = form.slideUrl.trim().toLowerCase();
+    const isSlideValid =
+      cleanSlide.includes("canva.com") ||
+      cleanSlide.endsWith(".pptx") ||
+      cleanSlide.includes(".pptx?") ||
+      cleanSlide.endsWith(".ppt") ||
+      cleanSlide.includes(".ppt?") ||
+      cleanSlide.includes("docs.google.com") ||
+      cleanSlide.includes("drive.google.com") ||
+      cleanSlide.endsWith(".pdf") ||
+      cleanSlide.includes(".pdf?") ||
+      cleanSlide.includes("onedrive.live.com") ||
+      cleanSlide.includes("sharepoint.com") ||
+      cleanSlide.includes("powerpoint");
+
+    if (!isSlideValid) {
+      message.error("Presentation / Report URL must be a Canva design, PowerPoint (.pptx / OneDrive) shared link, Google Slides / Drive, or PDF document.");
+      return;
+    }
+
     if (!form.consent) {
       message.error("You must agree to the Team Consent and Hackathon Rules.");
       return;

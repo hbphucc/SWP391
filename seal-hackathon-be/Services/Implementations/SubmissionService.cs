@@ -51,6 +51,40 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> SubmitProjectAsync(Guid currentUserId, CreateSubmissionRequest request)
         {
+            if (!string.IsNullOrWhiteSpace(request.RepositoryUrl))
+            {
+                var repoClean = request.RepositoryUrl.Trim().ToLowerInvariant();
+                if (!repoClean.Contains("github.com/"))
+                {
+                    return ServiceResult.BadRequest("GitHub Repository URL must be a valid GitHub repository link (e.g., https://github.com/username/repository). Links from YouTube or other platforms are not permitted.");
+                }
+            }
+            else
+            {
+                return ServiceResult.BadRequest("GitHub Repository URL is required.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.SlideUrl))
+            {
+                var slideClean = request.SlideUrl.Trim().ToLowerInvariant();
+                bool isSlideValid = slideClean.Contains("canva.com") ||
+                                    slideClean.EndsWith(".pptx") || slideClean.Contains(".pptx?") ||
+                                    slideClean.EndsWith(".ppt") || slideClean.Contains(".ppt?") ||
+                                    slideClean.Contains("docs.google.com") || slideClean.Contains("drive.google.com") ||
+                                    slideClean.EndsWith(".pdf") || slideClean.Contains(".pdf?") ||
+                                    slideClean.Contains("onedrive.live.com") || slideClean.Contains("sharepoint.com") ||
+                                    slideClean.Contains("powerpoint");
+
+                if (!isSlideValid)
+                {
+                    return ServiceResult.BadRequest("Presentation / Report URL must be a Canva link, PowerPoint (.pptx / OneDrive) file, Google Slides / Drive, or PDF document.");
+                }
+            }
+            else
+            {
+                return ServiceResult.BadRequest("Presentation / Report URL is required.");
+            }
+
             var team = await _context.Teams
                 .Include(t => t.Members)
                 .FirstOrDefaultAsync(t => t.TeamId == request.TeamId);

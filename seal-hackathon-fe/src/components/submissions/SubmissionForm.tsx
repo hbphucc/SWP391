@@ -33,6 +33,25 @@ export default function SubmissionForm({
 }: SubmissionFormProps) {
   const fieldsDisabled = submitting || !isApproved || eventStatus !== "Ongoing";
 
+  const cleanRepo = form.repositoryUrl.trim().toLowerCase();
+  const isRepoInvalid = cleanRepo.length > 0 && !cleanRepo.includes("github.com/");
+
+  const cleanSlide = form.slideUrl.trim().toLowerCase();
+  const isSlideValid =
+    cleanSlide.includes("canva.com") ||
+    cleanSlide.endsWith(".pptx") ||
+    cleanSlide.includes(".pptx?") ||
+    cleanSlide.endsWith(".ppt") ||
+    cleanSlide.includes(".ppt?") ||
+    cleanSlide.includes("docs.google.com") ||
+    cleanSlide.includes("drive.google.com") ||
+    cleanSlide.endsWith(".pdf") ||
+    cleanSlide.includes(".pdf?") ||
+    cleanSlide.includes("onedrive.live.com") ||
+    cleanSlide.includes("sharepoint.com") ||
+    cleanSlide.includes("powerpoint");
+  const isSlideInvalid = cleanSlide.length > 0 && !isSlideValid;
+
   return (
     <>
       {!isApproved && (
@@ -51,7 +70,13 @@ export default function SubmissionForm({
       <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div className="form-group">
           <label className="form-label"><GitBranch size={14} /> GitHub Repository URL <span style={{ color: "#ef4444" }}>*</span></label>
-          <input className="form-input" type="url" placeholder="https://github.com/your-username/project-repo" required value={form.repositoryUrl} onChange={e => setForm({...form, repositoryUrl: e.target.value})} disabled={fieldsDisabled} />
+          <input className={`form-input ${isRepoInvalid ? "input-error" : ""}`} style={isRepoInvalid ? { borderColor: "#f43f5e", backgroundColor: "rgba(244, 63, 94, 0.05)" } : {}} type="url" placeholder="https://github.com/your-username/project-repo" required value={form.repositoryUrl} onChange={e => setForm({...form, repositoryUrl: e.target.value})} disabled={fieldsDisabled} />
+          {isRepoInvalid && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.45rem", fontSize: "0.82rem", color: "#f43f5e" }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>Must be a valid GitHub repository link (https://github.com/...). Links from YouTube or other platforms are not permitted here.</span>
+            </div>
+          )}
         </div>
 
         <div className="form-group">
@@ -61,7 +86,13 @@ export default function SubmissionForm({
 
         <div className="form-group">
           <label className="form-label"><FileText size={14} /> Presentation / Report URL <span style={{ color: "#ef4444" }}>*</span></label>
-          <input className="form-input" type="url" placeholder="Google Slides, Canva, or PDF link" required value={form.slideUrl} onChange={e => setForm({...form, slideUrl: e.target.value})} disabled={fieldsDisabled} />
+          <input className={`form-input ${isSlideInvalid ? "input-error" : ""}`} style={isSlideInvalid ? { borderColor: "#f43f5e", backgroundColor: "rgba(244, 63, 94, 0.05)" } : {}} type="url" placeholder="Canva link, PowerPoint (.pptx / OneDrive), Google Slides, or PDF link" required value={form.slideUrl} onChange={e => setForm({...form, slideUrl: e.target.value})} disabled={fieldsDisabled} />
+          {isSlideInvalid && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.45rem", fontSize: "0.82rem", color: "#f43f5e" }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>Must be a valid Canva design, PowerPoint (.pptx / OneDrive) file, Google Slides / Drive, or PDF link.</span>
+            </div>
+          )}
         </div>
 
         <div className="form-group">
@@ -90,7 +121,7 @@ export default function SubmissionForm({
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
-          <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 2rem" }} disabled={fieldsDisabled}>
+          <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 2rem", opacity: (isRepoInvalid || isSlideInvalid) ? 0.6 : 1 }} disabled={fieldsDisabled || isRepoInvalid || isSlideInvalid}>
             {submitting ? <span className="spinner" /> : <><Upload size={16} /> {isSubmitted ? "Update Submission" : "Submit Project"}</>}
           </button>
         </div>
