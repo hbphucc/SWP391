@@ -192,6 +192,13 @@ namespace SEAL.NET.Services.Implementations
                 .Where(r => r.RoundId == roundId)
                 .ExecuteDeleteAsync();
 
+            if (round.PromptDocumentId.HasValue)
+            {
+                await _context.Documents
+                    .Where(d => d.DocumentId == round.PromptDocumentId.Value)
+                    .ExecuteDeleteAsync();
+            }
+
             await transaction.CommitAsync();
 
             return ServiceResult.OkMessage("Round deleted successfully.");

@@ -80,6 +80,9 @@ namespace SEAL.NET.Repositories.Implementations
             await _context.TeamMembers
                 .Where(m => m.Team.Category.EventId == eventId)
                 .ExecuteDeleteAsync();
+            await _context.TeamChatMessages
+                .Where(m => m.Team.Category.EventId == eventId)
+                .ExecuteDeleteAsync();
 
             await _context.Teams
                 .Where(t => t.CurrentRound != null && t.CurrentRound.EventId == eventId)
@@ -91,6 +94,7 @@ namespace SEAL.NET.Repositories.Implementations
             await _context.Prizes.Where(p => p.EventId == eventId).ExecuteDeleteAsync();
             await _context.Categories.Where(c => c.EventId == eventId).ExecuteDeleteAsync();
             await _context.Rounds.Where(r => r.EventId == eventId).ExecuteDeleteAsync();
+            await _context.Documents.Where(d => d.EventId == eventId).ExecuteDeleteAsync();
             await _context.Events.Where(e => e.EventId == eventId).ExecuteDeleteAsync();
 
             await transaction.CommitAsync();
