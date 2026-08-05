@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Lock } from "lucide-react";
 import { App, Table, Tag, Modal, Button, Input, InputNumber } from "antd";
 import { apiRequest } from "@/lib/api";
 
@@ -27,11 +27,22 @@ const DEFAULT_CRITERIA_WEIGHT = 10;
 export default function AdminCriteriaView({
   eventName,
   rounds,
+  eventStatus,
+  eventHasStarted,
 }: {
   eventName: string;
   rounds: { roundId: string; roundName: string }[];
+  eventStatus?: string;
+  eventStartDate?: string;
+  eventHasStarted?: boolean;
 }) {
   const { message } = App.useApp();
+  const isLocked = Boolean(
+    eventHasStarted ||
+    eventStatus === "Ongoing" ||
+    eventStatus === "Completed" ||
+    eventStatus === "Cancelled"
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRound, setSelectedRound] = useState<{ roundId: string; roundName: string } | null>(null);
   const [editingCriteria, setEditingCriteria] = useState<CriteriaDto[]>([]);
@@ -93,7 +104,10 @@ export default function AdminCriteriaView({
   };
 
   const handleSaveCriteria = async () => {
-    if (!selectedRound) return;
+    if (!selectedRound || isLocked) {
+      if (isLocked) message.error("Cannot modify criteria because the event has started.");
+      return;
+    }
 
     for (const c of editingCriteria) {
       if (!c.criteriaName.trim()) {
@@ -194,8 +208,14 @@ export default function AdminCriteriaView({
       title: "Actions",
       key: "actions",
       render: (_: unknown, record: CriteriaRow) => (
-        <Button size="small" type="primary" onClick={() => openManageModal(record)}>
-          Manage Criteria
+        <Button size="small" type={isLocked ? "default" : "primary"} onClick={() => openManageModal(record)}>
+          {isLocked ? (
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <Lock size={12} /> View Criteria
+            </span>
+          ) : (
+            "Manage Criteria"
+          )}
         </Button>
       ),
     },
@@ -203,6 +223,27 @@ export default function AdminCriteriaView({
 
   return (
     <div>
+      {isLocked && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.75rem 1rem",
+            marginBottom: "1rem",
+            background: "rgba(245, 158, 11, 0.1)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: "var(--radius-md, 8px)",
+            color: "var(--color-amber, #f59e0b)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <Lock size={16} />
+          <span>
+            <strong>Criteria Locked:</strong> This event has already started. Criteria configuration and scoring weights cannot be edited during or after the event.
+          </span>
+        </div>
+      )}
       <Table
         className="custom-antd-table"
         dataSource={rows}
@@ -214,27 +255,37 @@ export default function AdminCriteriaView({
       />
 
       <Modal
-        title={`Manage Criteria - ${selectedRound?.roundName} (${eventName})`}
+        title={`${isLocked ? "View" : "Manage"} Criteria - ${selectedRound?.roundName} (${eventName})${isLocked ? " [Locked]" : ""}`}
         open={modalOpen}
         onCancel={() => !savingModal && setModalOpen(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setModalOpen(false)} disabled={savingModal}>
-            Cancel
-          </Button>,
-          <Button key="save" type="primary" onClick={handleSaveCriteria} loading={savingModal} disabled={modalTotalWeight !== CRITERIA_TOTAL_WEIGHT}>
-            Save Changes
-          </Button>,
-        ]}
+        footer={
+          isLocked
+            ? [
+                <Button key="close" type="primary" onClick={() => setModalOpen(false)}>
+                  Close
+                </Button>,
+              ]
+            : [
+                <Button key="cancel" onClick={() => setModalOpen(false)} disabled={savingModal}>
+                  Cancel
+                </Button>,
+                <Button key="save" type="primary" onClick={handleSaveCriteria} loading={savingModal} disabled={modalTotalWeight !== CRITERIA_TOTAL_WEIGHT}>
+                  Save Changes
+                </Button>,
+              ]
+        }
         width={650}
       >
         <div style={{ marginTop: "1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <span style={{ fontWeight: 600, color: modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "var(--color-emerald, #10b981)" : "var(--color-rose, #f43f5e)" }}>
-              Total Weight: {modalTotalWeight}% {modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "OK" : `(must equal ${CRITERIA_TOTAL_WEIGHT}%)`}
+            <span style={{ fontWeight: 600, color: isLocked ? "var(--color-text-2, #a0aec0)" : modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "var(--color-emerald, #10b981)" : "var(--color-rose, #f43f5e)" }}>
+              Total Weight: {modalTotalWeight}% {!isLocked && (modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "OK" : `(must equal ${CRITERIA_TOTAL_WEIGHT}%)`)}
             </span>
-            <Button size="small" type="dashed" onClick={handleAddCriterion} icon={<Plus size={12} />}>
-              Add Criterion
-            </Button>
+            {!isLocked && (
+              <Button size="small" type="dashed" onClick={handleAddCriterion} icon={<Plus size={12} />}>
+                Add Criterion
+              </Button>
+            )}
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "400px", overflowY: "auto" }}>
@@ -260,7 +311,7 @@ export default function AdminCriteriaView({
                       (current) => current.map((x, i) => (i === index ? { ...x, criteriaName: e.target.value } : x))
                     )
                   }
-                  disabled={savingModal}
+                  disabled={savingModal || isLocked}
                 />
                 <InputNumber
                   style={{ width: 80 }}
@@ -274,15 +325,17 @@ export default function AdminCriteriaView({
                       (current) => current.map((x, i) => (i === index ? { ...x, weight: val ?? 0 } : x))
                     )
                   }
-                  disabled={savingModal}
+                  disabled={savingModal || isLocked}
                 />
-                <Button
-                  type="text"
-                  danger
-                  onClick={() => handleRemoveCriterion(index, c.criteriaId)}
-                  icon={<Trash2 size={16} />}
-                  disabled={savingModal}
-                />
+                {!isLocked && (
+                  <Button
+                    type="text"
+                    danger
+                    onClick={() => handleRemoveCriterion(index, c.criteriaId)}
+                    icon={<Trash2 size={16} />}
+                    disabled={savingModal}
+                  />
+                )}
               </div>
             ))}
 

@@ -11,6 +11,7 @@ export type RoundDto = {
   passThreshold?: number | null;
   submissionDeadline: string | null;
   hasSubmissions: boolean;
+  isCompleted?: boolean;
   promptDocumentId?: string | null;
   promptFileName?: string | null;
 };

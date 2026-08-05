@@ -3,12 +3,12 @@ import type { TeamDto } from "./teamTypes";
 
 interface MentorJudgePanelsProps {
   myTeam: TeamDto;
-  isLeader: boolean;
-  onInviteMentorClick: () => void;
-  onRemoveMentor: () => void;
+  isLeader?: boolean;
+  onInviteMentorClick?: () => void;
+  onRemoveMentor?: () => void;
 }
 
-export default function MentorJudgePanels({ myTeam, isLeader, onInviteMentorClick, onRemoveMentor }: MentorJudgePanelsProps) {
+export default function MentorJudgePanels({ myTeam }: MentorJudgePanelsProps) {
   if (!["Pending", "Approved", "Active", "Champion", "Rejected"].includes(myTeam.status)) return null;
 
   return (
@@ -39,22 +39,7 @@ export default function MentorJudgePanels({ myTeam, isLeader, onInviteMentorClic
                   )}
                 </div>
               </div>
-              {isLeader && myTeam.status === "Pending" && (
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button className="btn btn-secondary btn-sm" onClick={onInviteMentorClick}>
-                    Invite Different Mentor
-                  </button>
-                  <button className="btn btn-ghost danger btn-sm" onClick={onRemoveMentor}>
-                    Remove
-                  </button>
-                </div>
-              )}
             </div>
-            {myTeam.pendingMentorInvite && (
-              <div style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--color-warning)" }}>
-                Invited {myTeam.pendingMentorInvite.mentorName} to replace the current mentor — waiting for them to accept.
-              </div>
-            )}
             {myTeam.mentorNotes?.trim() && (
               <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--color-border-2)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem", fontSize: "0.78rem", fontWeight: 600, color: "var(--color-primary)" }}>
@@ -66,28 +51,11 @@ export default function MentorJudgePanels({ myTeam, isLeader, onInviteMentorClic
               </div>
             )}
           </div>
-        ) : myTeam.pendingMentorInvite ? (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{myTeam.pendingMentorInvite.mentorName}</div>
-              <div style={{ fontSize: "0.85rem", color: "var(--color-warning)" }}>Invitation sent — waiting for mentor to accept</div>
-            </div>
-            {isLeader && myTeam.status === "Pending" && (
-              <button className="btn btn-ghost danger btn-sm" onClick={onRemoveMentor}>
-                Cancel Invite
-              </button>
-            )}
-          </div>
         ) : (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
+          <div style={{ display: "flex", alignItems: "center", padding: "0.5rem 0" }}>
             <div style={{ color: "var(--color-text-3)", fontSize: "0.9rem" }}>
-              No mentor invited yet.
+              No mentor assigned to this team yet.
             </div>
-            {isLeader && myTeam.status === "Pending" && (
-              <button className="btn btn-primary btn-sm" onClick={onInviteMentorClick}>
-                Invite Mentor
-              </button>
-            )}
           </div>
         )}
       </div>

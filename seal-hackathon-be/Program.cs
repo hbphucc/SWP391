@@ -74,6 +74,7 @@ builder.Services.AddScoped<IAuditLogQueryService, AuditLogQueryService>();
 builder.Services.AddScoped<IMentorService, MentorService>();
 builder.Services.AddScoped<IMentorAdminService, MentorAdminService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<ITeamChatService, TeamChatService>();
 builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 builder.Services.AddScoped<IMatchmakingService, MatchmakingService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();

@@ -10,9 +10,13 @@ namespace SEAL.NET.Services.Implementations
     {
         private static readonly TeamStatus[] RankableTeamStatuses =
         [
+            TeamStatus.Pending,
             TeamStatus.Approved,
             TeamStatus.Active,
-            TeamStatus.Champion
+            TeamStatus.Champion,
+            TeamStatus.Eliminated,
+            TeamStatus.Rejected,
+            TeamStatus.Withdrawn
         ];
 
         private readonly ApplicationDbContext _context;
@@ -65,9 +69,8 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<object> GetRoundRankingAsync(Guid roundId)
         {
-            var currentRound = await _context.Rounds.FirstOrDefaultAsync(r => r.RoundId == roundId);
+            var currentRound = await _context.Rounds.Include(r => r.Event).FirstOrDefaultAsync(r => r.RoundId == roundId);
             if (currentRound == null) return new List<object>();
-
             var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder);
             var passThreshold = await GetPassThresholdAsync(currentRound);
 
@@ -209,9 +212,8 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<object> GetCategoryRoundRankingAsync(Guid categoryId, Guid roundId)
         {
-            var currentRound = await _context.Rounds.FirstOrDefaultAsync(r => r.RoundId == roundId);
+            var currentRound = await _context.Rounds.Include(r => r.Event).FirstOrDefaultAsync(r => r.RoundId == roundId);
             if (currentRound == null) return new List<object>();
-
             var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder);
             var passThreshold = await GetPassThresholdAsync(currentRound);
 
@@ -347,9 +349,11 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<object> GetEventOverallRankingAsync(Guid eventId)
         {
+            var eventItem = await _context.Events.FindAsync(eventId);
             var allRounds = await _context.Rounds
                 .Where(r => r.EventId == eventId)
                 .ToListAsync();
+            var isCompleted = (eventItem != null && eventItem.Status == EventStatus.Completed) || (allRounds.Count > 0 && allRounds.All(r => r.IsCompleted));
 
             var teams = await _context.Teams
                 .Include(t => t.Category)
@@ -432,9 +436,11 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<object> GetCategoryEventOverallRankingAsync(Guid categoryId, Guid eventId)
         {
+            var eventItem = await _context.Events.FindAsync(eventId);
             var allRounds = await _context.Rounds
                 .Where(r => r.EventId == eventId)
                 .ToListAsync();
+            var isCompleted = (eventItem != null && eventItem.Status == EventStatus.Completed) || (allRounds.Count > 0 && allRounds.All(r => r.IsCompleted));
 
             var teams = await _context.Teams
                 .Include(t => t.Category)
@@ -517,10 +523,12 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<object> GetEventReportAsync(Guid eventId)
         {
+            var eventItem = await _context.Events.FindAsync(eventId);
             var allRounds = await _context.Rounds
                 .Where(r => r.EventId == eventId)
                 .OrderBy(r => r.RoundOrder)
                 .ToListAsync();
+            var isCompleted = (eventItem != null && eventItem.Status == EventStatus.Completed) || (allRounds.Count > 0 && allRounds.All(r => r.IsCompleted));
 
             var teams = await _context.Teams
                 .Include(t => t.Category)

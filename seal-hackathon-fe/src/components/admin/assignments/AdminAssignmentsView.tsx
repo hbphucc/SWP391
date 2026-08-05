@@ -77,6 +77,8 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   // Empty array = category-wide (assign judge to all teams in category).
   // Non-empty = specific per-team assignments.
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  const [selectedMentorId, setSelectedMentorId] = useState("");
+  const [selectedMentorTeamId, setSelectedMentorTeamId] = useState("");
 
   // Each tab's data is a role/tab-gated query. `judge-assignments` is additionally
   // keyed by the selected round (omitting it returns every assignment for the event).
@@ -98,7 +100,12 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const categoriesQuery = useQuery({
     queryKey: ["event-categories", eventId],
     queryFn: () => apiRequest<CategoryDto[]>(`/events/${eventId}/categories`),
-    enabled: activeTab === "judge" && !!eventId,
+    enabled: (activeTab === "judge" || activeTab === "mentor") && !!eventId,
+  });
+  const mentorsQuery = useQuery({
+    queryKey: ["registered-mentors", eventId],
+    queryFn: () => apiRequest<UserDto[]>(`/admin/events/${eventId}/registered-mentors`),
+    enabled: activeTab === "mentor" && !!eventId,
   });
   const judgesQuery = useQuery({
     queryKey: ["registered-judges", eventId],
@@ -120,10 +127,22 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const rounds = useMemo(() => roundsQuery.data ?? [], [roundsQuery.data]);
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const judges = useMemo(() => judgesQuery.data ?? [], [judgesQuery.data]);
+  const mentors = useMemo(() => mentorsQuery.data ?? [], [mentorsQuery.data]);
+  const allEventTeams = useMemo<{ teamId: string; teamName: string; categoryName: string }[]>(() => {
+    const list: { teamId: string; teamName: string; categoryName: string }[] = [];
+    for (const c of categories) {
+      if (c.teams) {
+        for (const t of c.teams) {
+          list.push({ teamId: t.teamId, teamName: t.teamName, categoryName: c.categoryName });
+        }
+      }
+    }
+    return list;
+  }, [categories]);
   const judgeAssignments = useMemo(() => judgeAssignmentsQuery.data ?? [], [judgeAssignmentsQuery.data]);
   const loading =
     activeTab === "mentor"
-      ? mentorAssignmentsQuery.isFetching
+      ? mentorAssignmentsQuery.isFetching || mentorsQuery.isFetching
       : activeTab === "summary"
         ? roundSummaryQuery.isFetching
         : judgeAssignmentsQuery.isFetching;
@@ -238,6 +257,31 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         }
       },
     });
+  };
+
+  const handleAssignMentor = async () => {
+    if (busyAction) return;
+    if (!selectedMentorId || !selectedMentorTeamId) {
+      message.warning("Select both a mentor and a team.");
+      return;
+    }
+    setBusyAction("assign-mentor");
+    try {
+      await apiRequest("/admin/mentors/assignments", {
+        method: "POST",
+        body: JSON.stringify({
+          mentorUserId: selectedMentorId,
+          teamId: selectedMentorTeamId,
+        }),
+      });
+      message.success("Mentor assigned successfully.");
+      setSelectedMentorTeamId("");
+      await queryClient.invalidateQueries({ queryKey: ["mentor-assignments", eventId] });
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not assign mentor.");
+    } finally {
+      setBusyAction(null);
+    }
   };
 
   const handleAssignJudge = async () => {
@@ -367,35 +411,61 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
       ) : (
       <div className="grid-2">
         {activeTab === "mentor" ? (
-          <div className={`glass-card ${styles.mentorPanel}`}>
-            <h3 className={styles.panelTitleTight}>
-              <Shield size={18} className={styles.emeraldIcon} /> Mentor Assignments
-            </h3>
-            <p className={`form-hint ${styles.hintSpacing}`}>
-              Mentors are invited by team leaders and become active once they accept.
-              Admin cannot assign a mentor directly here, but can remove an active mentor from a team.
-            </p>
-            <div className={styles.assignmentList}>
-              {mentorAssignments.length === 0 ? (
-                <p className={styles.mutedText}>No mentor assignments for this event yet.</p>
-              ) : (
-                mentorAssignments.map((a) => (
-                  <div key={a.id} className={styles.assignmentRow}>
-                    <div className={`avatar-placeholder ${styles.rowAvatar}`}>{a.mentorName.charAt(0)}</div>
-                    <div className={styles.rowInfo}>
-                      <div className={styles.rowName}>{a.mentorName}</div>
-                      <div className={styles.rowMeta}>{a.teamName} · {a.status}</div>
-                    </div>
-                    {a.isActive && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivateMentor(a)} disabled={busyAction !== null}>
-                        {busyAction === `remove-${a.id}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
+          <>
+            <div className="glass-card">
+              <h3 className={styles.panelTitle}>
+                <Target size={18} className={styles.primaryIcon} /> Assign Mentor
+              </h3>
+              <p className={`form-hint ${styles.hintSpacing}`}>
+                Admin directly assigns mentors to teams. Each team can have one active mentor.
+              </p>
+              <div className={styles.formColumn}>
+                <div className="form-group">
+                  <label className="form-label">Mentor</label>
+                  <select className="form-select" value={selectedMentorId} onChange={(e) => setSelectedMentorId(e.target.value)}>
+                    <option value="">Select a mentor...</option>
+                    {mentors.map((m) => (<option key={m.id} value={m.id}>{m.fullName} ({m.email})</option>))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Team</label>
+                  <select className="form-select" value={selectedMentorTeamId} onChange={(e) => setSelectedMentorTeamId(e.target.value)}>
+                    <option value="">Select a team...</option>
+                    {allEventTeams.map((t) => (<option key={t.teamId} value={t.teamId}>{t.teamName} ({t.categoryName})</option>))}
+                  </select>
+                </div>
+                <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading || busyAction !== null || !selectedMentorId || !selectedMentorTeamId}>
+                  {busyAction === "assign-mentor" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Mentor</>}
+                </button>
+              </div>
             </div>
-          </div>
+
+            <div className={`glass-card ${styles.mentorPanel}`}>
+              <h3 className={styles.panelTitle}>
+                <Shield size={18} className={styles.emeraldIcon} /> Active Mentor Assignments
+              </h3>
+              <div className={styles.assignmentList}>
+                {mentorAssignments.length === 0 ? (
+                  <p className={styles.mutedText}>No mentor assignments for this event yet.</p>
+                ) : (
+                  mentorAssignments.map((a) => (
+                    <div key={a.id} className={styles.assignmentRow}>
+                      <div className={`avatar-placeholder ${styles.rowAvatar}`}>{a.mentorName.charAt(0)}</div>
+                      <div className={styles.rowInfo}>
+                        <div className={styles.rowName}>{a.mentorName}</div>
+                        <div className={styles.rowMeta}>{a.teamName} · {a.status}</div>
+                      </div>
+                      {a.isActive && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivateMentor(a)} disabled={busyAction !== null}>
+                          {busyAction === `remove-${a.id}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
         ) : (
           <>
             <div className="glass-card">

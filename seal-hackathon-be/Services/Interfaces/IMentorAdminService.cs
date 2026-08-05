@@ -9,6 +9,7 @@ namespace SEAL.NET.Services.Interfaces
     public interface IMentorAdminService
     {
         Task<ServiceResult> GetAssignmentsAsync(Guid? eventId = null);
+        Task<ServiceResult> AssignMentorAsync(Guid? adminUserId, Guid mentorUserId, Guid teamId);
         Task<ServiceResult> DeactivateAssignmentAsync(Guid id);
     }
 }

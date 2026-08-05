@@ -64,9 +64,12 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<ServiceResult> CreateCategoryAsync(Guid eventId, CreateCategoryRequest request)
         {
-            var eventExists = await _context.Events.AnyAsync(e => e.EventId == eventId);
-            if (!eventExists)
+            var eventItem = await _context.Events.FirstOrDefaultAsync(e => e.EventId == eventId);
+            if (eventItem == null)
                 return ServiceResult.NotFound("Event not found.");
+
+            if (IsEventLocked(eventItem))
+                return ServiceResult.BadRequest("Cannot modify tracks after the event has started or finished.");
 
             var duplicate = await _context.Categories.AnyAsync(c =>
                 c.EventId == eventId &&
@@ -98,10 +101,14 @@ namespace SEAL.NET.Services.Implementations
         public async Task<ServiceResult> UpdateCategoryAsync(Guid eventId, Guid categoryId, UpdateCategoryRequest request)
         {
             var category = await _context.Categories
+                .Include(c => c.Event)
                 .FirstOrDefaultAsync(c => c.EventId == eventId && c.CategoryId == categoryId);
 
             if (category == null)
                 return ServiceResult.NotFound("Category not found.");
+
+            if (IsEventLocked(category.Event))
+                return ServiceResult.BadRequest("Cannot modify tracks after the event has started or finished.");
 
             var duplicate = await _context.Categories.AnyAsync(c =>
                 c.EventId == eventId &&
@@ -124,10 +131,14 @@ namespace SEAL.NET.Services.Implementations
             var category = await _context.Categories
                 .Include(c => c.Teams)
                 .Include(c => c.JudgeAssignments)
+                .Include(c => c.Event)
                 .FirstOrDefaultAsync(c => c.EventId == eventId && c.CategoryId == categoryId);
 
             if (category == null)
                 return ServiceResult.NotFound("Category not found.");
+
+            if (IsEventLocked(category.Event))
+                return ServiceResult.BadRequest("Cannot modify tracks after the event has started or finished.");
 
             if (category.Teams.Any() || category.JudgeAssignments.Any())
                 return ServiceResult.BadRequest("Cannot delete category because it already has teams or judge assignments.");
@@ -136,6 +147,15 @@ namespace SEAL.NET.Services.Implementations
             await _context.SaveChangesAsync();
 
             return ServiceResult.OkMessage("Category deleted successfully.");
+        }
+
+        private static bool IsEventLocked(Event? eventItem)
+        {
+            if (eventItem == null) return false;
+            return eventItem.Status == EventStatus.Ongoing ||
+                   eventItem.Status == EventStatus.Completed ||
+                   eventItem.Status == EventStatus.Cancelled ||
+                   eventItem.StartDate <= DateTime.UtcNow;
         }
     }
 }

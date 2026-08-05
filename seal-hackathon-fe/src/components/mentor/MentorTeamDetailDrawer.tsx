@@ -1,9 +1,10 @@
 "use client";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, FileText, Send, Users } from "lucide-react";
+import { ExternalLink, FileText, Send, Users, MessageSquare } from "lucide-react";
 import { App, Drawer, Empty, Spin } from "antd";
 import { apiRequest } from "@/lib/api";
+import TeamChatPanel from "@/components/team/TeamChatPanel";
 
 interface MentorTeamMember {
   id: string;
@@ -221,6 +222,13 @@ export default function MentorTeamDetailDrawer({ open, teamId, onClose }: Mentor
                 })}
               </div>
             )}
+          </div>
+          <div style={{ marginTop: "1.75rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.8rem" }}>
+              <MessageSquare size={17} style={{ color: "var(--color-primary)" }} />
+              <h3 style={{ margin: 0, fontSize: "1.05rem" }}>Private Chat Channel</h3>
+            </div>
+            <TeamChatPanel teamId={team.teamId} />
           </div>
         </div>
       )}

@@ -39,6 +39,7 @@ namespace SEAL.NET.Services.Implementations
                     HasSubmissions = r.Submissions.Any(),
                     r.EventId,
                     r.PassThreshold,
+                    r.IsCompleted,
                     r.PromptDocumentId,
                     PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
@@ -62,6 +63,7 @@ namespace SEAL.NET.Services.Implementations
                     HasSubmissions = r.Submissions.Any(),
                     r.EventId,
                     r.PassThreshold,
+                    r.IsCompleted,
                     r.PromptDocumentId,
                     PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
@@ -362,6 +364,7 @@ namespace SEAL.NET.Services.Implementations
                 {
                     eventItem.Status = EventStatus.Completed;
                 }
+                currentRound.IsCompleted = true;
 
                 await _context.SaveChangesAsync();
 
@@ -512,6 +515,7 @@ namespace SEAL.NET.Services.Implementations
                 }
             }
 
+            currentRound.IsCompleted = true;
             await _context.SaveChangesAsync();
 
             // After advance, how many teams in the new round have no judge yet?

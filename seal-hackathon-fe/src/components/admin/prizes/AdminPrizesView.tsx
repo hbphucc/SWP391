@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Typography, Table, Button, Space, Card, Drawer, Form, Input, InputNumber, App, Tag } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Lock } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
 const { Text } = Typography;
@@ -26,8 +27,23 @@ type PrizeFormValues = {
   description?: string;
 };
 
-export default function AdminPrizesView({ eventId }: { eventId: string }) {
+export default function AdminPrizesView({
+  eventId,
+  eventStatus,
+  eventHasStarted,
+}: {
+  eventId: string;
+  eventStatus?: string;
+  eventStartDate?: string;
+  eventHasStarted?: boolean;
+}) {
   const { message, modal } = App.useApp();
+  const isLocked = Boolean(
+    eventHasStarted ||
+    eventStatus === "Ongoing" ||
+    eventStatus === "Completed" ||
+    eventStatus === "Cancelled"
+  );
   const [searchText, setSearchText] = useState("");
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -51,6 +67,10 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
   }, [error, message]);
 
   const showCreateDrawer = () => {
+    if (isLocked) {
+      message.error("Cannot create prizes because the event has started.");
+      return;
+    }
     setIsEditMode(false);
     setEditingId(null);
     form.resetFields();
@@ -72,6 +92,10 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
   };
 
   const handleDelete = (record: PrizeDto) => {
+    if (isLocked) {
+      message.error("Cannot delete prizes because the event has started.");
+      return;
+    }
     modal.confirm({
       title: `Delete prize "${record.title}"?`,
       okType: "danger",
@@ -88,8 +112,9 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
   };
 
   const handleFinish = async (values: PrizeFormValues) => {
-    if (!eventId) {
-      message.error("Select an event first.");
+    if (!eventId || isLocked) {
+      if (isLocked) message.error("Cannot modify prizes because the event has started.");
+      else message.error("Select an event first.");
       return;
     }
     setSaving(true);
@@ -149,8 +174,8 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
       width: 110,
       render: (_: unknown, record: PrizeDto) => (
         <Space>
-          <Button type="text" aria-label={`Edit prize ${record.title}`} icon={<EditOutlined />} onClick={() => showEditDrawer(record)} />
-          <Button type="text" danger aria-label={`Delete prize ${record.title}`} icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
+          <Button type="text" aria-label={`Edit prize ${record.title}`} icon={<EditOutlined />} onClick={() => showEditDrawer(record)} disabled={isLocked} />
+          <Button type="text" danger aria-label={`Delete prize ${record.title}`} icon={<DeleteOutlined />} onClick={() => handleDelete(record)} disabled={isLocked} />
         </Space>
       ),
     },
@@ -158,6 +183,28 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
 
   return (
     <div>
+      {isLocked && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.75rem 1rem",
+            marginBottom: "1.25rem",
+            background: "rgba(245, 158, 11, 0.1)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: "var(--radius-md, 8px)",
+            color: "var(--color-amber, #f59e0b)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <Lock size={16} />
+          <span>
+            <strong>Prizes Locked:</strong> This event has already started. Prize configuration (create, edit, delete) is locked during or after the event.
+          </span>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
         <Input
           placeholder="Search prizes..."
@@ -168,7 +215,7 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
         />
         <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={() => loadPrizes()} disabled={!eventId || loading} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: "20px" }} disabled={!eventId}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: "20px" }} disabled={!eventId || isLocked}>
             Create Prize
           </Button>
         </Space>
@@ -195,7 +242,7 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
         extra={
           <Space>
             <Button onClick={() => setDrawerVisible(false)}>Cancel</Button>
-            <Button type="primary" loading={saving} onClick={() => form.submit()}>
+            <Button type="primary" loading={saving} onClick={() => form.submit()} disabled={isLocked}>
               {isEditMode ? "Save Changes" : "Create Prize"}
             </Button>
           </Space>
@@ -203,23 +250,23 @@ export default function AdminPrizesView({ eventId }: { eventId: string }) {
       >
         <Form layout="vertical" form={form} onFinish={handleFinish}>
           <Form.Item name="title" label="Prize Title" rules={[{ required: true, message: "Please enter a prize title" }]}>
-            <Input placeholder="e.g., Grand Prize" />
+            <Input placeholder="e.g., Grand Prize" disabled={isLocked} />
           </Form.Item>
 
           <Form.Item name="amount" label="Amount">
-            <Input placeholder="e.g., $10,000" />
+            <Input placeholder="e.g., $10,000" disabled={isLocked} />
           </Form.Item>
 
           <Form.Item name="track" label="Track / Category">
-            <Input placeholder="e.g., All Tracks or AI & Machine Learning" />
+            <Input placeholder="e.g., All Tracks or AI & Machine Learning" disabled={isLocked} />
           </Form.Item>
 
           <Form.Item name="rank" label="Rank" tooltip="Lower number shows first (1 = top prize).">
-            <InputNumber min={0} style={{ width: "100%" }} placeholder="1" />
+            <InputNumber min={0} style={{ width: "100%" }} placeholder="1" disabled={isLocked} />
           </Form.Item>
 
           <Form.Item name="description" label="Description">
-            <Input.TextArea rows={3} placeholder="What this prize is awarded for..." />
+            <Input.TextArea rows={3} placeholder="What this prize is awarded for..." disabled={isLocked} />
           </Form.Item>
         </Form>
       </Drawer>

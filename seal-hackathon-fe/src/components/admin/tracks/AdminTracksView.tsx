@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Table, Button, Space, Card, Drawer, Form, Input, App } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Lock } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
 type CategoryDto = {
@@ -11,8 +12,23 @@ type CategoryDto = {
   description?: string | null;
 };
 
-export default function AdminTracksView({ eventId }: { eventId: string }) {
+export default function AdminTracksView({
+  eventId,
+  eventStatus,
+  eventHasStarted,
+}: {
+  eventId: string;
+  eventStatus?: string;
+  eventStartDate?: string;
+  eventHasStarted?: boolean;
+}) {
   const { message, modal } = App.useApp();
+  const isLocked = Boolean(
+    eventHasStarted ||
+    eventStatus === "Ongoing" ||
+    eventStatus === "Completed" ||
+    eventStatus === "Cancelled"
+  );
   const [searchText, setSearchText] = useState("");
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -38,6 +54,10 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
   }, [error, message]);
 
   const showCreateDrawer = () => {
+    if (isLocked) {
+      message.error("Cannot create tracks because the event has started.");
+      return;
+    }
     setIsEditMode(false);
     setEditingId(null);
     form.resetFields();
@@ -55,7 +75,10 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
   };
 
   const handleDelete = (id: string) => {
-    if (!eventId) return;
+    if (!eventId || isLocked) {
+      if (isLocked) message.error("Cannot delete track because the event has started.");
+      return;
+    }
     modal.confirm({
       title: "Are you sure you want to delete this track?",
       onOk: async () => {
@@ -71,8 +94,9 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
   };
 
   const handleFinish = async (values: { categoryName: string; description?: string }) => {
-    if (!eventId) {
-      message.error("Select an event first.");
+    if (!eventId || isLocked) {
+      if (isLocked) message.error("Cannot modify tracks because the event has started.");
+      else message.error("Select an event first.");
       return;
     }
     setSaving(true);
@@ -123,8 +147,8 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
       key: "actions",
       render: (_: unknown, record: CategoryDto) => (
         <Space>
-          <Button type="text" aria-label={`Edit track ${record.categoryName}`} icon={<EditOutlined />} onClick={() => showEditDrawer(record)} />
-          <Button type="text" danger aria-label={`Delete track ${record.categoryName}`} icon={<DeleteOutlined />} onClick={() => handleDelete(record.categoryId)} />
+          <Button type="text" aria-label={`Edit track ${record.categoryName}`} icon={<EditOutlined />} onClick={() => showEditDrawer(record)} disabled={isLocked} />
+          <Button type="text" danger aria-label={`Delete track ${record.categoryName}`} icon={<DeleteOutlined />} onClick={() => handleDelete(record.categoryId)} disabled={isLocked} />
         </Space>
       )
     }
@@ -132,6 +156,28 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
 
   return (
     <div>
+      {isLocked && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.75rem 1rem",
+            marginBottom: "1.25rem",
+            background: "rgba(245, 158, 11, 0.1)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: "var(--radius-md, 8px)",
+            color: "var(--color-amber, #f59e0b)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <Lock size={16} />
+          <span>
+            <strong>Tracks Locked:</strong> This event has already started. Track configuration (create, edit, delete) is locked during or after the event.
+          </span>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
         <Input
           placeholder="Search tracks..."
@@ -142,7 +188,7 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
         />
         <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={() => loadTracks()} disabled={!eventId || loading} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: "20px" }} disabled={!eventId}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={showCreateDrawer} style={{ borderRadius: "20px" }} disabled={!eventId || isLocked}>
             Create Track
           </Button>
         </Space>
@@ -169,7 +215,7 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
         extra={
           <Space>
             <Button onClick={() => setDrawerVisible(false)} disabled={saving}>Cancel</Button>
-            <Button type="primary" loading={saving} onClick={() => form.submit()}>
+            <Button type="primary" loading={saving} onClick={() => form.submit()} disabled={isLocked}>
               {isEditMode ? "Save Changes" : "Create Track"}
             </Button>
           </Space>
@@ -177,11 +223,11 @@ export default function AdminTracksView({ eventId }: { eventId: string }) {
       >
         <Form layout="vertical" form={form} onFinish={handleFinish}>
           <Form.Item name="categoryName" label="Track Name" rules={[{ required: true, message: "Please enter track name" }]}>
-            <Input placeholder="e.g., AI & Machine Learning" />
+            <Input placeholder="e.g., AI & Machine Learning" disabled={isLocked} />
           </Form.Item>
 
           <Form.Item name="description" label="Description">
-            <Input.TextArea rows={3} placeholder="Brief description of this track..." />
+            <Input.TextArea rows={3} placeholder="Brief description of this track..." disabled={isLocked} />
           </Form.Item>
         </Form>
       </Drawer>

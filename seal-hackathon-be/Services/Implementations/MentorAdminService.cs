@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Team;
+using SEAL.NET.Models.Entities;
 using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
@@ -42,9 +43,42 @@ namespace SEAL.NET.Services.Implementations
             return ServiceResult.Ok(assignments);
         }
 
-        // Creating assignments is now leader-initiated (invite) + mentor-accepted —
-        // see TeamService.AssignMentorToMyTeamAsync / AcceptMentorInvitationAsync.
-        // Admin retains only the ability to view and forcibly remove an assignment.
+        public async Task<ServiceResult> AssignMentorAsync(Guid? adminUserId, Guid mentorUserId, Guid teamId)
+        {
+            var team = await _context.Teams.FirstOrDefaultAsync(t => t.TeamId == teamId);
+            if (team == null)
+                return ServiceResult.NotFound("Team not found.");
+
+            var mentor = await _context.Users.FirstOrDefaultAsync(u => u.Id == mentorUserId);
+            if (mentor == null)
+                return ServiceResult.NotFound("Mentor user not found.");
+
+            var existingActive = await _context.MentorAssignments
+                .Where(ma => ma.TeamId == teamId && (ma.IsActive || ma.Status == InvitationStatus.Pending))
+                .ToListAsync();
+
+            foreach (var existing in existingActive)
+            {
+                existing.IsActive = false;
+                existing.Status = InvitationStatus.Cancelled;
+            }
+
+            var newAssignment = new MentorAssignment
+            {
+                TeamId = teamId,
+                MentorUserId = mentorUserId,
+                AssignedByUserId = adminUserId,
+                Status = InvitationStatus.Accepted,
+                IsActive = true,
+                AssignedAt = DateTime.UtcNow
+            };
+
+            _context.MentorAssignments.Add(newAssignment);
+            await _context.SaveChangesAsync();
+
+            return ServiceResult.OkMessage("Mentor assigned to team successfully.");
+        }
+
         public async Task<ServiceResult> DeactivateAssignmentAsync(Guid id)
         {
             var assignment = await _context.MentorAssignments.FirstOrDefaultAsync(ma => ma.Id == id);
