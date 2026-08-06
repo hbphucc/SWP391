@@ -472,6 +472,23 @@ namespace SEAL.NET.Services.Implementations
 
         private async Task<ServiceResult> AcceptInvitationCoreAsync(Guid currentUserId, Guid id)
         {
+            // Retrying connections mean EF refuses a transaction opened by hand: a
+            // retry has to replay the whole unit, not resume half of one. This layer
+            // only covers dropped connections — the caller's loop still handles
+            // serialization conflicts, which are a different failure with a different
+            // remedy.
+            var strategy = _context.Database.CreateExecutionStrategy();
+            var replaying = false;
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+            // A replay starts from the rolled-back database, so entities tracked by
+            // the failed attempt describe rows that no longer look like that. The
+            // caller's loop drops them for the same reason.
+            if (replaying)
+                _context.ChangeTracker.Clear();
+            replaying = true;
+
             await using var tx = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
             var invitation = await _context.TeamInvitations
@@ -590,6 +607,7 @@ namespace SEAL.NET.Services.Implementations
             }
 
             return ServiceResult.OkMessage(isJoinRequest ? "Join request accepted successfully." : "You have joined the team successfully.");
+            });
         }
 
         public async Task<ServiceResult> RejectInvitationAsync(Guid? currentUserIdRaw, Guid id)

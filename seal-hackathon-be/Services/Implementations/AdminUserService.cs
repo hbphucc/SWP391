@@ -386,43 +386,55 @@ namespace SEAL.NET.Services.Implementations
                 // leave the account with NO roles at all — locked out of every portal —
                 // and an early return would keep that state. The transaction lets any
                 // failed step roll the whole role swap back.
-                await using var tx = await _db.Database.BeginTransactionAsync();
-
-                var currentRoles = await _userManager.GetRolesAsync(user);
-                if (currentRoles.Any())
+                // Retrying connections mean EF refuses a transaction opened by hand: a
+                // retry has to replay the whole role swap, not resume half of one. The
+                // rollback restores the original roles, so replaying lands on the same
+                // end state. A non-null result means the swap was rejected outright.
+                var strategy = _db.Database.CreateExecutionStrategy();
+                var failure = await strategy.ExecuteAsync(async () =>
                 {
-                    var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
-                    if (!removeResult.Succeeded)
+                    await using var tx = await _db.Database.BeginTransactionAsync();
+
+                    var currentRoles = await _userManager.GetRolesAsync(user);
+                    if (currentRoles.Any())
+                    {
+                        var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+                        if (!removeResult.Succeeded)
+                        {
+                            await tx.RollbackAsync();
+                            return ServiceResult.BadRequestBody(removeResult.Errors);
+                        }
+                    }
+
+                    var addResult = await _userManager.AddToRoleAsync(user, requestedRole);
+                    if (!addResult.Succeeded)
                     {
                         await tx.RollbackAsync();
-                        return ServiceResult.BadRequestBody(removeResult.Errors);
+                        return ServiceResult.BadRequestBody(addResult.Errors);
                     }
-                }
 
-                var addResult = await _userManager.AddToRoleAsync(user, requestedRole);
-                if (!addResult.Succeeded)
-                {
-                    await tx.RollbackAsync();
-                    return ServiceResult.BadRequestBody(addResult.Errors);
-                }
+                    // Judges granted through the in-house request flow are department
+                    // people; invited outsiders come in via CreateGuestJudgeAsync
+                    // instead. An admin can correct the odd exception on the user record.
+                    if (requestedRole == "Judge")
+                        user.JudgeType = JudgeType.Internal;
 
-                // Judges granted through the in-house request flow are department
-                // people; invited outsiders come in via CreateGuestJudgeAsync
-                // instead. An admin can correct the odd exception on the user record.
-                if (requestedRole == "Judge")
-                    user.JudgeType = JudgeType.Internal;
+                    user.RequestedRole = null;
+                    var updateResult = await _userManager.UpdateAsync(user);
+                    if (!updateResult.Succeeded)
+                    {
+                        await tx.RollbackAsync();
+                        return ServiceResult.BadRequestBody(updateResult.Errors);
+                    }
 
-                user.RequestedRole = null;
-                var updateResult = await _userManager.UpdateAsync(user);
-                if (!updateResult.Succeeded)
-                {
-                    await tx.RollbackAsync();
-                    return ServiceResult.BadRequestBody(updateResult.Errors);
-                }
+                    await _userManager.UpdateSecurityStampAsync(user);
 
-                await _userManager.UpdateSecurityStampAsync(user);
+                    await tx.CommitAsync();
+                    return null;
+                });
 
-                await tx.CommitAsync();
+                if (failure != null)
+                    return failure;
 
                 await _notificationService.CreateAsync(
                     user.Id,
