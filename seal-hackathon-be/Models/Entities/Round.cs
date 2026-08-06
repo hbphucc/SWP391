@@ -22,6 +22,17 @@ namespace SEAL.NET.Models.Entities
         public decimal? PassThreshold { get; set; }
 
         public bool IsCompleted { get; set; } = false;
+
+        /// <summary>
+        /// A practice round where judges score a sample submission so they can see
+        /// how far apart they are before the real judging starts.
+        ///
+        /// Calibration rounds are deliberately invisible to everything that decides
+        /// the competition: they are skipped when finding the next round, when
+        /// deciding which round is the final one, and when averaging scores across
+        /// rounds. Their scores exist only to be shown back to the judges.
+        /// </summary>
+        public bool IsCalibration { get; set; } = false;
         
         public Guid? PromptDocumentId { get; set; }
         public Document? PromptDocument { get; set; }

@@ -45,6 +45,11 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> UpdateUserRole(Guid userId, [FromBody] UpdateUserRoleRequest request)
             => this.ToActionResult(await _adminUserService.UpdateUserRoleAsync(GetActorUserId(), userId, request));
 
+        /// <summary>Corrects the Internal/Guest label backing the RQ3 comparison.</summary>
+        [HttpPut("{userId}/judge-type")]
+        public async Task<IActionResult> UpdateJudgeType(Guid userId, [FromBody] UpdateJudgeTypeRequest request)
+            => this.ToActionResult(await _adminUserService.UpdateJudgeTypeAsync(GetActorUserId(), userId, request));
+
         [HttpDelete("{userId}")]
         public async Task<IActionResult> DeleteUser(Guid userId)
             => this.ToActionResult(await _adminUserService.DeleteUserAsync(userId));

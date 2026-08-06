@@ -131,6 +131,21 @@ namespace SEAL.NET.Services.Implementations
 
                 if (invalidTeamId.HasValue)
                     return ServiceResult.BadRequest($"Team with ID {invalidTeamId.Value} does not exist or is not in the selected category.");
+
+                // Caught here as well as at scoring time so the organiser finds out
+                // while assigning, not when the judge is blocked mid-review.
+                var mentored = await ConflictOfInterest.MentoredTeamsAmongAsync(
+                    _context, request.JudgeId, request.TeamIds);
+
+                if (mentored.Count > 0)
+                {
+                    var names = requestedTeams
+                        .Where(t => mentored.Contains(t.TeamId))
+                        .Select(t => t.TeamName);
+
+                    return ServiceResult.BadRequest(
+                        $"This judge mentors {string.Join(", ", names)} and cannot be assigned to score them.");
+                }
             }
 
             // 1. Remove existing assignments for this specific judge, round, and category combination (to avoid duplicates or update assignments)

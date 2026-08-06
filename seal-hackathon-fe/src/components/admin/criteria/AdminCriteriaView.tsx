@@ -1,15 +1,20 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, Lock } from "lucide-react";
-import { App, Table, Tag, Modal, Button, Input, InputNumber } from "antd";
+import { Plus, Trash2, Lock, LayoutTemplate } from "lucide-react";
+import { App, Table, Tag, Modal, Button, Input, InputNumber, Select } from "antd";
 import { apiRequest } from "@/lib/api";
+import CriteriaTemplateModal from "./CriteriaTemplateModal";
 
 interface CriteriaDto {
   criteriaId: string;
   criteriaName: string;
   weight: number;
   maxScore: number;
+  // Groups the criterion for the RQ2 comparison of inter-rater agreement
+  // between technical and subjective criteria. Left Unspecified until an
+  // admin labels it, so nothing is counted in the wrong group by default.
+  criterionType: CriterionType;
   roundId: string;
 }
 
@@ -19,7 +24,15 @@ interface CriteriaRow {
   criteria: CriteriaDto[];
 }
 
-type SavedCriteria = Pick<CriteriaDto, "criteriaId" | "criteriaName" | "maxScore" | "weight">;
+type CriterionType = "Unspecified" | "Technical" | "Soft";
+
+const CRITERION_TYPE_OPTIONS: { value: CriterionType; label: string }[] = [
+  { value: "Unspecified", label: "Unlabelled" },
+  { value: "Technical", label: "Technical" },
+  { value: "Soft", label: "Soft / subjective" },
+];
+
+type SavedCriteria = Pick<CriteriaDto, "criteriaId" | "criteriaName" | "maxScore" | "weight" | "criterionType">;
 
 const CRITERIA_TOTAL_WEIGHT = 100;
 const DEFAULT_CRITERIA_WEIGHT = 10;
@@ -45,6 +58,7 @@ export default function AdminCriteriaView({
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRound, setSelectedRound] = useState<{ roundId: string; roundName: string } | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [editingCriteria, setEditingCriteria] = useState<CriteriaDto[]>([]);
   const [deletedCriteriaIds, setDeletedCriteriaIds] = useState<string[]>([]);
   const [savingModal, setSavingModal] = useState(false);
@@ -91,6 +105,7 @@ export default function AdminCriteriaView({
       criteriaName: "",
       weight: DEFAULT_CRITERIA_WEIGHT,
       maxScore: CRITERIA_TOTAL_WEIGHT,
+      criterionType: "Unspecified",
       roundId: selectedRound?.roundId ?? "",
     };
     setEditingCriteria((current) => [...current, newCriterion]);
@@ -142,23 +157,23 @@ export default function AdminCriteriaView({
           if (criterion.criteriaId.startsWith("temp-")) {
             const res = await apiRequest<{ criteriaId: string }>(`/rounds/${selectedRound.roundId}/criteria`, {
               method: "POST",
-              body: JSON.stringify({ criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: 0 }),
+              body: JSON.stringify({ criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: 0, criterionType: criterion.criterionType }),
             });
 
             return [
               ...savedCriteria,
-              { criteriaId: res.criteriaId, criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: criterion.weight },
+              { criteriaId: res.criteriaId, criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: criterion.weight, criterionType: criterion.criterionType },
             ];
           }
 
           await apiRequest(`/rounds/${selectedRound.roundId}/criteria/${criterion.criteriaId}`, {
             method: "PUT",
-            body: JSON.stringify({ criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: 0 }),
+            body: JSON.stringify({ criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: 0, criterionType: criterion.criterionType }),
           });
 
           return [
             ...savedCriteria,
-            { criteriaId: criterion.criteriaId, criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: criterion.weight },
+            { criteriaId: criterion.criteriaId, criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: criterion.weight, criterionType: criterion.criterionType },
           ];
         },
         Promise.resolve([]),
@@ -167,7 +182,7 @@ export default function AdminCriteriaView({
       for (const c of savedCriteriaList) {
         await apiRequest(`/rounds/${selectedRound.roundId}/criteria/${c.criteriaId}`, {
           method: "PUT",
-          body: JSON.stringify({ criteriaName: c.criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: c.weight }),
+          body: JSON.stringify({ criteriaName: c.criteriaName, maxScore: CRITERIA_TOTAL_WEIGHT, weight: c.weight, criterionType: c.criterionType }),
         });
       }
 
@@ -282,11 +297,23 @@ export default function AdminCriteriaView({
               Total Weight: {modalTotalWeight}% {!isLocked && (modalTotalWeight === CRITERIA_TOTAL_WEIGHT ? "OK" : `(must equal ${CRITERIA_TOTAL_WEIGHT}%)`)}
             </span>
             {!isLocked && (
-              <Button size="small" type="dashed" onClick={handleAddCriterion} icon={<Plus size={12} />}>
-                Add Criterion
-              </Button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <Button size="small" onClick={() => setTemplatesOpen(true)} icon={<LayoutTemplate size={12} />}>
+                  From template
+                </Button>
+                <Button size="small" type="dashed" onClick={handleAddCriterion} icon={<Plus size={12} />}>
+                  Add Criterion
+                </Button>
+              </div>
             )}
           </div>
+
+          <CriteriaTemplateModal
+            open={templatesOpen}
+            onClose={() => setTemplatesOpen(false)}
+            roundId={selectedRound?.roundId}
+            onApplied={loadCriteriaList}
+          />
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "400px", overflowY: "auto" }}>
             {editingCriteria.map((c, index) => (
@@ -312,6 +339,18 @@ export default function AdminCriteriaView({
                     )
                   }
                   disabled={savingModal || isLocked}
+                />
+                <Select<CriterionType>
+                  style={{ width: 170 }}
+                  value={c.criterionType}
+                  options={CRITERION_TYPE_OPTIONS}
+                  onChange={(value) =>
+                    setEditingCriteria(
+                      (current) => current.map((x, i) => (i === index ? { ...x, criterionType: value } : x))
+                    )
+                  }
+                  disabled={savingModal || isLocked}
+                  aria-label="Criterion type for inter-rater analysis"
                 />
                 <InputNumber
                   style={{ width: 80 }}

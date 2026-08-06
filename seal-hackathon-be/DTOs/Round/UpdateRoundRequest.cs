@@ -21,5 +21,8 @@ namespace SEAL.NET.DTOs.Round
         public decimal? PassThreshold { get; set; }
 
         public Guid? PromptDocumentId { get; set; }
+
+        /// <summary>Practice round: excluded from advancement and final scoring.</summary>
+        public bool IsCalibration { get; set; }
     }
 }

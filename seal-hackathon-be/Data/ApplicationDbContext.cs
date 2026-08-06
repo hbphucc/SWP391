@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 
 namespace SEAL.NET.Data
 {
@@ -30,6 +31,7 @@ namespace SEAL.NET.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<KickRequest> KickRequests { get; set; }
         public DbSet<TeamChatMessage> TeamChatMessages { get; set; }
+        public DbSet<CriteriaTemplate> CriteriaTemplates { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -73,6 +75,23 @@ namespace SEAL.NET.Data
 
             builder.Entity<ApplicationUser>()
                 .Property(u => u.DeveloperRole)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            // Stored as text like the other profile enums, so the value stays
+            // readable when the scoring dataset is exported for analysis.
+            builder.Entity<ApplicationUser>()
+                .Property(u => u.JudgeType)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            builder.Entity<Criteria>()
+                .Property(c => c.CriterionType)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            builder.Entity<CriteriaTemplate>()
+                .Property(c => c.CriterionType)
                 .HasConversion<string>()
                 .HasMaxLength(20);
 

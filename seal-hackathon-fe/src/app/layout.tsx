@@ -6,6 +6,7 @@ import AuthProvider from "../components/AuthProvider";
 import QueryProvider from "../components/QueryProvider";
 import AIChatbotWrapper from "../components/AIChatbotWrapper";
 import FloatingThemeToggle from "../components/FloatingThemeToggle";
+import TranslateDomGuard from "../components/TranslateDomGuard";
 import "./globals.css";
 
 // Self-hosted at build time by next/font, so there is no render-blocking
@@ -63,6 +64,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
       <body>
+        {/* Must precede the tree it protects: installs the DOM patch that keeps
+            Google Translate's text-node rewriting from crashing React updates. */}
+        <TranslateDomGuard />
         <QueryProvider>
           <ThemeProvider>
             <AuthProvider>

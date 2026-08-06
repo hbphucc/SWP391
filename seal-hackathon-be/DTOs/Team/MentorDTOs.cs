@@ -13,6 +13,13 @@ namespace SEAL.NET.DTOs.Team
         public Guid TeamId { get; set; }
     }
 
+    /// <summary>Assigns a mentor to every team currently in a Track (Category).</summary>
+    public class AssignMentorToCategoryRequest
+    {
+        public Guid MentorUserId { get; set; }
+        public Guid CategoryId { get; set; }
+    }
+
     public class MentorAssignmentResponseDto
     {
         public Guid Id { get; set; }

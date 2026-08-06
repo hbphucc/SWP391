@@ -29,5 +29,8 @@ namespace SEAL.NET.DTOs.Round
         /// event). When empty, criteria can be added later via POST /rounds/{id}/criteria.
         /// </summary>
         public List<CreateCriteriaRequest> Criteria { get; set; } = [];
+
+        /// <summary>Practice round: excluded from advancement and final scoring.</summary>
+        public bool IsCalibration { get; set; }
     }
 }

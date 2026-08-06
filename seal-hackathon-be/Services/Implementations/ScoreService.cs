@@ -53,6 +53,11 @@ namespace SEAL.NET.Services.Implementations
             if (!isAssigned)
                 return ServiceResult.Forbidden();
 
+            // A category-wide assignment can legitimately cover a team this judge
+            // mentors, so being assigned is not enough on its own.
+            if (await ConflictOfInterest.MentorsTeamAsync(_context, judgeId, submission.TeamId))
+                return ServiceResult.BadRequest("You mentor this team, so you cannot also score it.");
+
             var existingScoresForJudge = await _context.Scores
                 .Where(s =>
                     s.SubmissionId == request.SubmissionId &&
@@ -158,6 +163,9 @@ namespace SEAL.NET.Services.Implementations
 
                 if (!isAssigned)
                     return ServiceResult.Forbidden();
+
+                if (await ConflictOfInterest.MentorsTeamAsync(_context, judgeId, submission.TeamId))
+                    return ServiceResult.BadRequest("You mentor this team, so you cannot also score it.");
             }
 
             var criteria = await _context.Criteria

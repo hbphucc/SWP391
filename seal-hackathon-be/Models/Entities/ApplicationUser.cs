@@ -32,6 +32,13 @@ namespace SEAL.NET.Models.Entities
         [MaxLength(20)]
         public string? RequestedRole { get; set; }
 
+        /// <summary>
+        /// Faculty or invited outside judge, recorded when the Judge role is
+        /// granted. Only meaningful for users holding that role; everyone else
+        /// stays Unspecified. Backs the RQ3 comparison of scoring consistency.
+        /// </summary>
+        public JudgeType JudgeType { get; set; } = JudgeType.Unspecified;
+
         [MaxLength(500)]
         public string? AvatarUrl { get; set; }
 

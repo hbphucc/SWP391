@@ -37,7 +37,18 @@ namespace SEAL.NET.Services.Implementations
             return (false, string.Empty);
         }
 
-        public async Task<ServiceResult> GetMessagesAsync(Guid teamId, Guid? currentUserId, IList<string> roles)
+        /// <summary>Newest messages returned when the caller does not ask for a size.</summary>
+        public const int DefaultPageSize = 50;
+
+        /// <summary>Ceiling on a caller-supplied size, mirroring the cap used for admin lists.</summary>
+        public const int MaxPageSize = 200;
+
+        public async Task<ServiceResult> GetMessagesAsync(
+            Guid teamId,
+            Guid? currentUserId,
+            IList<string> roles,
+            int? pageSize = null,
+            DateTime? before = null)
         {
             var teamExists = await _context.Teams.AnyAsync(t => t.TeamId == teamId);
             if (!teamExists) return ServiceResult.NotFound("Team not found.");
@@ -45,11 +56,18 @@ namespace SEAL.NET.Services.Implementations
             var (isAuthorized, _) = await CheckPermissionAndRoleAsync(teamId, currentUserId, roles);
             if (!isAuthorized) return ServiceResult.Forbidden();
 
-            var messages = await _context.TeamChatMessages
+            var take = Math.Clamp(pageSize ?? DefaultPageSize, 1, MaxPageSize);
+
+            // A chat only grows, so returning the whole history got heavier every
+            // day. Take the newest slice (optionally older than `before`, which is
+            // how the client walks backwards), then flip it so callers still get
+            // messages oldest-first as they always have.
+            var page = await _context.TeamChatMessages
                 .AsNoTracking()
                 .Include(m => m.AttachedDocument)
-                .Where(m => m.TeamId == teamId)
-                .OrderBy(m => m.SentAt)
+                .Where(m => m.TeamId == teamId && (before == null || m.SentAt < before))
+                .OrderByDescending(m => m.SentAt)
+                .Take(take)
                 .Select(m => new TeamChatMessageDto(
                     m.Id,
                     m.TeamId,
@@ -64,7 +82,8 @@ namespace SEAL.NET.Services.Implementations
                 ))
                 .ToListAsync();
 
-            return ServiceResult.Ok(messages);
+            page.Reverse();
+            return ServiceResult.Ok(page);
         }
 
         public async Task<ServiceResult> SendMessageAsync(Guid teamId, Guid? currentUserId, IList<string> roles, string? message, IFormFile? file)

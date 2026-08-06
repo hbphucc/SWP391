@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SEAL.NET.Data;
@@ -11,9 +12,11 @@ using SEAL.NET.Data;
 namespace SEAL.NET.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806041930_AddCriterionTypeAndJudgeType")]
+    partial class AddCriterionTypeAndJudgeType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -401,42 +404,6 @@ namespace SEAL.NET.Migrations
                     b.ToTable("Criteria");
                 });
 
-            modelBuilder.Entity("SEAL.NET.Models.Entities.CriteriaTemplate", b =>
-                {
-                    b.Property<Guid>("CriteriaTemplateId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("CriteriaName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CriterionType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("MaxScore")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<decimal>("Weight")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.HasKey("CriteriaTemplateId");
-
-                    b.ToTable("CriteriaTemplates");
-                });
-
             modelBuilder.Entity("SEAL.NET.Models.Entities.Document", b =>
                 {
                     b.Property<Guid>("DocumentId")
@@ -717,9 +684,6 @@ namespace SEAL.NET.Migrations
 
                     b.Property<Guid>("EventId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("IsCalibration")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("boolean");

@@ -178,6 +178,7 @@ export function useAdminEventsData() {
       roundOrder: String(round.roundOrder),
       maxTeamsAdvancing: String(round.maxTeamsAdvancing),
       passThreshold: round.passThreshold == null ? "" : String(round.passThreshold),
+      isCalibration: round.isCalibration ?? false,
       promptDocumentId: round.promptDocumentId || null,
       promptFileName: round.promptFileName || null,
     });
@@ -232,6 +233,7 @@ export function useAdminEventsData() {
           roundOrder: round.hasSubmissions ? round.roundOrder : roundOrder,
           maxTeamsAdvancing: round.hasSubmissions ? round.maxTeamsAdvancing : maxTeamsAdvancing,
           passThreshold: round.hasSubmissions ? round.passThreshold ?? null : passThreshold,
+          isCalibration: roundEditForm.isCalibration,
           promptDocumentId: roundEditForm.promptDocumentId || null,
         }),
       });

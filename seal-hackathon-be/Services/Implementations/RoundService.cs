@@ -40,6 +40,7 @@ namespace SEAL.NET.Services.Implementations
                     r.EventId,
                     r.PassThreshold,
                     r.IsCompleted,
+                    r.IsCalibration,
                     r.PromptDocumentId,
                     PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
@@ -64,6 +65,7 @@ namespace SEAL.NET.Services.Implementations
                     r.EventId,
                     r.PassThreshold,
                     r.IsCompleted,
+                    r.IsCalibration,
                     r.PromptDocumentId,
                     PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
                 })
@@ -100,6 +102,7 @@ namespace SEAL.NET.Services.Implementations
                 RoundOrder = request.RoundOrder,
                 MaxTeamsAdvancing = request.MaxTeamsAdvancing,
                 PassThreshold = request.PassThreshold,
+                IsCalibration = request.IsCalibration,
                 PromptDocumentId = request.PromptDocumentId
             };
 
@@ -155,6 +158,7 @@ namespace SEAL.NET.Services.Implementations
             round.RoundOrder = request.RoundOrder;
             round.MaxTeamsAdvancing = request.MaxTeamsAdvancing;
             round.PassThreshold = request.PassThreshold;
+            round.IsCalibration = request.IsCalibration;
             round.PromptDocumentId = request.PromptDocumentId;
 
             await _context.SaveChangesAsync();
@@ -213,14 +217,18 @@ namespace SEAL.NET.Services.Implementations
 
             var nextRound = await _context.Rounds
                 .Where(r => r.EventId == currentRound.EventId &&
-                            r.RoundOrder > currentRound.RoundOrder)
+                            r.RoundOrder > currentRound.RoundOrder &&
+                            // Never advance teams into a practice round.
+                            !r.IsCalibration)
                 .OrderBy(r => r.RoundOrder)
                 .FirstOrDefaultAsync();
 
             if (nextRound == null)
             {
                 var allRounds = await _context.Rounds
-                    .Where(r => r.EventId == currentRound.EventId)
+                    // Calibration rounds are practice; averaging them in would drag
+                    // every team's final score toward their warm-up performance.
+                    .Where(r => r.EventId == currentRound.EventId && !r.IsCalibration)
                     .ToListAsync();
 
                 var finalTeams = await _context.Teams

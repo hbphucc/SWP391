@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.User;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -88,6 +89,7 @@ namespace SEAL.NET.Services.Implementations
                 user.SchoolName,
                 user.IsApproved,
                 user.CreatedAt,
+                judgeType = user.JudgeType.ToString(),
                 roles = roleMap.TryGetValue(user.Id, out var r) ? r : new List<string>()
             }).ToList();
 
@@ -183,6 +185,38 @@ namespace SEAL.NET.Services.Implementations
             return ServiceResult.OkMessage("User rejected successfully.");
         }
 
+        /// <summary>
+        /// Corrects a judge's Internal/Guest label. The two role-granting paths set
+        /// this automatically, but judges that predate the field — and the occasional
+        /// exception, such as an outside lecturer promoted through the request flow —
+        /// need an explicit override.
+        /// </summary>
+        public async Task<ServiceResult> UpdateJudgeTypeAsync(Guid? actorUserId, Guid userId, UpdateJudgeTypeRequest request)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+                return ServiceResult.NotFound("User not found.");
+
+            if (!await _userManager.IsInRoleAsync(user, "Judge"))
+                return ServiceResult.BadRequest("Judge type only applies to users holding the Judge role.");
+
+            var previous = user.JudgeType;
+            user.JudgeType = request.JudgeType;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return ServiceResult.BadRequestBody(result.Errors);
+
+            await _auditLogService.LogAsync(
+                actorUserId,
+                "update_judge_type",
+                "User",
+                user.Id.ToString(),
+                $"Changed judge type for {user.Email} from {previous} to {request.JudgeType}.");
+
+            return ServiceResult.OkMessage("Judge type updated successfully.");
+        }
+
         public async Task<ServiceResult> UpdateUserRoleAsync(Guid? actorUserId, Guid userId, UpdateUserRoleRequest request)
         {
             if (!AllowedRoles.Contains(request.Role))
@@ -210,6 +244,14 @@ namespace SEAL.NET.Services.Implementations
 
             if (!addResult.Succeeded)
                 return ServiceResult.BadRequestBody(addResult.Errors);
+
+            // Same reasoning as the request-approval path: an admin promoting someone
+            // to Judge here is promoting a department member, not an invited guest.
+            if (request.Role == "Judge")
+            {
+                user.JudgeType = JudgeType.Internal;
+                await _userManager.UpdateAsync(user);
+            }
 
             // Invalidate the user's existing JWTs so the new role takes effect immediately
             // instead of lingering until the old token expires.
@@ -265,7 +307,10 @@ namespace SEAL.NET.Services.Implementations
                 FullName = request.Name,
                 SchoolName = request.Company,
                 IsApproved = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                // This endpoint exists only to create invited outside judges, so the
+                // type is known here rather than guessed from the email domain later.
+                JudgeType = JudgeType.Guest
             };
 
             var result = await _userManager.CreateAsync(user, tempPassword);
@@ -360,6 +405,12 @@ namespace SEAL.NET.Services.Implementations
                     await tx.RollbackAsync();
                     return ServiceResult.BadRequestBody(addResult.Errors);
                 }
+
+                // Judges granted through the in-house request flow are department
+                // people; invited outsiders come in via CreateGuestJudgeAsync
+                // instead. An admin can correct the odd exception on the user record.
+                if (requestedRole == "Judge")
+                    user.JudgeType = JudgeType.Internal;
 
                 user.RequestedRole = null;
                 var updateResult = await _userManager.UpdateAsync(user);

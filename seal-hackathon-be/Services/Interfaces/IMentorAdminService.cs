@@ -10,6 +10,7 @@ namespace SEAL.NET.Services.Interfaces
     {
         Task<ServiceResult> GetAssignmentsAsync(Guid? eventId = null);
         Task<ServiceResult> AssignMentorAsync(Guid? adminUserId, Guid mentorUserId, Guid teamId);
+        Task<ServiceResult> AssignMentorToCategoryAsync(Guid? adminUserId, Guid mentorUserId, Guid categoryId);
         Task<ServiceResult> DeactivateAssignmentAsync(Guid id);
     }
 }

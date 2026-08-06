@@ -18,6 +18,9 @@ namespace SEAL.NET.DTOs.Judge
 
         public Guid RoundId { get; set; }
         public string RoundName { get; set; } = string.Empty;
+
+        /// <summary>Practice round: scores here never affect the competition.</summary>
+        public bool IsCalibrationRound { get; set; }
         public DateTime? RoundDeadline { get; set; }
 
         public Guid? SubmissionId { get; set; }
