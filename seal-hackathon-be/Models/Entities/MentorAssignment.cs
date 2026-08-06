@@ -11,8 +11,24 @@ namespace SEAL.NET.Models.Entities
         public Guid MentorUserId { get; set; }
         public ApplicationUser Mentor { get; set; } = null!;
 
-        public Guid TeamId { get; set; }
-        public Team Team { get; set; } = null!;
+        /// <summary>
+        /// The round this assignment belongs to. Admins pick a round first and then
+        /// the teams inside it, so mentoring is scoped the same way judging is.
+        ///
+        /// Nullable only because rows created before rounds existed cannot be given
+        /// one without guessing. Treat null as "assigned for the whole event" and
+        /// set it on everything new.
+        /// </summary>
+        public Guid? RoundId { get; set; }
+        public Round? Round { get; set; }
+
+        /// <summary>
+        /// Null while the mentor is on the round but no team has been chosen yet —
+        /// the first half of the two-step assignment. A row only grants access to a
+        /// team's chat and documents once this is filled in.
+        /// </summary>
+        public Guid? TeamId { get; set; }
+        public Team? Team { get; set; }
 
         public Guid? AssignedByUserId { get; set; }
         public ApplicationUser? AssignedBy { get; set; }

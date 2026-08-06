@@ -137,10 +137,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Tabs */}
       <div className={`tabs ${styles.tabs}`}>
         {[
-          { id: "overview", label: "Tổng quan" },
-          { id: "rounds", label: "Vòng thi & Track" },
-          { id: "members", label: "Thành viên" },
-          { id: "judges", label: "Hội đồng" }
+          { id: "overview", label: "Overview" },
+          { id: "rounds", label: "Rounds & Tracks" },
+          { id: "members", label: "Members" },
+          { id: "judges", label: "Judges" }
         ].map(t => (
           <button key={t.id} className={`tab-btn ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
             {t.label}
@@ -199,7 +199,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {tab === "rounds" && (
         <div className={styles.roundsStack}>
           <div>
-            <h3 style={{ marginBottom: "1rem" }}>Vòng thi</h3>
+            <h3 style={{ marginBottom: "1rem" }}>Rounds</h3>
             <div className={styles.cardStack}>
               {sortedRounds.length === 0 && <div className="empty-state"><Clock size={48} className="empty-icon" /><div className="empty-title">No rounds configured</div></div>}
               {sortedRounds.map((r, i) => (
@@ -250,7 +250,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Users size={48} className="empty-icon" />
             <div className="empty-title">Coming Soon</div>
             <div className={styles.comingSoon}>
-              Danh sách các đội thi và thành viên sẽ được cập nhật ở đây.
+              The competing teams and their members will appear here.
             </div>
           </div>
         </div>
@@ -263,7 +263,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Target size={48} className="empty-icon" />
             <div className="empty-title">Coming Soon</div>
             <div className={styles.comingSoon}>
-              Danh sách Ban giám khảo và Mentor sẽ được cập nhật ở đây.
+              The judging panel and mentors will appear here.
             </div>
           </div>
         </div>

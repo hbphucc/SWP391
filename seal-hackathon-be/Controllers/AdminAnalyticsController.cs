@@ -63,10 +63,11 @@ namespace SEAL.NET.Controllers
             // current round. Same mentor on two teams in the same round counts once.
             var mentorsByRound = await _context.MentorAssignments
                 .Where(ma => ma.IsActive
-                             && ma.Team.CurrentRoundId != null
-                             && ma.Team.Category.EventId == eventId
-                             && ma.Team.Status == TeamStatus.Approved)
-                .GroupBy(ma => ma.Team.CurrentRoundId!.Value)
+                             && ma.RoundId != null
+                             && ma.TeamId != null
+                             && ma.Round != null
+                             && ma.Round.EventId == eventId)
+                .GroupBy(ma => ma.RoundId!.Value)
                 .Select(g => new { RoundId = g.Key, Count = g.Select(ma => ma.MentorUserId).Distinct().Count() })
                 .ToDictionaryAsync(x => x.RoundId, x => x.Count);
 

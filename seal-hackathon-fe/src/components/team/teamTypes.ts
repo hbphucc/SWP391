@@ -44,26 +44,6 @@ export type TeamDto = {
   } | null;
 };
 
-export type MentorInvitationDto = {
-  assignmentId: string;
-  teamId: string;
-  teamName: string;
-  categoryName: string;
-  eventName: string;
-  invitedAt: string;
-};
-
-export type MentorOption = {
-  id: string;
-  fullName: string;
-  email: string;
-  schoolName?: string | null;
-  developerRole?: string | null;
-  skills: string[];
-  teamsMentored: number;
-  availability: string;
-};
-
 export type EventDto = {
   eventId: string;
   eventName: string;

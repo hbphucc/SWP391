@@ -28,9 +28,15 @@ namespace SEAL.NET.Services.Common
             ApplicationDbContext db, Guid userId, IEnumerable<Guid> teamIds)
         {
             var ids = teamIds.ToList();
+            // Deliberately not filtered by round. Having coached a team in an earlier
+            // round still leaves someone too close to judge it later, so a conflict
+            // once raised stays raised for the rest of the event.
             return db.MentorAssignments
-                .Where(ma => ma.MentorUserId == userId && ma.IsActive && ids.Contains(ma.TeamId))
-                .Select(ma => ma.TeamId)
+                .Where(ma => ma.MentorUserId == userId
+                    && ma.IsActive
+                    && ma.TeamId != null
+                    && ids.Contains(ma.TeamId.Value))
+                .Select(ma => ma.TeamId!.Value)
                 .Distinct()
                 .ToListAsync();
         }

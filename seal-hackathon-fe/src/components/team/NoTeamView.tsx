@@ -1,9 +1,9 @@
-import { Users, GraduationCap, Crown, Plus } from "lucide-react";
+import { Users, Crown, Plus } from "lucide-react";
 import { CurrentUser } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import CreateTeamDrawer from "@/components/team/CreateTeamDrawer";
 import PendingInvitesBanner from "@/components/dashboard/PendingInvitesBanner";
-import type { TeamDto, MentorInvitationDto, InvitationResponse } from "./teamTypes";
+import type { TeamDto, InvitationResponse } from "./teamTypes";
 import styles from "./NoTeamView.module.css";
 
 interface CategoryOption {
@@ -20,22 +20,19 @@ interface NoTeamViewProps {
   receivedInvites: InvitationResponse[];
   mentoringTeams: TeamDto[];
   judgingTeams: TeamDto[];
-  mentorInvitations: MentorInvitationDto[];
   categories: CategoryOption[];
   hasActiveEvents: boolean;
   createDrawerOpen: boolean;
   setCreateDrawerOpen: (open: boolean) => void;
   onAcceptInvite: (id: string, teamName: string) => void;
   onDeclineInvite: (id: string) => void;
-  onAcceptMentorInvite: (assignmentId: string, teamName: string) => void;
-  onRejectMentorInvite: (assignmentId: string) => void;
   onLoadPage: () => void;
 }
 
 export default function NoTeamView({
-  currentUser, receivedInvites, mentoringTeams, judgingTeams, mentorInvitations,
+  currentUser, receivedInvites, mentoringTeams, judgingTeams,
   categories, hasActiveEvents, createDrawerOpen, setCreateDrawerOpen,
-  onAcceptInvite, onDeclineInvite, onAcceptMentorInvite, onRejectMentorInvite, onLoadPage,
+  onAcceptInvite, onDeclineInvite, onLoadPage,
 }: NoTeamViewProps) {
   return (
     <div className={styles.wrapper}>
@@ -56,31 +53,8 @@ export default function NoTeamView({
 
       {currentUser?.roles?.includes("Mentor") ? (
         <>
-        {mentorInvitations.length > 0 && (
-          <div className={`glass-card ${styles.invitationsPanel}`}>
-            <h3 className={styles.invitationsPanelTitle}>
-              <GraduationCap size={22} className={styles.invitationsPanelIcon} /> Pending Mentor Invitations
-            </h3>
-            <div className={styles.invitationsList}>
-              {mentorInvitations.map((inv) => (
-                <div key={inv.assignmentId} className={styles.invitationRow}>
-                  <div>
-                    <div className={styles.invitationTeamName}>{inv.teamName}</div>
-                    <div className={styles.invitationMeta}>{inv.eventName} · {inv.categoryName}</div>
-                  </div>
-                  <div className={styles.invitationActions}>
-                    <button className="btn btn-primary btn-sm" onClick={() => onAcceptMentorInvite(inv.assignmentId, inv.teamName)}>
-                      Accept
-                    </button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => onRejectMentorInvite(inv.assignmentId)}>
-                      Decline
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Mentors are allocated by an organiser per round, so there is nothing
+            here to accept — a mentor simply finds the teams they were given. */}
         <div className={`glass-card ${styles.assignmentPanel}`}>
           <div className={styles.assignmentPanelHeader}>
             <div className={styles.assignmentPanelIconWrap}>
@@ -170,7 +144,8 @@ export default function NoTeamView({
           </div>
           <h3 className={styles.ctaTitle}>Ready to compete?</h3>
           <p className={styles.ctaDesc}>
-            Create a team in one screen: pick a category, invite members, and optionally choose a mentor.
+            Create a team in one screen: pick a category and invite your members.
+            A mentor is allocated to you by the organisers.
           </p>
           <button
             className={`btn btn-primary btn-lg ${styles.ctaButton}`}

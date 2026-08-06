@@ -18,20 +18,23 @@ namespace SEAL.NET.Services.Implementations
         public async Task<ServiceResult> GetAssignedTeamsAsync(Guid mentorUserId)
         {
             var assignments = await _context.MentorAssignments
+                .Include(ma => ma.Round)
                 .Include(ma => ma.Team)
-                    .ThenInclude(t => t.Category)
+                    .ThenInclude(t => t!.Category)
                         .ThenInclude(c => c.Event)
                 .Include(ma => ma.Team)
-                    .ThenInclude(t => t.Members)
+                    .ThenInclude(t => t!.Members)
                 .Include(ma => ma.Team)
-                    .ThenInclude(t => t.Submissions)
+                    .ThenInclude(t => t!.Submissions)
                         .ThenInclude(s => s.Round)
-                .Where(ma => ma.MentorUserId == mentorUserId && ma.IsActive)
+                // A round-level row records that the mentor is on the round; it names
+                // no team, so there is nothing to list until an organiser picks one.
+                .Where(ma => ma.MentorUserId == mentorUserId && ma.IsActive && ma.TeamId != null)
                 .ToListAsync();
 
             var result = assignments.Select(ma =>
             {
-                var team = ma.Team;
+                var team = ma.Team!;
                 var latestSub = team.Submissions
                     .OrderByDescending(s => s.SubmittedAt)
                     .FirstOrDefault();
@@ -40,6 +43,8 @@ namespace SEAL.NET.Services.Implementations
                 {
                     TeamId = team.TeamId,
                     TeamName = team.TeamName,
+                    RoundId = ma.RoundId,
+                    RoundName = ma.Round?.RoundName,
                     CategoryName = team.Category.CategoryName,
                     EventName = team.Category.Event?.EventName ?? string.Empty,
                     Status = team.Status.ToString(),

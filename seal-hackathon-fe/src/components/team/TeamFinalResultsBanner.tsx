@@ -60,16 +60,16 @@ export default function TeamFinalResultsBanner({ myTeam }: TeamFinalResultsBanne
           }}
         >
           {isChampion
-            ? "Chúc mừng team bạn đã đạt Top 1!"
-            : `Chúc mừng! Team của bạn đã đạt Hạng ${myTeam.finalRank}`}
+            ? "Congratulations — your team finished first!"
+            : `Congratulations — your team finished #${myTeam.finalRank}`}
         </h2>
         <p style={{ margin: 0, color: "var(--color-text-2)", fontSize: "0.95rem" }}>
           {myTeam.finalPrize ? (
             <>
-              Bạn nhận được giải thưởng: <strong>{myTeam.finalPrize}</strong>
+              Your prize: <strong>{myTeam.finalPrize}</strong>
             </>
           ) : (
-            "Cảm ơn đội của bạn đã nỗ lực hết mình và hoàn thành xuất sắc cuộc thi!"
+            "Thank you for everything your team put into this competition."
           )}
         </p>
       </div>

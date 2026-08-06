@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { App } from "antd";
 import { apiRequest, fetchCurrentUser } from "@/lib/api";
-import type { EventDto, InvitationResponse, MentorInvitationDto, MentorOption, TeamDto, TeamMember } from "./teamTypes";
+import type { EventDto, InvitationResponse, TeamDto, TeamMember } from "./teamTypes";
 
 export function useTeamsData() {
   const { message, modal } = App.useApp();
@@ -48,11 +48,6 @@ export function useTeamsData() {
     queryFn: () => apiRequest<TeamDto[]>("/teams/mentoring"),
     enabled: teamSettled && !hasTeam && isMentor,
   });
-  const { data: mentorInvitations = [] } = useQuery({
-    queryKey: ["mentor-invitations"],
-    queryFn: () => apiRequest<MentorInvitationDto[]>("/teams/mentor-invitations"),
-    enabled: teamSettled && !hasTeam && isMentor,
-  });
   const { data: judgingTeams = [] } = useQuery({
     queryKey: ["teams-judging"],
     queryFn: () => apiRequest<TeamDto[]>("/teams/judging"),
@@ -68,15 +63,12 @@ export function useTeamsData() {
     void queryClient.invalidateQueries({ queryKey: ["my-team"] });
     void queryClient.invalidateQueries({ queryKey: ["team-invitations-received"] });
     void queryClient.invalidateQueries({ queryKey: ["teams-mentoring"] });
-    void queryClient.invalidateQueries({ queryKey: ["mentor-invitations"] });
     void queryClient.invalidateQueries({ queryKey: ["teams-judging"] });
   };
 
-  const [mentors, setMentors] = useState<MentorOption[]>([]);
-  const [showMentorModal, setShowMentorModal] = useState(false);
-  const [loadingMentors, setLoadingMentors] = useState(false);
-  const [mentorSearch, setMentorSearch] = useState("");
-  const [assigningMentorId, setAssigningMentorId] = useState<string | null>(null);
+  // Teams no longer pick their own mentor — an organiser allocates mentors per
+  // round from the admin assignments screen — so there is no mentor picker, no
+  // invitation to accept, and nothing here to hold its state.
 
   // Kick Request states
   const [kickModalOpen, setKickModalOpen] = useState(false);
@@ -174,29 +166,9 @@ export function useTeamsData() {
     }
   };
 
-  const handleAcceptMentorInvite = async (assignmentId: string, teamName: string) => {
-    try {
-      await apiRequest(`/teams/mentor-invitations/${assignmentId}/accept`, { method: "POST" });
-      message.success(`You are now mentoring ${teamName}.`);
-      reloadTeamData();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not accept invitation.");
-    }
-  };
-
-  const handleRejectMentorInvite = async (assignmentId: string) => {
-    try {
-      await apiRequest(`/teams/mentor-invitations/${assignmentId}/reject`, { method: "POST" });
-      message.success("Invitation declined.");
-      reloadTeamData();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not decline invitation.");
-    }
-  };
-
-  // Team creation is now driven by CreateTeamDrawer, which posts to /teams with
-  // an optional MentorId and handles the EventNotPublished branching itself.
-  // We just refresh page state on success.
+  // Team creation is now driven by CreateTeamDrawer, which posts to /teams and
+  // handles the EventNotPublished branching itself. We just refresh page state
+  // on success.
 
   const handleAddMember = async () => {
     if (!myTeam || !memberCodeToAdd.trim()) return;
@@ -329,81 +301,20 @@ export function useTeamsData() {
     }
   };
 
-  const loadMentors = async () => {
-    setLoadingMentors(true);
-    try {
-      const data = await apiRequest<MentorOption[]>("/teams/mentors");
-      setMentors(data);
-    } catch {
-      message.error("Could not load mentors list.");
-    } finally {
-      setLoadingMentors(false);
-    }
-  };
-
-  const handleAssignMentor = async (mentorId: string) => {
-    // Guard against double-submit: ignore clicks while any assignment is in-flight.
-    if (assigningMentorId) return;
-    if (mentorId === myTeam?.mentor?.id) {
-      message.info("This mentor is already selected for your team.");
-      return;
-    }
-    setAssigningMentorId(mentorId);
-    setSubmitting(true);
-    try {
-      await apiRequest("/teams/my-team/mentor", {
-        method: "POST",
-        body: JSON.stringify({ mentorUserId: mentorId }),
-      });
-      message.success("Mentor invited. Waiting for them to accept.");
-      setShowMentorModal(false);
-      setMentorSearch("");
-      reloadTeamData();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not assign mentor.");
-    } finally {
-      setSubmitting(false);
-      setAssigningMentorId(null);
-    }
-  };
-
-  const handleRemoveMentor = () => {
-    const hasActiveMentor = Boolean(myTeam?.mentor);
-    modal.confirm({
-      title: hasActiveMentor ? "Remove mentor" : "Cancel invitation",
-      content: hasActiveMentor
-        ? "Are you sure you want to remove the mentor from your team?"
-        : "Cancel the pending mentor invitation?",
-      okText: hasActiveMentor ? "Remove" : "Cancel Invite",
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          await apiRequest("/teams/my-team/mentor", { method: "DELETE" });
-          message.success(hasActiveMentor ? "Mentor removed successfully." : "Mentor invitation cancelled.");
-          reloadTeamData();
-        } catch (err) {
-          message.error(err instanceof Error ? err.message : "Could not update mentor.");
-        }
-      },
-    });
-  };
-
   return {
     currentUser, myTeam, events, loading, submitting,
     createDrawerOpen, setCreateDrawerOpen,
     memberCodeToAdd, draftTeamName, setDraftTeamName,
     newLeaderCodeOrEmail, setNewLeaderCodeOrEmail,
     receivedInvites,
-    mentoringTeams, judgingTeams, mentorInvitations,
-    mentors, showMentorModal, setShowMentorModal, loadingMentors, mentorSearch, setMentorSearch, assigningMentorId,
+    mentoringTeams, judgingTeams,
     kickModalOpen, setKickModalOpen, memberToKick, setMemberToKick, kickReason, setKickReason,
     memberSuggestions, showMemberSuggestions,
     categories, hasActiveEvents, isLeader, canModifyMembers, canKickMembers, showActions,
     loadPage: reloadTeamData,
-    handleAcceptInvite, handleDeclineInvite, handleAcceptMentorInvite, handleRejectMentorInvite,
+    handleAcceptInvite, handleDeclineInvite,
     handleMemberInputChange, selectMemberSuggestion,
     handleAddMember, handleRemoveMember, handleSubmitKickRequest,
     handleUpdateTeam, handleLeaveTeam, handleTransferLeader,
-    loadMentors, handleAssignMentor, handleRemoveMentor,
   };
 }

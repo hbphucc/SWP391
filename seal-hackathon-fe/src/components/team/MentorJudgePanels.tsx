@@ -4,8 +4,6 @@ import type { TeamDto } from "./teamTypes";
 interface MentorJudgePanelsProps {
   myTeam: TeamDto;
   isLeader?: boolean;
-  onInviteMentorClick?: () => void;
-  onRemoveMentor?: () => void;
 }
 
 export default function MentorJudgePanels({ myTeam }: MentorJudgePanelsProps) {
