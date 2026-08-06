@@ -46,6 +46,12 @@ namespace SEAL.NET.Repositories.Implementations
 
         public async Task HardDeleteAsync(Guid eventId)
         {
+            // Retrying connections mean EF refuses a transaction opened by hand: a
+            // retry has to replay the whole unit, not resume half of one. Every step
+            // below is a filtered delete, so replaying after a rollback is safe.
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             await _context.Scores
@@ -94,6 +100,7 @@ namespace SEAL.NET.Repositories.Implementations
             await _context.Events.Where(e => e.EventId == eventId).ExecuteDeleteAsync();
 
             await transaction.CommitAsync();
+            });
         }
     }
 }

@@ -12,6 +12,7 @@ using SEAL.NET.Repositories.Implementations;
 using SEAL.NET.Repositories.Interfaces;
 using SEAL.NET.Services.Implementations;
 using SEAL.NET.Services.Interfaces;
+using System.Net.Sockets;
 using System.Security.Claims;
 using System.Text;
 
@@ -39,6 +40,15 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
         npgsqlOptions.CommandTimeout(20);
+
+        // The database is a Supabase pooler reached over the internet, so a dropped
+        // connection or a DNS blip is a normal event rather than a bug. Npgsql knows
+        // which failures are transient; without this every one of them surfaced as a
+        // request error, and at startup a single blip killed the process outright.
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null);
     }));
 
 
@@ -322,6 +332,25 @@ static async Task SeedDatabaseOnStartupAsync(WebApplication app, IServiceProvide
                 "Supabase connection pool stayed full after retries. Skipping startup seed in Development.");
             return;
         }
+        // A DNS hiccup or a dropped socket on the way to Supabase used to end the
+        // process here. EF's retrying strategy does not cover it: a failed lookup
+        // surfaces as a bare SocketException, and the detector only recognises
+        // NpgsqlException and TimeoutException, so this loop has to catch it.
+        catch (Exception ex) when (IsTransientNetworkFailure(ex) && attempt < delays.Length)
+        {
+            logger.LogWarning(
+                ex,
+                "Could not reach the database while seeding. Retrying in {DelaySeconds}s.",
+                delays[attempt].TotalSeconds);
+            await Task.Delay(delays[attempt]);
+        }
+        catch (Exception ex) when (IsTransientNetworkFailure(ex) && app.Environment.IsDevelopment())
+        {
+            logger.LogWarning(
+                ex,
+                "Database stayed unreachable after retries. Skipping startup seed in Development.");
+            return;
+        }
     }
 }
 
@@ -329,4 +358,19 @@ static bool IsSupabasePoolLimit(PostgresException ex)
 {
     return ex.MessageText.Contains("MAXCONNSESSION", StringComparison.OrdinalIgnoreCase)
         || ex.MessageText.Contains("max clients", StringComparison.OrdinalIgnoreCase);
+}
+
+// Reaching the database means DNS, TCP and TLS, and any of the three can fail for a
+// moment without anything being wrong. Outside Development an exhausted retry means
+// the process still dies, which is the honest signal that the database is gone.
+static bool IsTransientNetworkFailure(Exception ex)
+{
+    for (Exception? inner = ex; inner != null; inner = inner.InnerException)
+    {
+        if (inner is SocketException or IOException or TimeoutException)
+            return true;
+        if (inner is NpgsqlException { IsTransient: true })
+            return true;
+    }
+    return false;
 }

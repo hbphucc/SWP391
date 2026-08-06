@@ -375,29 +375,42 @@ namespace SEAL.NET.Services.Implementations
                 UploaderId = parsedUserId
             };
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-
-            try
+            // Retrying connections mean EF refuses a transaction opened by hand: a
+            // retry has to replay the whole unit, not resume half of one. Replaying is
+            // safe here because the rollback undoes the insert and the document keeps
+            // the id it was built with, so a second attempt writes the same row.
+            // A non-null result means the swap was rejected and nothing was written.
+            var strategy = _context.Database.CreateExecutionStrategy();
+            var failure = await strategy.ExecuteAsync(async () =>
             {
-                _context.Documents.Add(document);
-                await _context.SaveChangesAsync();
+                await using var transaction = await _context.Database.BeginTransactionAsync();
 
-                user.AvatarUrl = $"/Documents/{document.DocumentId}/download";
+                try
+                {
+                    _context.Documents.Add(document);
+                    await _context.SaveChangesAsync();
 
-                var result = await _userManager.UpdateAsync(user);
-                if (!result.Succeeded)
+                    user.AvatarUrl = $"/Documents/{document.DocumentId}/download";
+
+                    var result = await _userManager.UpdateAsync(user);
+                    if (!result.Succeeded)
+                    {
+                        await transaction.RollbackAsync();
+                        return ServiceResult.BadRequestBody(result.Errors);
+                    }
+
+                    await transaction.CommitAsync();
+                    return null;
+                }
+                catch
                 {
                     await transaction.RollbackAsync();
-                    return ServiceResult.BadRequestBody(result.Errors);
+                    throw;
                 }
+            });
 
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            if (failure != null)
+                return failure;
 
             var roles = await _userManager.GetRolesAsync(user);
             return ServiceResult.Ok(BuildProfile(user, roles));

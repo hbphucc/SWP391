@@ -324,6 +324,23 @@ namespace SEAL.NET.Data
                 .WithMany()
                 .HasForeignKey(tc => tc.DocumentId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Equality column first, then the range/sort column — the shape
+            // TeamChatService.GetMessagesAsync asks for:
+            //   WHERE TeamId = ? AND SentAt < ?  ORDER BY SentAt DESC  LIMIT 50
+            // The foreign-key index on TeamId alone makes Postgres read the whole
+            // thread and sort it to return one page. The chat panel polls every four
+            // seconds, so that sort was running constantly for every open thread.
+            builder.Entity<TeamChatMessage>()
+                .HasIndex(tc => new { tc.TeamId, tc.SentAt });
+
+            // Same shape: the notification bell reads one user's newest first.
+            builder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.CreatedAt });
+
+            // Audit logs are only ever read newest-first, and the table only grows.
+            builder.Entity<AuditLog>()
+                .HasIndex(a => a.CreatedAt);
         }
     }
 }

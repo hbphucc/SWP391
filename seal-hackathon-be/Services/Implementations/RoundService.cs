@@ -175,6 +175,12 @@ namespace SEAL.NET.Services.Implementations
             if (round == null)
                 return ServiceResult.NotFound("Round not found.");
 
+            // Retrying connections mean EF refuses a transaction opened by hand: a
+            // retry has to replay the whole unit, not resume half of one. Every step
+            // below is a filtered delete, so replaying after a rollback is safe.
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             await _context.Scores
@@ -197,6 +203,7 @@ namespace SEAL.NET.Services.Implementations
                 .ExecuteDeleteAsync();
 
             await transaction.CommitAsync();
+            });
 
             return ServiceResult.OkMessage("Round deleted successfully.");
         }
