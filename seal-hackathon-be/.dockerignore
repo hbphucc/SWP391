@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.db
+test.db
+run*.log
+*.err.log
+appsettings.Development.json
