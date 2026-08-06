@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SEAL.NET.Data;
@@ -11,9 +12,11 @@ using SEAL.NET.Data;
 namespace SEAL.NET.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806155607_ScopeMentorAssignmentToRound")]
+    partial class ScopeMentorAssignmentToRound
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -779,43 +782,6 @@ namespace SEAL.NET.Migrations
                     b.ToTable("Rounds");
                 });
 
-            modelBuilder.Entity("SEAL.NET.Models.Entities.RoundStaffAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<Guid?>("AssignedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("RoundId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedByUserId");
-
-                    b.HasIndex("RoundId");
-
-                    b.HasIndex("UserId", "RoundId", "Role")
-                        .IsUnique()
-                        .HasFilter("\"IsActive\" = TRUE");
-
-                    b.ToTable("RoundStaffAssignments");
-                });
-
             modelBuilder.Entity("SEAL.NET.Models.Entities.Score", b =>
                 {
                     b.Property<Guid>("ScoreId")
@@ -1356,32 +1322,6 @@ namespace SEAL.NET.Migrations
                     b.Navigation("Event");
 
                     b.Navigation("PromptDocument");
-                });
-
-            modelBuilder.Entity("SEAL.NET.Models.Entities.RoundStaffAssignment", b =>
-                {
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "AssignedBy")
-                        .WithMany()
-                        .HasForeignKey("AssignedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SEAL.NET.Models.Entities.Round", "Round")
-                        .WithMany()
-                        .HasForeignKey("RoundId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SEAL.NET.Models.Entities.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AssignedBy");
-
-                    b.Navigation("Round");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SEAL.NET.Models.Entities.Score", b =>

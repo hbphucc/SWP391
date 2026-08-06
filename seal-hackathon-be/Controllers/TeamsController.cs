@@ -104,38 +104,18 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> RemoveMember(Guid teamId, Guid userId)
             => ToActionResult(await _teamService.RemoveMemberAsync(GetCurrentUserId(), teamId, userId));
 
-        [HttpGet("mentors")]
-        public async Task<IActionResult> GetMentors([FromQuery] Guid? eventId)
-            => ToActionResult(await _teamService.GetMentorsAsync(GetCurrentUserId(), eventId));
+        // The mentor roster used to live here to feed a team leader's mentor picker,
+        // open to any signed-in user. Allocation is an organiser's job now, and the
+        // admin screen reads /api/admin/events/{id}/registered-mentors instead, so
+        // this only stood to hand every student a list of mentor email addresses.
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetTeamById(Guid id)
             => ToActionResult(await _teamService.GetTeamByIdAsync(GetCurrentUserId(), id, IsPrivileged()));
 
-        [HttpPost("my-team/mentor")]
-        [Authorize(Roles = "Member,TeamLeader")]
-        public async Task<IActionResult> AssignMentorToMyTeam([FromBody] ChooseMentorRequest request)
-            => ToActionResult(await _teamService.AssignMentorToMyTeamAsync(GetCurrentUserId(), request));
-
-        [HttpDelete("my-team/mentor")]
-        [Authorize(Roles = "Member,TeamLeader")]
-        public async Task<IActionResult> RemoveMentorFromMyTeam()
-            => ToActionResult(await _teamService.RemoveMentorFromMyTeamAsync(GetCurrentUserId()));
-
-        [HttpGet("mentor-invitations")]
-        [Authorize(Roles = "Mentor")]
-        public async Task<IActionResult> GetMentorInvitations()
-            => ToActionResult(await _teamService.GetMentorInvitationsAsync(GetCurrentUserId()));
-
-        [HttpPost("mentor-invitations/{id}/accept")]
-        [Authorize(Roles = "Mentor")]
-        public async Task<IActionResult> AcceptMentorInvitation(Guid id)
-            => ToActionResult(await _teamService.AcceptMentorInvitationAsync(GetCurrentUserId(), id));
-
-        [HttpPost("mentor-invitations/{id}/reject")]
-        [Authorize(Roles = "Mentor")]
-        public async Task<IActionResult> RejectMentorInvitation(Guid id)
-            => ToActionResult(await _teamService.RejectMentorInvitationAsync(GetCurrentUserId(), id));
+        // The team-picks-its-own-mentor endpoints lived here. Allocation moved to
+        // POST /api/admin/mentors/assignments/round and .../assignments, which an
+        // organiser drives per round.
 
         [HttpGet("recruiting")]
         [Authorize(Roles = "Member,TeamLeader")]

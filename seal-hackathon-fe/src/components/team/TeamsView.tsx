@@ -6,7 +6,6 @@ import TeamFinalResultsBanner from "./TeamFinalResultsBanner";
 import TeamMembersPanel from "./TeamMembersPanel";
 import MentorJudgePanels from "./MentorJudgePanels";
 import AddMemberPanel from "./AddMemberPanel";
-import InviteMentorModal from "./InviteMentorModal";
 import KickRequestModal from "./KickRequestModal";
 import PendingInvitesBanner from "@/components/dashboard/PendingInvitesBanner";
 import TeamChatPanel from "./TeamChatPanel";
@@ -18,17 +17,15 @@ export default function TeamsView() {
     memberCodeToAdd, draftTeamName, setDraftTeamName,
     newLeaderCodeOrEmail, setNewLeaderCodeOrEmail,
     receivedInvites,
-    mentoringTeams, judgingTeams, mentorInvitations,
-    mentors, showMentorModal, setShowMentorModal, loadingMentors, mentorSearch, setMentorSearch, assigningMentorId,
+    mentoringTeams, judgingTeams,
     kickModalOpen, setKickModalOpen, setMemberToKick, kickReason, setKickReason,
     memberSuggestions, showMemberSuggestions,
     categories, hasActiveEvents, isLeader, canModifyMembers, canKickMembers, showActions,
     loadPage,
-    handleAcceptInvite, handleDeclineInvite, handleAcceptMentorInvite, handleRejectMentorInvite,
+    handleAcceptInvite, handleDeclineInvite,
     handleMemberInputChange, selectMemberSuggestion,
     handleAddMember, handleRemoveMember, handleSubmitKickRequest,
     handleUpdateTeam, handleLeaveTeam, handleTransferLeader,
-    loadMentors, handleAssignMentor, handleRemoveMentor,
   } = useTeamsData();
 
   if (loading) {
@@ -49,15 +46,12 @@ export default function TeamsView() {
         receivedInvites={receivedInvites}
         mentoringTeams={mentoringTeams}
         judgingTeams={judgingTeams}
-        mentorInvitations={mentorInvitations}
         categories={categories}
         hasActiveEvents={hasActiveEvents}
         createDrawerOpen={createDrawerOpen}
         setCreateDrawerOpen={setCreateDrawerOpen}
         onAcceptInvite={handleAcceptInvite}
         onDeclineInvite={handleDeclineInvite}
-        onAcceptMentorInvite={handleAcceptMentorInvite}
-        onRejectMentorInvite={handleRejectMentorInvite}
         onLoadPage={loadPage}
       />
     );
@@ -101,12 +95,9 @@ export default function TeamsView() {
         onRemoveMember={handleRemoveMember}
       />
 
-      <MentorJudgePanels
-        myTeam={myTeam}
-        isLeader={isLeader}
-        onInviteMentorClick={() => { loadMentors(); setShowMentorModal(true); }}
-        onRemoveMentor={handleRemoveMentor}
-      />
+      {/* Read-only now: an organiser allocates mentors per round, so the team sees
+          who it was given rather than choosing. */}
+      <MentorJudgePanels myTeam={myTeam} isLeader={isLeader} />
 
       <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
         <TeamChatPanel teamId={myTeam.teamId} />
@@ -123,19 +114,6 @@ export default function TeamsView() {
           onAddMember={handleAddMember}
         />
       )}
-
-      <InviteMentorModal
-        open={showMentorModal}
-        onClose={() => { if (!assigningMentorId) { setShowMentorModal(false); setMentorSearch(""); } }}
-        mentorSearch={mentorSearch}
-        setMentorSearch={setMentorSearch}
-        loadingMentors={loadingMentors}
-        mentors={mentors}
-        myTeam={myTeam}
-        submitting={submitting}
-        assigningMentorId={assigningMentorId}
-        onAssignMentor={handleAssignMentor}
-      />
 
       <KickRequestModal
         open={kickModalOpen}

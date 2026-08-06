@@ -209,3 +209,61 @@
   accent-color: var(--color-primary);
   cursor: pointer;
 }
+
+.rosterPanel {
+  margin-bottom: 1.5rem;
+}
+
+.rosterHeader {
+  margin-bottom: 1rem;
+}
+
+.rosterControls {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.5fr) minmax(150px, 0.8fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.rosterControls :global(.form-group) {
+  margin-bottom: 0;
+}
+
+.rosterList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.rosterRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+@media (max-width: 860px) {
+  .rosterControls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .tabBar {
+    gap: 0.25rem;
+    overflow-x: auto;
+  }
+
+  .rosterControls {
+    grid-template-columns: 1fr;
+  }
+
+  .rosterControls :global(.btn) {
+    width: 100%;
+  }
+}

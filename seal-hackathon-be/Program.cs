@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +52,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
             errorCodesToAdd: null);
     }));
 
+// Without this the key ring lands on the container filesystem and dies with the
+// container, taking every outstanding password-reset link with it. The application
+// name is part of how keys are matched, so it must never change — renaming it
+// would strand the existing keys exactly as the old filesystem storage did.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<ApplicationDbContext>()
+    .SetApplicationName("SEAL.Hackathon");
+
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
 {
@@ -82,6 +91,7 @@ builder.Services.AddScoped<IJudgeDashboardService, JudgeDashboardService>();
 builder.Services.AddScoped<INotificationInboxService, NotificationInboxService>();
 builder.Services.AddScoped<IAuditLogQueryService, AuditLogQueryService>();
 builder.Services.AddScoped<IMentorService, MentorService>();
+builder.Services.AddScoped<IRoundStaffService, RoundStaffService>();
 builder.Services.AddScoped<IMentorAdminService, MentorAdminService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<ITeamChatService, TeamChatService>();

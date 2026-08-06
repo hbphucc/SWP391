@@ -231,16 +231,26 @@ namespace SEAL.NET.Services.Implementations
                 await _roleManager.CreateAsync(new IdentityRole<Guid>(request.Role));
 
             var currentRoles = await _userManager.GetRolesAsync(user);
-
-            if (currentRoles.Any())
+            if ((request.Role == "Mentor" || request.Role == "Judge") && currentRoles.Any())
+            {
+                var participantRoles = currentRoles.Where(role => role is "Member" or "TeamLeader").ToList();
+                if (participantRoles.Any())
+                {
+                    var removeResult = await _userManager.RemoveFromRolesAsync(user, participantRoles);
+                    if (!removeResult.Succeeded)
+                        return ServiceResult.BadRequestBody(removeResult.Errors);
+                }
+            }
+            else if (currentRoles.Any())
             {
                 var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
-
                 if (!removeResult.Succeeded)
                     return ServiceResult.BadRequestBody(removeResult.Errors);
             }
 
-            var addResult = await _userManager.AddToRoleAsync(user, request.Role);
+            var addResult = currentRoles.Contains(request.Role)
+                ? IdentityResult.Success
+                : await _userManager.AddToRoleAsync(user, request.Role);
 
             if (!addResult.Succeeded)
                 return ServiceResult.BadRequestBody(addResult.Errors);
@@ -396,9 +406,10 @@ namespace SEAL.NET.Services.Implementations
                     await using var tx = await _db.Database.BeginTransactionAsync();
 
                     var currentRoles = await _userManager.GetRolesAsync(user);
-                    if (currentRoles.Any())
+                    var participantRoles = currentRoles.Where(role => role is "Member" or "TeamLeader").ToList();
+                    if (participantRoles.Any())
                     {
-                        var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+                        var removeResult = await _userManager.RemoveFromRolesAsync(user, participantRoles);
                         if (!removeResult.Succeeded)
                         {
                             await tx.RollbackAsync();
@@ -406,7 +417,9 @@ namespace SEAL.NET.Services.Implementations
                         }
                     }
 
-                    var addResult = await _userManager.AddToRoleAsync(user, requestedRole);
+                    var addResult = currentRoles.Contains(requestedRole)
+                        ? IdentityResult.Success
+                        : await _userManager.AddToRoleAsync(user, requestedRole);
                     if (!addResult.Succeeded)
                     {
                         await tx.RollbackAsync();

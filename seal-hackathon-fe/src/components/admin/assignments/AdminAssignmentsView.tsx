@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserCheck, Shield, RefreshCw, XCircle, Target } from "lucide-react";
+import { UserCheck, Shield, RefreshCw, XCircle, Target, UserPlus } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 import styles from "./AdminAssignmentsView.module.css";
@@ -13,8 +13,11 @@ type MentorAssignment = {
   mentorUserId: string;
   mentorName: string;
   mentorEmail: string;
-  teamId: string;
-  teamName: string;
+  roundId: string | null;
+  roundName: string | null;
+  // Null on a round-level row: the mentor is on the round but no team is chosen yet.
+  teamId: string | null;
+  teamName: string | null;
   assignedByName: string;
   assignedAt: string;
   isActive: boolean;
@@ -34,7 +37,7 @@ type RoundDto = {
   roundName: string;
 };
 
-type CategoryTeam = { teamId: string; teamName: string };
+type CategoryTeam = { teamId: string; teamName: string; currentRoundId: string | null };
 
 type CategoryDto = {
   categoryId: string;
@@ -59,6 +62,17 @@ type RoundSummaryDto = {
   activeMentorCount: number;
 };
 
+type RoundStaffAssignment = {
+  id: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  roundId: string;
+  roundName: string;
+  role: "Mentor" | "Judge";
+  isActive: boolean;
+};
+
 /**
  * Scoped to a single event — `eventId` is the outer Events workspace's current
  * selection, not a local default. All three tabs (Mentor / Judge / Summary)
@@ -78,8 +92,15 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   // Non-empty = specific per-team assignments.
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedMentorId, setSelectedMentorId] = useState("");
+  // Mentoring is scoped to a round now, and the organiser picks the round first.
+  // Kept separate from selectedRoundId so switching tabs does not move the other
+  // tab's selection out from under them.
+  const [selectedMentorRoundId, setSelectedMentorRoundId] = useState("");
   const [selectedMentorTeamId, setSelectedMentorTeamId] = useState("");
   const [selectedMentorCategoryId, setSelectedMentorCategoryId] = useState("");
+  const [selectedRosterRoundId, setSelectedRosterRoundId] = useState("");
+  const [selectedRosterUserId, setSelectedRosterUserId] = useState("");
+  const [selectedRosterRole, setSelectedRosterRole] = useState<"Mentor" | "Judge">("Mentor");
 
   // Each tab's data is a role/tab-gated query. `judge-assignments` is additionally
   // keyed by the selected round (omitting it returns every assignment for the event).
@@ -96,7 +117,10 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const roundsQuery = useQuery({
     queryKey: ["event-rounds", eventId],
     queryFn: () => apiRequest<RoundDto[]>(`/events/${eventId}/rounds`),
-    enabled: activeTab === "judge" && !!eventId,
+    // Both tabs need rounds now: judging always did, and mentoring is scoped to a
+    // round too. Leaving this on the judge tab alone left the mentor round picker
+    // empty with no error to explain why.
+    enabled: (activeTab === "judge" || activeTab === "mentor") && !!eventId,
   });
   const categoriesQuery = useQuery({
     queryKey: ["event-categories", eventId],
@@ -106,12 +130,17 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const mentorsQuery = useQuery({
     queryKey: ["registered-mentors", eventId],
     queryFn: () => apiRequest<UserDto[]>(`/admin/events/${eventId}/registered-mentors`),
-    enabled: activeTab === "mentor" && !!eventId,
+    enabled: activeTab !== "summary" && !!eventId,
   });
   const judgesQuery = useQuery({
     queryKey: ["registered-judges", eventId],
     queryFn: () => apiRequest<UserDto[]>(`/admin/events/${eventId}/registered-judges`),
-    enabled: activeTab === "judge" && !!eventId,
+    enabled: activeTab !== "summary" && !!eventId,
+  });
+  const roundStaffQuery = useQuery({
+    queryKey: ["round-staff", eventId],
+    queryFn: () => apiRequest<RoundStaffAssignment[]>(`/admin/round-staff?eventId=${eventId}`),
+    enabled: activeTab !== "summary" && !!eventId,
   });
   const judgeAssignmentsQuery = useQuery({
     queryKey: ["judge-assignments", eventId, selectedRoundId],
@@ -129,24 +158,49 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const judges = useMemo(() => judgesQuery.data ?? [], [judgesQuery.data]);
   const mentors = useMemo(() => mentorsQuery.data ?? [], [mentorsQuery.data]);
-  const allEventTeams = useMemo<{ teamId: string; teamName: string; categoryName: string }[]>(() => {
+  const roundStaff = useMemo(() => roundStaffQuery.data ?? [], [roundStaffQuery.data]);
+  const staffCandidates = useMemo(() => {
+    const unique = new Map<string, UserDto>();
+    [...mentors, ...judges].forEach((user) => {
+      const existing = unique.get(user.id);
+      unique.set(user.id, existing
+        ? { ...existing, roles: [...new Set([...existing.roles, ...user.roles])] }
+        : user);
+    });
+    return [...unique.values()];
+  }, [mentors, judges]);
+  const rosterCandidates = useMemo(
+    () => staffCandidates.filter((staff) => staff.roles.includes(selectedRosterRole)),
+    [staffCandidates, selectedRosterRole],
+  );
+  const mentorRoster = useMemo(
+    () => roundStaff.filter((staff) => staff.isActive && staff.role === "Mentor" && staff.roundId === selectedMentorRoundId),
+    [roundStaff, selectedMentorRoundId],
+  );
+  const judgeRoster = useMemo(
+    () => roundStaff.filter((staff) => staff.isActive && staff.role === "Judge" && staff.roundId === selectedRoundId),
+    [roundStaff, selectedRoundId],
+  );
+  const mentorRoundTeams = useMemo<{ teamId: string; teamName: string; categoryName: string }[]>(() => {
     const list: { teamId: string; teamName: string; categoryName: string }[] = [];
     for (const c of categories) {
       if (c.teams) {
         for (const t of c.teams) {
-          list.push({ teamId: t.teamId, teamName: t.teamName, categoryName: c.categoryName });
+          if (t.currentRoundId === selectedMentorRoundId) {
+            list.push({ teamId: t.teamId, teamName: t.teamName, categoryName: c.categoryName });
+          }
         }
       }
     }
     return list;
-  }, [categories]);
+  }, [categories, selectedMentorRoundId]);
   const judgeAssignments = useMemo(() => judgeAssignmentsQuery.data ?? [], [judgeAssignmentsQuery.data]);
   const loading =
     activeTab === "mentor"
-      ? mentorAssignmentsQuery.isFetching || mentorsQuery.isFetching
+      ? mentorAssignmentsQuery.isFetching || mentorsQuery.isFetching || roundStaffQuery.isFetching
       : activeTab === "summary"
         ? roundSummaryQuery.isFetching
-        : judgeAssignmentsQuery.isFetching;
+        : judgeAssignmentsQuery.isFetching || judgesQuery.isFetching || roundStaffQuery.isFetching;
 
   useEffect(() => {
     if (mentorAssignmentsQuery.error) message.error(mentorAssignmentsQuery.error instanceof Error ? mentorAssignmentsQuery.error.message : "Could not load mentor assignments.");
@@ -161,26 +215,35 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
     if (judgesQuery.error) message.error(judgesQuery.error instanceof Error ? judgesQuery.error.message : "Could not load judges.");
   }, [judgesQuery.error, message]);
   useEffect(() => {
+    if (roundStaffQuery.error) message.error(roundStaffQuery.error instanceof Error ? roundStaffQuery.error.message : "Could not load the round roster.");
+  }, [roundStaffQuery.error, message]);
+  useEffect(() => {
     const e = roundsQuery.error ?? categoriesQuery.error;
     if (e) message.error(e instanceof Error ? e.message : "Could not load rounds/categories.");
   }, [roundsQuery.error, categoriesQuery.error, message]);
 
   const currentCategoryTeams = useMemo<CategoryTeam[]>(() => {
     if (!selectedCategoryId) return [];
-    return categories.find((c) => c.categoryId === selectedCategoryId)?.teams ?? [];
-  }, [selectedCategoryId, categories]);
-
-  // Default the judge selection to the first registered judge (preserve any pick).
-  useEffect(() => {
-    if (judges.length > 0) setSelectedJudgeId((curr) => curr || judges[0].id);
-  }, [judges]);
+    return (categories.find((c) => c.categoryId === selectedCategoryId)?.teams ?? [])
+      .filter((team) => team.currentRoundId === selectedRoundId);
+  }, [selectedCategoryId, selectedRoundId, categories]);
 
   // On rounds/categories (re)load — i.e. when the event changes — snap the round
   // and category selection to the first of each, mirroring the old behavior.
   useEffect(() => {
     setSelectedRoundId(rounds[0]?.roundId || "");
+    setSelectedMentorRoundId(rounds[0]?.roundId || "");
+    setSelectedRosterRoundId(rounds[0]?.roundId || "");
     setSelectedCategoryId(categories[0]?.categoryId || "");
   }, [rounds, categories]);
+
+  useEffect(() => {
+    setSelectedMentorTeamId("");
+  }, [selectedMentorRoundId]);
+
+  useEffect(() => {
+    setSelectedRosterUserId("");
+  }, [selectedRosterRole]);
 
   // Synchronize Judge and Team selection with existing assignments when round, category, or judge changes
   useEffect(() => {
@@ -238,6 +301,48 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   const handleRefresh = () => {
     if (activeTab === "mentor") void mentorAssignmentsQuery.refetch();
     else if (activeTab === "judge") void judgeAssignmentsQuery.refetch();
+    if (activeTab !== "summary") void roundStaffQuery.refetch();
+  };
+
+  const handleAddToRoster = async () => {
+    if (busyAction) return;
+    if (!selectedRosterRoundId || !selectedRosterUserId) {
+      message.warning("Select a round and staff member first.");
+      return;
+    }
+
+    setBusyAction("add-roster");
+    try {
+      const result = await apiRequest<{ message: string }>("/admin/round-staff", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: selectedRosterUserId,
+          roundId: selectedRosterRoundId,
+          role: selectedRosterRole,
+        }),
+      });
+      message.success(result.message);
+      setSelectedRosterUserId("");
+      await queryClient.invalidateQueries({ queryKey: ["round-staff", eventId] });
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not add staff to this round.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleRemoveFromRoster = async (assignment: RoundStaffAssignment) => {
+    if (busyAction) return;
+    setBusyAction(`remove-roster-${assignment.id}`);
+    try {
+      await apiRequest(`/admin/round-staff/${assignment.id}`, { method: "DELETE" });
+      message.success("Staff member removed from the round roster.");
+      await queryClient.invalidateQueries({ queryKey: ["round-staff", eventId] });
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not remove staff from this round.");
+    } finally {
+      setBusyAction(null);
+    }
   };
 
   const handleDeactivateMentor = (assignment: MentorAssignment) => {
@@ -262,8 +367,8 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
 
   const handleAssignMentor = async () => {
     if (busyAction) return;
-    if (!selectedMentorId || !selectedMentorTeamId) {
-      message.warning("Select both a mentor and a team.");
+    if (!selectedMentorId || !selectedMentorRoundId || !selectedMentorTeamId) {
+      message.warning("Select a round, a mentor and a team.");
       return;
     }
     setBusyAction("assign-mentor");
@@ -272,6 +377,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         method: "POST",
         body: JSON.stringify({
           mentorUserId: selectedMentorId,
+          roundId: selectedMentorRoundId,
           teamId: selectedMentorTeamId,
         }),
       });
@@ -286,13 +392,13 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   };
 
 
-  // The brief allocates mentors per Track. The backend fans this out to one
-  // assignment per team currently in the category, so everything that reads
-  // mentorship (chat, documents, the conflict check) keeps working unchanged.
+  // Bulk shortcut: covers every team in a track for the chosen round. The backend
+  // fans this out to one assignment per team, so everything that reads mentorship
+  // (chat, documents, the conflict check) keeps working off a single model.
   const handleAssignMentorToCategory = async () => {
     if (busyAction) return;
-    if (!selectedMentorId || !selectedMentorCategoryId) {
-      message.warning("Select both a mentor and a track.");
+    if (!selectedMentorId || !selectedMentorRoundId || !selectedMentorCategoryId) {
+      message.warning("Select a round, a mentor and a track.");
       return;
     }
     setBusyAction("assign-mentor-category");
@@ -301,6 +407,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         method: "POST",
         body: JSON.stringify({
           mentorUserId: selectedMentorId,
+          roundId: selectedMentorRoundId,
           categoryId: selectedMentorCategoryId,
         }),
       });
@@ -398,6 +505,58 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
         ))}
       </div>
 
+      {activeTab !== "summary" && (
+        <section className={`glass-card ${styles.rosterPanel}`}>
+          <div className={styles.rosterHeader}>
+            <div>
+              <h3 className={styles.panelTitleTight}><UserPlus size={18} className={styles.primaryIcon} /> Round Staff Roster</h3>
+              <p className={styles.mutedText}>Add a person to a round before assigning that role to any team.</p>
+            </div>
+          </div>
+          <div className={styles.rosterControls}>
+            <div className="form-group">
+              <label className="form-label">Round</label>
+              <select className="form-select" value={selectedRosterRoundId} onChange={(e) => setSelectedRosterRoundId(e.target.value)}>
+                <option value="">Select a round...</option>
+                {rounds.map((round) => <option key={round.roundId} value={round.roundId}>{round.roundName}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Staff member</label>
+              <select className="form-select" value={selectedRosterUserId} onChange={(e) => setSelectedRosterUserId(e.target.value)}>
+                <option value="">Select a registered staff member...</option>
+                {rosterCandidates.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName} ({staff.email})</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Role in this round</label>
+              <select className="form-select" value={selectedRosterRole} onChange={(e) => setSelectedRosterRole(e.target.value as "Mentor" | "Judge")}>
+                <option value="Mentor">Mentor</option>
+                <option value="Judge">Judge</option>
+              </select>
+            </div>
+            <button className="btn btn-primary" onClick={handleAddToRoster} disabled={loading || busyAction !== null || !selectedRosterRoundId || !selectedRosterUserId}>
+              {busyAction === "add-roster" ? <span className="spinner" /> : <><UserPlus size={16} /> Add to round</>}
+            </button>
+          </div>
+          <div className={styles.rosterList}>
+            {roundStaff.filter((staff) => staff.isActive).map((staff) => (
+              <div className={styles.rosterRow} key={staff.id}>
+                <div className={`avatar-placeholder ${styles.rowAvatar}`}>{staff.fullName.charAt(0)}</div>
+                <div className={styles.rowInfo}>
+                  <div className={styles.rowName}>{staff.fullName}</div>
+                  <div className={styles.rowMeta}>{staff.roundName} · {staff.role}</div>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={() => void handleRemoveFromRoster(staff)} disabled={busyAction !== null}>
+                  {busyAction === `remove-roster-${staff.id}` ? <span className="spinner" /> : <><XCircle size={14} /> Remove</>}
+                </button>
+              </div>
+            ))}
+            {roundStaff.filter((staff) => staff.isActive).length === 0 && <p className={styles.mutedText}>No staff have been added to a round yet.</p>}
+          </div>
+        </section>
+      )}
+
       {activeTab === "summary" ? (
         <div className="glass-card">
           <h3 className={styles.panelTitle}>
@@ -447,24 +606,32 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                 <Target size={18} className={styles.primaryIcon} /> Assign Mentor
               </h3>
               <p className={`form-hint ${styles.hintSpacing}`}>
-                Admin directly assigns mentors to teams. Each team can have one active mentor.
+                Pick the round first, then the team. A team has one mentor per round, so
+                the same mentor can carry a team forward or hand it over between rounds.
               </p>
               <div className={styles.formColumn}>
+                <div className="form-group">
+                  <label className="form-label">Round</label>
+                  <select className="form-select" value={selectedMentorRoundId} onChange={(e) => setSelectedMentorRoundId(e.target.value)}>
+                    <option value="">Select a round...</option>
+                    {rounds.map((r) => (<option key={r.roundId} value={r.roundId}>{r.roundName}</option>))}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label className="form-label">Mentor</label>
                   <select className="form-select" value={selectedMentorId} onChange={(e) => setSelectedMentorId(e.target.value)}>
                     <option value="">Select a mentor...</option>
-                    {mentors.map((m) => (<option key={m.id} value={m.id}>{m.fullName} ({m.email})</option>))}
+                    {mentorRoster.map((mentor) => (<option key={mentor.id} value={mentor.userId}>{mentor.fullName} ({mentor.email})</option>))}
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Team</label>
                   <select className="form-select" value={selectedMentorTeamId} onChange={(e) => setSelectedMentorTeamId(e.target.value)}>
                     <option value="">Select a team...</option>
-                    {allEventTeams.map((t) => (<option key={t.teamId} value={t.teamId}>{t.teamName} ({t.categoryName})</option>))}
+                    {mentorRoundTeams.map((t) => (<option key={t.teamId} value={t.teamId}>{t.teamName} ({t.categoryName})</option>))}
                   </select>
                 </div>
-                <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading || busyAction !== null || !selectedMentorId || !selectedMentorTeamId}>
+                <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading || busyAction !== null || !selectedMentorRoundId || !selectedMentorId || !selectedMentorTeamId}>
                   {busyAction === "assign-mentor" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Mentor</>}
                 </button>
 
@@ -481,7 +648,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                 <button
                   className="btn btn-secondary"
                   onClick={handleAssignMentorToCategory}
-                  disabled={loading || busyAction !== null || !selectedMentorId || !selectedMentorCategoryId}
+                  disabled={loading || busyAction !== null || !selectedMentorRoundId || !selectedMentorId || !selectedMentorCategoryId}
                 >
                   {busyAction === "assign-mentor-category" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign to Track</>}
                 </button>
@@ -501,7 +668,9 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                       <div className={`avatar-placeholder ${styles.rowAvatar}`}>{a.mentorName.charAt(0)}</div>
                       <div className={styles.rowInfo}>
                         <div className={styles.rowName}>{a.mentorName}</div>
-                        <div className={styles.rowMeta}>{a.teamName} · {a.status}</div>
+                        <div className={styles.rowMeta}>
+                          {a.roundName ?? "No round"} · {a.teamName ?? "No team yet"} · {a.status}
+                        </div>
                       </div>
                       {a.isActive && (
                         <button className="btn btn-ghost btn-sm" onClick={() => handleDeactivateMentor(a)} disabled={busyAction !== null}>
@@ -539,7 +708,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                   <label className="form-label">Judge</label>
                   <select className="form-select" value={selectedJudgeId} onChange={(e) => setSelectedJudgeId(e.target.value)}>
                     <option value="">Select a judge...</option>
-                    {judges.map((j) => (<option key={j.id} value={j.id}>{j.fullName} ({j.email})</option>))}
+                    {judgeRoster.map((judge) => (<option key={judge.id} value={judge.userId}>{judge.fullName} ({judge.email})</option>))}
                   </select>
                 </div>
 
@@ -553,7 +722,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                     </div>
                     {currentCategoryTeams.length === 0 ? (
                       <div className={styles.teamsEmptyNote}>
-                        No teams registered in this category.
+                        No teams are active in this category for the selected round.
                       </div>
                     ) : (
                       <div className={styles.teamChipRow}>

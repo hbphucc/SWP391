@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
 using SEAL.NET.DTOs.Judge;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -110,6 +111,11 @@ namespace SEAL.NET.Services.Implementations
             if (!isRegistered)
                 return ServiceResult.BadRequest("Selected judge has not registered for this event.");
 
+            var isOnRoster = await _context.RoundStaffAssignments.AnyAsync(a =>
+                a.UserId == request.JudgeId && a.RoundId == request.RoundId && a.Role == RoundStaffRole.Judge && a.IsActive);
+            if (!isOnRoster)
+                return ServiceResult.BadRequest("Add this judge to the selected round roster before assigning teams.");
+
             // Resolve and validate every requested team up front, in ONE query.
             // This must happen before the RemoveRange calls below: those mark the
             // existing assignments as Deleted on the shared scoped DbContext, so a
@@ -119,7 +125,7 @@ namespace SEAL.NET.Services.Implementations
             if (request.TeamIds != null && request.TeamIds.Any())
             {
                 requestedTeams = await _context.Teams
-                    .Where(t => request.TeamIds.Contains(t.TeamId))
+                    .Where(t => request.TeamIds.Contains(t.TeamId) && t.CurrentRoundId == request.RoundId)
                     .ToListAsync();
 
                 // Cast to Guid? so "no invalid id" is distinguishable from an id that
@@ -130,7 +136,7 @@ namespace SEAL.NET.Services.Implementations
                     .FirstOrDefault(id => !requestedTeams.Any(t => t.TeamId == id && t.CategoryId == request.CategoryId));
 
                 if (invalidTeamId.HasValue)
-                    return ServiceResult.BadRequest($"Team with ID {invalidTeamId.Value} does not exist or is not in the selected category.");
+                    return ServiceResult.BadRequest($"Team with ID {invalidTeamId.Value} is not in the selected category or is not active in this round.");
 
                 // Caught here as well as at scoring time so the organiser finds out
                 // while assigning, not when the judge is blocked mid-review.

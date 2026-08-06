@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,8 @@ using SEAL.NET.Models.Enums;
 
 namespace SEAL.NET.Data
 {
-    public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>,
+        IDataProtectionKeyContext
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -32,6 +34,14 @@ namespace SEAL.NET.Data
         public DbSet<KickRequest> KickRequests { get; set; }
         public DbSet<TeamChatMessage> TeamChatMessages { get; set; }
         public DbSet<CriteriaTemplate> CriteriaTemplates { get; set; }
+        public DbSet<RoundStaffAssignment> RoundStaffAssignments { get; set; }
+
+        // The keys that sign password-reset and email-confirmation tokens. They used
+        // to be written to the container filesystem, which is discarded whenever the
+        // service restarts — and a free instance sleeps after fifteen idle minutes.
+        // Every restart invalidated every reset link already sitting in someone's
+        // inbox. Keeping them in the database outlives the container.
+        public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -254,10 +264,14 @@ namespace SEAL.NET.Data
                 .HasForeignKey(ti => ti.InviteeUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Mentoring is scoped to a round, so the same mentor may take the same
+            // team again in a later round. Postgres treats NULLs as distinct, which
+            // means this index does not stop a mentor being added to the same round
+            // twice before any team is picked — MentorAdminService checks for that.
             builder.Entity<MentorAssignment>()
-                .HasIndex(ma => new { ma.MentorUserId, ma.TeamId })
+                .HasIndex(ma => new { ma.RoundId, ma.TeamId })
                 .IsUnique()
-                .HasFilter("\"IsActive\" = TRUE");
+                .HasFilter("\"IsActive\" = TRUE AND \"TeamId\" IS NOT NULL");
 
             builder.Entity<MentorAssignment>()
                 .HasOne(ma => ma.Mentor)
@@ -275,6 +289,35 @@ namespace SEAL.NET.Data
                 .HasOne(ma => ma.Team)
                 .WithMany()
                 .HasForeignKey(ma => ma.TeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<MentorAssignment>()
+                .HasOne(ma => ma.Round)
+                .WithMany()
+                .HasForeignKey(ma => ma.RoundId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<RoundStaffAssignment>()
+                .HasIndex(a => new { a.UserId, a.RoundId, a.Role })
+                .IsUnique()
+                .HasFilter("\"IsActive\" = TRUE");
+
+            builder.Entity<RoundStaffAssignment>()
+                .HasOne(a => a.Round)
+                .WithMany()
+                .HasForeignKey(a => a.RoundId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<RoundStaffAssignment>()
+                .HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<RoundStaffAssignment>()
+                .HasOne(a => a.AssignedBy)
+                .WithMany()
+                .HasForeignKey(a => a.AssignedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.Entity<Prize>()

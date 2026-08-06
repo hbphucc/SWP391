@@ -7,9 +7,18 @@ namespace SEAL.NET.DTOs.Team
         public Guid MentorUserId { get; set; }
     }
 
+    /// <summary>Step one: puts a mentor on a round, before any team is chosen.</summary>
+    public class AssignMentorToRoundRequest
+    {
+        public Guid MentorUserId { get; set; }
+        public Guid RoundId { get; set; }
+    }
+
+    /// <summary>Step two: points a mentor at one team within a round.</summary>
     public class AssignMentorRequest
     {
         public Guid MentorUserId { get; set; }
+        public Guid RoundId { get; set; }
         public Guid TeamId { get; set; }
     }
 
@@ -17,6 +26,7 @@ namespace SEAL.NET.DTOs.Team
     public class AssignMentorToCategoryRequest
     {
         public Guid MentorUserId { get; set; }
+        public Guid RoundId { get; set; }
         public Guid CategoryId { get; set; }
     }
 
@@ -26,8 +36,11 @@ namespace SEAL.NET.DTOs.Team
         public Guid MentorUserId { get; set; }
         public string MentorName { get; set; } = string.Empty;
         public string MentorEmail { get; set; } = string.Empty;
-        public Guid TeamId { get; set; }
-        public string TeamName { get; set; } = string.Empty;
+        public Guid? RoundId { get; set; }
+        public string? RoundName { get; set; }
+        // Null while the mentor is on the round but no team has been picked yet.
+        public Guid? TeamId { get; set; }
+        public string? TeamName { get; set; }
         public string? AssignedByName { get; set; }
         public DateTime AssignedAt { get; set; }
         public bool IsActive { get; set; }
@@ -38,6 +51,10 @@ namespace SEAL.NET.DTOs.Team
     {
         public Guid TeamId { get; set; }
         public string TeamName { get; set; } = string.Empty;
+        // The same team can appear twice when a mentor covers it across two rounds,
+        // so the round is what tells those rows apart.
+        public Guid? RoundId { get; set; }
+        public string? RoundName { get; set; }
         public string CategoryName { get; set; } = string.Empty;
         public string EventName { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;

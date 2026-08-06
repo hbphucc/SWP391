@@ -35,7 +35,7 @@ namespace SEAL.NET.Services.Implementations
                         .Where(t => t.Status != TeamStatus.Eliminated &&
                                     t.Status != TeamStatus.Rejected &&
                                     t.Status != TeamStatus.Withdrawn)
-                        .Select(t => new { t.TeamId, t.TeamName })
+                        .Select(t => new { t.TeamId, t.TeamName, t.CurrentRoundId })
                         .ToList()
                 })
                 .ToListAsync();
