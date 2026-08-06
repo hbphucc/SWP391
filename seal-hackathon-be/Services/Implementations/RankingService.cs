@@ -71,13 +71,15 @@ namespace SEAL.NET.Services.Implementations
         {
             var currentRound = await _context.Rounds.Include(r => r.Event).FirstOrDefaultAsync(r => r.RoundId == roundId);
             if (currentRound == null) return new List<object>();
-            var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder);
+            var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder && !r.IsCalibration);
             var passThreshold = await GetPassThresholdAsync(currentRound);
 
             if (isFinalRound)
             {
                 var allRounds = await _context.Rounds
-                    .Where(r => r.EventId == currentRound.EventId)
+                    // Calibration rounds are practice; averaging them in would drag
+                    // every team's final score toward their warm-up performance.
+                    .Where(r => r.EventId == currentRound.EventId && !r.IsCalibration)
                     .ToListAsync();
 
                 var submissions = await _context.Submissions
@@ -214,13 +216,15 @@ namespace SEAL.NET.Services.Implementations
         {
             var currentRound = await _context.Rounds.Include(r => r.Event).FirstOrDefaultAsync(r => r.RoundId == roundId);
             if (currentRound == null) return new List<object>();
-            var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder);
+            var isFinalRound = !await _context.Rounds.AnyAsync(r => r.EventId == currentRound.EventId && r.RoundOrder > currentRound.RoundOrder && !r.IsCalibration);
             var passThreshold = await GetPassThresholdAsync(currentRound);
 
             if (isFinalRound)
             {
                 var allRounds = await _context.Rounds
-                    .Where(r => r.EventId == currentRound.EventId)
+                    // Calibration rounds are practice; averaging them in would drag
+                    // every team's final score toward their warm-up performance.
+                    .Where(r => r.EventId == currentRound.EventId && !r.IsCalibration)
                     .ToListAsync();
 
                 var submissions = await _context.Submissions
@@ -351,7 +355,7 @@ namespace SEAL.NET.Services.Implementations
         {
             var eventItem = await _context.Events.FindAsync(eventId);
             var allRounds = await _context.Rounds
-                .Where(r => r.EventId == eventId)
+                .Where(r => r.EventId == eventId && !r.IsCalibration)
                 .ToListAsync();
             var isCompleted = (eventItem != null && eventItem.Status == EventStatus.Completed) || (allRounds.Count > 0 && allRounds.All(r => r.IsCompleted));
 
@@ -438,7 +442,7 @@ namespace SEAL.NET.Services.Implementations
         {
             var eventItem = await _context.Events.FindAsync(eventId);
             var allRounds = await _context.Rounds
-                .Where(r => r.EventId == eventId)
+                .Where(r => r.EventId == eventId && !r.IsCalibration)
                 .ToListAsync();
             var isCompleted = (eventItem != null && eventItem.Status == EventStatus.Completed) || (allRounds.Count > 0 && allRounds.All(r => r.IsCompleted));
 

@@ -9,5 +9,6 @@ namespace SEAL.NET.Services.Interfaces
     public interface IAnalyticsService
     {
         Task<InterRaterAnalyticsDto> GetInterRaterAsync(Guid? eventId);
+        Task<CalibrationDistributionDto?> GetCalibrationDistributionAsync(Guid roundId, Guid? currentUserId, bool isAdmin);
     }
 }

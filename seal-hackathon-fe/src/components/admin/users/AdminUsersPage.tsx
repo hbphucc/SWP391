@@ -13,7 +13,17 @@ interface UserItem {
   role: string;
   status: string;
   uni: string;
+  /** Only meaningful for judges; drives the RQ3 faculty-vs-guest comparison. */
+  judgeType: JudgeType;
 }
+
+type JudgeType = "Unspecified" | "Internal" | "Guest";
+
+const JUDGE_TYPE_OPTIONS: { value: JudgeType; label: string }[] = [
+  { value: "Unspecified", label: "Unlabelled" },
+  { value: "Internal", label: "Faculty" },
+  { value: "Guest", label: "Guest" },
+];
 
 interface RoleRequestItem {
   id: string;
@@ -32,6 +42,7 @@ interface BackendUser {
   roles?: string[];
   isApproved: boolean;
   schoolName?: string | null;
+  judgeType?: JudgeType;
 }
 
 interface CreatedJudge {
@@ -85,6 +96,7 @@ export default function UsersPage() {
           role: mappedRole,
           status: user.isApproved ? "Approved" : "Pending",
           uni: user.schoolName ?? "-",
+          judgeType: user.judgeType ?? "Unspecified",
         };
       });
     },
@@ -175,6 +187,21 @@ export default function UsersPage() {
     }
   };
 
+  // Judges created through the guest flow are labelled automatically; this covers
+  // accounts that predate the field and the occasional miscategorised one.
+  const handleJudgeTypeChange = async (record: UserItem, judgeType: JudgeType) => {
+    try {
+      await apiRequest(`/admin/users/${record.id}/judge-type`, {
+        method: "PUT",
+        body: JSON.stringify({ judgeType }),
+      });
+      message.success(`Judge type updated for ${record.name}.`);
+      await loadUsers();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Could not update judge type.");
+    }
+  };
+
   const handleReject = (record: UserItem) => {
     modal.confirm({
       title: `Reject ${record.name}?`,
@@ -224,6 +251,23 @@ export default function UsersPage() {
       <Tag color={t.includes("FPT") ? "orange" : "blue"}>{t}</Tag>
     )},
     { title: 'University', dataIndex: 'uni', key: 'uni' },
+    {
+      title: 'Judge type',
+      key: 'judgeType',
+      render: (_: unknown, record: UserItem) =>
+        record.role !== "Judge" ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <Select<JudgeType>
+            size="small"
+            style={{ width: 130 }}
+            value={record.judgeType}
+            options={JUDGE_TYPE_OPTIONS}
+            onChange={(value) => handleJudgeTypeChange(record, value)}
+            aria-label={`Judge type for ${record.name}`}
+          />
+        ),
+    },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (t: string) => (
       <Tag color={t === "Pending" ? "warning" : "success"}>{t}</Tag>
     )},

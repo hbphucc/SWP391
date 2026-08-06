@@ -77,6 +77,17 @@ export default function CreateEventRoundsSection({ rounds, setRounds, addRound, 
                 <span className="form-hint">Minimum weighted score to advance</span>
               </div>
               <div className="form-group">
+                <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={r.isCalibration}
+                    onChange={(e) => setRounds(rounds.map((x) => x.id === r.id ? { ...x, isCalibration: e.target.checked } : x))}
+                  />
+                  Calibration round
+                </label>
+                <span className="form-hint">Practice only — never advances or eliminates teams</span>
+              </div>
+              <div className="form-group">
                 <label className="form-label"><Clock size={11} /> Submission Deadline *</label>
                 <DateTimePickerField
                   value={r.deadline}

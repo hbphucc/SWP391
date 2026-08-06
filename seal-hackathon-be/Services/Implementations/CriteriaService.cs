@@ -31,6 +31,7 @@ namespace SEAL.NET.Services.Implementations
                     c.CriteriaName,
                     c.MaxScore,
                     c.Weight,
+                    c.CriterionType,
                     c.RoundId
                 })
                 .ToListAsync();
@@ -69,7 +70,8 @@ namespace SEAL.NET.Services.Implementations
                 RoundId = roundId,
                 CriteriaName = request.CriteriaName,
                 MaxScore = request.MaxScore,
-                Weight = request.Weight
+                Weight = request.Weight,
+                CriterionType = request.CriterionType
             };
 
             _context.Criteria.Add(criteria);
@@ -105,6 +107,7 @@ namespace SEAL.NET.Services.Implementations
             criteria.CriteriaName = request.CriteriaName;
             criteria.MaxScore = request.MaxScore;
             criteria.Weight = request.Weight;
+            criteria.CriterionType = request.CriterionType;
 
             await _context.SaveChangesAsync();
 
@@ -141,6 +144,164 @@ namespace SEAL.NET.Services.Implementations
                    eventItem.Status == EventStatus.Completed ||
                    eventItem.Status == EventStatus.Cancelled ||
                    eventItem.StartDate <= DateTime.UtcNow;
+        }
+
+        // ─── Reusable templates ────────────────────────────────────────────
+
+        public async Task<ServiceResult> GetTemplatesAsync()
+        {
+            var templates = await _context.CriteriaTemplates
+                .AsNoTracking()
+                .OrderBy(t => t.DisplayOrder)
+                .ThenBy(t => t.CriteriaName)
+                .Select(t => new CriteriaTemplateDto
+                {
+                    CriteriaTemplateId = t.CriteriaTemplateId,
+                    CriteriaName = t.CriteriaName,
+                    Description = t.Description,
+                    Weight = t.Weight,
+                    MaxScore = t.MaxScore,
+                    CriterionType = t.CriterionType,
+                    DisplayOrder = t.DisplayOrder
+                })
+                .ToListAsync();
+
+            return ServiceResult.Ok(templates);
+        }
+
+        public async Task<ServiceResult> CreateTemplateAsync(SaveCriteriaTemplateRequest request)
+        {
+            var name = request.CriteriaName.Trim();
+            if (string.IsNullOrEmpty(name))
+                return ServiceResult.BadRequest("Criterion name is required.");
+
+            if (await _context.CriteriaTemplates.AnyAsync(t => t.CriteriaName.ToLower() == name.ToLower()))
+                return ServiceResult.BadRequest("A template with this name already exists.");
+
+            var template = new CriteriaTemplate
+            {
+                CriteriaName = name,
+                Description = request.Description,
+                Weight = request.Weight,
+                MaxScore = request.MaxScore,
+                CriterionType = request.CriterionType,
+                DisplayOrder = request.DisplayOrder
+            };
+
+            _context.CriteriaTemplates.Add(template);
+            await _context.SaveChangesAsync();
+
+            return ServiceResult.Ok(new { message = "Template created successfully.", template.CriteriaTemplateId });
+        }
+
+        public async Task<ServiceResult> UpdateTemplateAsync(Guid templateId, SaveCriteriaTemplateRequest request)
+        {
+            var template = await _context.CriteriaTemplates.FindAsync(templateId);
+            if (template == null)
+                return ServiceResult.NotFound("Template not found.");
+
+            var name = request.CriteriaName.Trim();
+            if (string.IsNullOrEmpty(name))
+                return ServiceResult.BadRequest("Criterion name is required.");
+
+            if (await _context.CriteriaTemplates.AnyAsync(t =>
+                    t.CriteriaTemplateId != templateId && t.CriteriaName.ToLower() == name.ToLower()))
+                return ServiceResult.BadRequest("A template with this name already exists.");
+
+            template.CriteriaName = name;
+            template.Description = request.Description;
+            template.Weight = request.Weight;
+            template.MaxScore = request.MaxScore;
+            template.CriterionType = request.CriterionType;
+            template.DisplayOrder = request.DisplayOrder;
+
+            await _context.SaveChangesAsync();
+
+            // Deliberately does not touch rounds already using a copy of this
+            // template: judges must not find the rubric changed under them, and past
+            // results must stay reproducible.
+            return ServiceResult.OkMessage("Template updated. Rounds already using it are unchanged.");
+        }
+
+        public async Task<ServiceResult> DeleteTemplateAsync(Guid templateId)
+        {
+            var template = await _context.CriteriaTemplates.FindAsync(templateId);
+            if (template == null)
+                return ServiceResult.NotFound("Template not found.");
+
+            _context.CriteriaTemplates.Remove(template);
+            await _context.SaveChangesAsync();
+
+            return ServiceResult.OkMessage("Template deleted successfully.");
+        }
+
+        /// <summary>
+        /// Copies templates onto a round. Values are copied, not linked — see
+        /// UpdateTemplateAsync for why.
+        /// </summary>
+        public async Task<ServiceResult> ApplyTemplatesAsync(Guid roundId, ApplyCriteriaTemplateRequest request)
+        {
+            var roundExists = await _context.Rounds.AnyAsync(r => r.RoundId == roundId);
+            if (!roundExists)
+                return ServiceResult.NotFound("Round not found.");
+
+            if (request.TemplateIds.Count == 0)
+                return ServiceResult.BadRequest("Select at least one template to apply.");
+
+            var templates = await _context.CriteriaTemplates
+                .Where(t => request.TemplateIds.Contains(t.CriteriaTemplateId))
+                .ToListAsync();
+
+            var missing = request.TemplateIds.FirstOrDefault(id => templates.All(t => t.CriteriaTemplateId != id));
+            if (missing != Guid.Empty)
+                return ServiceResult.BadRequest($"Template {missing} no longer exists.");
+
+            var existing = await _context.Criteria.Where(c => c.RoundId == roundId).ToListAsync();
+
+            if (request.Replace)
+            {
+                // Scores reference criteria; dropping them would orphan the marks
+                // judges have already given.
+                var criteriaIds = existing.Select(c => c.CriteriaId).ToList();
+                var hasScores = await _context.Scores.AnyAsync(s => criteriaIds.Contains(s.CriteriaId));
+
+                if (hasScores)
+                    return ServiceResult.BadRequest(
+                        "This round already has scores, so its criteria cannot be replaced. Add to them instead.");
+
+                _context.Criteria.RemoveRange(existing);
+                existing.Clear();
+            }
+
+            var added = 0;
+            foreach (var template in request.TemplateIds
+                         .Select(id => templates.First(t => t.CriteriaTemplateId == id)))
+            {
+                // Applying the same template twice should be a no-op, not a duplicate.
+                if (existing.Any(c => string.Equals(c.CriteriaName, template.CriteriaName, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                _context.Criteria.Add(new Criteria
+                {
+                    RoundId = roundId,
+                    CriteriaName = template.CriteriaName,
+                    Description = template.Description,
+                    Weight = template.Weight,
+                    MaxScore = template.MaxScore,
+                    CriterionType = template.CriterionType
+                });
+                added++;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return ServiceResult.Ok(new
+            {
+                message = added == 0
+                    ? "Those criteria are already on this round."
+                    : $"Added {added} criteria from templates.",
+                added
+            });
         }
     }
 }

@@ -10,6 +10,7 @@ interface RoundEditFormState {
   roundOrder: string;
   maxTeamsAdvancing: string;
   passThreshold: string;
+  isCalibration: boolean;
   promptDocumentId: string | null;
   promptFileName: string | null;
 }
@@ -168,6 +169,24 @@ export default function EventRoundsTab({
                     disabled={saving || round.hasSubmissions}
                   />
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: "1rem" }}>
+                <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={roundEditForm.isCalibration}
+                    onChange={(event) =>
+                      setRoundEditForm((cur) => ({ ...cur, isCalibration: event.target.checked }))
+                    }
+                    disabled={saving}
+                  />
+                  Calibration round (practice)
+                </label>
+                <small style={{ color: "var(--color-text-3)" }}>
+                  Judges score a sample submission to compare how they mark. Scores here never
+                  advance or eliminate a team, and are left out of the final average.
+                </small>
               </div>
 
               <div className="form-group" style={{ marginTop: "1rem" }}>

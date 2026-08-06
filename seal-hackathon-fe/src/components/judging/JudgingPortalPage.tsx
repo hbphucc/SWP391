@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Target, ChevronRight, RefreshCw, ExternalLink, ShieldOff, CheckCircle, XCircle,
+  Scale,
   AlertCircle, CalendarDays, Trophy, ListChecks, Clock, Hourglass, Search,
 } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +14,7 @@ import { useAuth } from "@/components/AuthProvider";
 import StatusBadge from "@/components/StatusBadge";
 import WorkspaceTabs from "@/components/workspace/WorkspaceTabs";
 import RankingsView from "@/components/rankings/RankingsView";
+import CalibrationDistributionPanel from "./CalibrationDistributionPanel";
 import { formatDate, formatDateTime, formatScore, daysUntil } from "@/lib/format";
 import styles from "./JudgingPortalPage.module.css";
 
@@ -56,6 +58,8 @@ type AssignedTeam = {
   eventStatus: string;
   roundId: string;
   roundName: string;
+  /** Practice round: scores there never advance or eliminate anyone. */
+  isCalibrationRound?: boolean;
   roundDeadline: string | null;
   submissionId: string | null;
   projectName: string | null;
@@ -204,6 +208,34 @@ export default function JudgingPortalPage() {
     kickQuery.refetch();
   };
   const loadKickRequests = () => kickQuery.refetch();
+
+  // Calibration rounds this judge is assigned to. Derived from the queue rather
+  // than fetched separately — the judge only ever needs the rounds they are on.
+  const calibrationRounds = useMemo(() => {
+    const seen = new Map<string, string>();
+    teams.forEach((t) => {
+      if (t.isCalibrationRound) seen.set(t.roundId, `${t.eventName} · ${t.roundName}`);
+    });
+    return Array.from(seen, ([roundId, label]) => ({ roundId, label }));
+  }, [teams]);
+
+  const renderCalibrationTab = () => (
+    calibrationRounds.length === 0 ? (
+      <div className="empty-state">
+        <div className="empty-title">No calibration rounds assigned</div>
+        <div className="empty-desc">
+          When the organisers set up a practice round for an event you judge, the score
+          comparison shows up here.
+        </div>
+      </div>
+    ) : (
+      <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+        {calibrationRounds.map((r) => (
+          <CalibrationDistributionPanel key={r.roundId} roundId={r.roundId} />
+        ))}
+      </div>
+    )
+  );
 
   const eventOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -515,6 +547,14 @@ export default function JudgingPortalPage() {
                 icon: CalendarDays,
                 render: renderProgressTab,
               },
+              ...(calibrationRounds.length > 0
+                ? [{
+                    id: "calibration",
+                    label: "Calibration",
+                    icon: Scale,
+                    render: renderCalibrationTab,
+                  }]
+                : []),
               {
                 id: "results",
                 label: "Results",

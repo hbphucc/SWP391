@@ -19,6 +19,7 @@ interface EventOption {
 }
 
 interface CriterionReliability {
+  alpha: number | null;
   criteriaId: string;
   criterion: string;
   icc: number | null;
@@ -53,15 +54,87 @@ interface AnonymousScoreRow {
   weight: number;
 }
 
+/** Reliability for one group of criteria or judges — the RQ2 and RQ3 comparisons. */
+interface GroupReliability {
+  group: string;
+  icc: number | null;
+  alpha: number | null;
+  avgScore: number;
+  scoreCount: number;
+}
+
 interface InterRaterAnalytics {
   overallIcc: number | null;
+  /** Krippendorff's alpha — the second half of RQ1, alongside ICC. */
+  overallAlpha: number | null;
   judgeCount: number;
   submissionCount: number;
   criteriaCount: number;
   byCriterion: CriterionReliability[];
+  byCriterionType?: GroupReliability[];
+  byJudgeType?: GroupReliability[];
   variance: TeamVariance[];
   criterionAverages: CriterionAverage[];
   anonymousScores?: AnonymousScoreRow[];
+}
+
+/**
+ * One side-by-side reliability comparison. Rows the organisers have not labelled
+ * yet arrive as "Unspecified" and are shown rather than dropped — a comparison
+ * resting on half-labelled data should say so on the face of it.
+ */
+function GroupReliabilityCard({
+  title,
+  question,
+  groups,
+  emptyHint,
+}: {
+  title: string;
+  question: string;
+  groups?: GroupReliability[];
+  emptyHint: string;
+}) {
+  const rows = (groups ?? []).filter((g) => g.scoreCount > 0);
+  const unlabelled = rows.find((g) => g.group === "Unspecified");
+
+  return (
+    <div className="glass-card">
+      <h4 className={styles.chartTitle}>
+        <BarChart3 size={16} /> {title} <span className="glass-badge">{question}</span>
+      </h4>
+
+      {rows.length === 0 ? (
+        <p className={styles.avgScore}>{emptyHint}</p>
+      ) : (
+        <>
+          <div className={styles.criteriaStack}>
+            {rows.map((g) => (
+              <div key={g.group} className={styles.criterionRow}>
+                <div className={styles.criteriaHeader}>
+                  <span className={styles.criterionName}>
+                    {g.group === "Unspecified" ? "Unlabelled" : g.group}
+                  </span>
+                  <strong className={styles.scoreValue}>
+                    ICC {g.icc != null ? g.icc.toFixed(3) : "N/A"} · α {g.alpha != null ? g.alpha.toFixed(3) : "N/A"}
+                  </strong>
+                </div>
+                <div className={styles.avgScore}>
+                  {g.scoreCount} scores · average {g.avgScore}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {unlabelled && (
+            <p className={styles.avgScore}>
+              {unlabelled.scoreCount} scores are still unlabelled and are excluded from the
+              comparison above.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 function csvCell(cell: string | number) {
@@ -151,8 +224,8 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
     if (!data) return;
     downloadCsv(
       `analytics-summary-${selectedEventName.replaceAll(" ", "-").toLowerCase()}.csv`,
-      ["Event Scope", "Criterion", "ICC", "Agreement", "AvgScore"],
-      data.byCriterion.map((item) => [selectedEventName, item.criterion, item.icc ?? "N/A", item.agreement, item.avgScore])
+      ["Event Scope", "Criterion", "ICC", "Alpha", "Agreement", "AvgScore"],
+      data.byCriterion.map((item) => [selectedEventName, item.criterion, item.icc ?? "N/A", item.alpha ?? "N/A", item.agreement, item.avgScore])
     );
   };
 
@@ -247,6 +320,7 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
           <div className={styles.summaryGrid}>
             {[
               { label: "Overall ICC", val: data.overallIcc != null ? data.overallIcc.toFixed(3) : "N/A", color: "var(--color-emerald)", sub: "Inter-rater reliability" },
+              { label: "Krippendorff's α", val: data.overallAlpha != null ? data.overallAlpha.toFixed(3) : "N/A", color: "var(--color-violet)", sub: "Tolerates missing ratings" },
               { label: "Judges", val: String(data.judgeCount), color: "var(--color-primary)", sub: "Scored submissions" },
               { label: "Submissions", val: String(data.submissionCount), color: "var(--color-amber)", sub: "With scores" },
               { label: "Criteria", val: String(data.criteriaCount), color: "var(--color-cyan)", sub: "Scored criteria" },
@@ -260,6 +334,19 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
           </div>
 
           <div className={styles.chartGrid}>
+            <GroupReliabilityCard
+              title="Technical vs subjective criteria"
+              question="RQ2"
+              groups={data.byCriterionType}
+              emptyHint="Label criteria as Technical or Soft under Event → Criteria to populate this."
+            />
+            <GroupReliabilityCard
+              title="Faculty vs guest judges"
+              question="RQ3"
+              groups={data.byJudgeType}
+              emptyHint="Judge type is recorded when the Judge role is granted."
+            />
+
             <div className="glass-card">
               <h4 className={styles.chartTitle}>
                 <BarChart3 size={16} /> ICC by Criterion

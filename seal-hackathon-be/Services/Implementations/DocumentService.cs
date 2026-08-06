@@ -87,7 +87,14 @@ namespace SEAL.NET.Services.Implementations
                     query = query.Where(d =>
                         d.UploaderId == currentUserId ||
                         (d.EventId == null && d.UploaderId.HasValue && adminUserIds.Contains(d.UploaderId.Value)) ||
-                        (d.EventId != null && participatedEventIds.Contains(d.EventId.Value)) ||
+                        // Event resources. Chat attachments are excluded here because
+                        // TeamChatService stamps them with the team's EventId, which
+                        // would otherwise expose one team's private chat to every
+                        // mentor and judge registered for that event. They stay
+                        // reachable through the chat-specific clause below.
+                        (d.EventId != null
+                            && participatedEventIds.Contains(d.EventId.Value)
+                            && !_context.TeamChatMessages.Any(m => m.DocumentId == d.DocumentId)) ||
                         promptDocumentIds.Contains(d.DocumentId) ||
                         mentorChatDocIds.Contains(d.DocumentId) ||
                         (d.UploaderId.HasValue && mentoredTeamMemberIds.Contains(d.UploaderId.Value))

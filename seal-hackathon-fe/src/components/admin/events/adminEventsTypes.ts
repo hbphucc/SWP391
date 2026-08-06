@@ -9,6 +9,8 @@ export type RoundDto = {
   roundOrder: number;
   maxTeamsAdvancing: number;
   passThreshold?: number | null;
+  /** Practice round: excluded from advancement and from the final average. */
+  isCalibration?: boolean;
   submissionDeadline: string | null;
   hasSubmissions: boolean;
   isCompleted?: boolean;
@@ -47,6 +49,7 @@ export type RoundDraft = {
   name: string;
   topN: string;
   passThreshold: string;
+  isCalibration: boolean;
   deadline: string;
   promptDocumentId: string | null;
   promptFileName: string | null;
@@ -78,6 +81,7 @@ export const INITIAL_ROUND_EDIT_FORM = {
   roundOrder: "",
   maxTeamsAdvancing: "",
   passThreshold: "",
+  isCalibration: false,
   promptDocumentId: null as string | null,
   promptFileName: null as string | null,
 };
@@ -87,6 +91,7 @@ export const INITIAL_ROUND = (): RoundDraft => ({
   name: "",
   topN: "5",
   passThreshold: "",
+  isCalibration: false,
   deadline: "",
   promptDocumentId: null,
   promptFileName: null,
@@ -103,5 +108,5 @@ export const INITIAL_PRIZE = () => ({
 
 /** The first round every fresh create form starts with. */
 export const INITIAL_ROUNDS = (): RoundDraft[] => [
-  { id: 1, name: "Qualifying Round", topN: "10", passThreshold: "", deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] },
+  { id: 1, name: "Qualifying Round", topN: "10", passThreshold: "", isCalibration: false, deadline: "", promptDocumentId: null, promptFileName: null, criteria: [] },
 ];

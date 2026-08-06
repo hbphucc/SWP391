@@ -28,10 +28,16 @@ namespace SEAL.NET.Controllers
         private IList<string> GetUserRoles()
             => User.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToList();
 
+        /// <param name="pageSize">Newest messages to return; defaults to 50, capped at 200.</param>
+        /// <param name="before">Pass the oldest message's SentAt to walk further back.</param>
         [HttpGet]
-        public async Task<IActionResult> GetMessages(Guid teamId)
+        public async Task<IActionResult> GetMessages(
+            Guid teamId,
+            [FromQuery] int? pageSize = null,
+            [FromQuery] DateTime? before = null)
         {
-            return this.ToActionResult(await _teamChatService.GetMessagesAsync(teamId, TryGetCurrentUserId(), GetUserRoles()));
+            return this.ToActionResult(
+                await _teamChatService.GetMessagesAsync(teamId, TryGetCurrentUserId(), GetUserRoles(), pageSize, before));
         }
 
         [HttpPost]

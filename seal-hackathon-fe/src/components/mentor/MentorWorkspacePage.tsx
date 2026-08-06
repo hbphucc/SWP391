@@ -179,6 +179,14 @@ export default function MentorWorkspacePage() {
                 </tr>
               </thead>
               <tbody>
+                {/*
+                  Row click below is a mouse shortcut for the "View Details" button
+                  further along each row, which already carries the accessible name
+                  and is reachable by keyboard. The row is deliberately NOT
+                  focusable: a tabIndex here would add a second tab stop per team
+                  for the identical action, so tabbing a 30-team table would mean 60
+                  stops instead of 30. The button is the accessible path.
+                */}
                 {visibleTeams.map((t) => (
               <tr key={t.teamId} onClick={() => setDetailTeamId(t.teamId)} style={{ cursor: "pointer" }}>
                 <td className="table-cell-primary">

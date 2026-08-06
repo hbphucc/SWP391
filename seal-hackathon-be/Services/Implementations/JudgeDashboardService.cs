@@ -252,6 +252,7 @@ namespace SEAL.NET.Services.Implementations
                     EventStatus = e.Round.Event?.Status.ToString() ?? "",
                     RoundId = roundId,
                     RoundName = e.Round.RoundName,
+                    IsCalibrationRound = e.Round.IsCalibration,
                     RoundDeadline = e.Round.SubmissionDeadline,
                 };
 

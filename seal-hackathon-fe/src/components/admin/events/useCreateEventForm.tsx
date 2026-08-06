@@ -165,6 +165,7 @@ export function useCreateEventForm({ refreshEvents, setView }: UseCreateEventFor
             roundOrder: i + 1,
             maxTeamsAdvancing: Number(r.topN) || 0,
             passThreshold: r.passThreshold.trim() === "" ? null : Number(r.passThreshold),
+            isCalibration: r.isCalibration,
             promptDocumentId: r.promptDocumentId || null,
             criteria: r.criteria.map((c) => ({
               criteriaName: c.name.trim(),

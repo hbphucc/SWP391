@@ -33,6 +33,11 @@ namespace SEAL.NET.Controllers
         public async Task<IActionResult> AssignMentor([FromBody] AssignMentorRequest request)
             => this.ToActionResult(await _mentorAdminService.AssignMentorAsync(TryGetCurrentUserId(), request.MentorUserId, request.TeamId));
 
+        /// <summary>Track-level allocation, as described in the brief.</summary>
+        [HttpPost("assignments/category")]
+        public async Task<IActionResult> AssignMentorToCategory([FromBody] AssignMentorToCategoryRequest request)
+            => this.ToActionResult(await _mentorAdminService.AssignMentorToCategoryAsync(TryGetCurrentUserId(), request.MentorUserId, request.CategoryId));
+
         [HttpDelete("assignments/{id}")]
         public async Task<IActionResult> DeactivateAssignment(Guid id)
             => this.ToActionResult(await _mentorAdminService.DeactivateAssignmentAsync(id));

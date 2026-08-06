@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SEAL.NET.Data;
+using SEAL.NET.Services.Common;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.DTOs.Analytics;
 using SEAL.NET.Services.Interfaces;
 
@@ -40,6 +42,8 @@ namespace SEAL.NET.Services.Implementations
                     JudgeId = s.JudgeId,
                     JudgeName = s.Judge!.FullName,
                     JudgeEmail = s.Judge.Email ?? string.Empty,
+                    CriterionType = s.Criteria.CriterionType,
+                    JudgeType = s.Judge.JudgeType,
                     Value = (double)s.ScoreValue
                 })
                 .ToListAsync();
@@ -60,6 +64,7 @@ namespace SEAL.NET.Services.Implementations
                     CriteriaId = group.Key.CriteriaId,
                     Criterion = group.Key.CriteriaName,
                     Icc = icc,
+                    Alpha = ComputeAlpha(group),
                     Agreement = AgreementLabel(icc),
                     AvgScore = Math.Round(group.Average(g => g.Value), 2)
                 });
@@ -73,6 +78,24 @@ namespace SEAL.NET.Services.Implementations
 
             var validIccs = result.ByCriterion.Where(c => c.Icc.HasValue).Select(c => c.Icc!.Value).ToList();
             result.OverallIcc = validIccs.Count > 0 ? Math.Round(validIccs.Average(), 3) : (double?)null;
+
+            var overallAlpha = ComputeAlpha(scores);
+            result.OverallAlpha = overallAlpha.HasValue ? Math.Round(overallAlpha.Value, 3) : null;
+
+            // RQ2 / RQ3. Both pool every score in the group and run the same ICC over
+            // it, so the two numbers are directly comparable. Unspecified is reported
+            // as its own row instead of being folded into either side.
+            result.ByCriterionType = scores
+                .GroupBy(s => s.CriterionType)
+                .OrderBy(g => g.Key)
+                .Select(g => BuildGroupReliability(g.Key.ToString(), g))
+                .ToList();
+
+            result.ByJudgeType = scores
+                .GroupBy(s => s.JudgeType)
+                .OrderBy(g => g.Key)
+                .Select(g => BuildGroupReliability(g.Key.ToString(), g))
+                .ToList();
 
             var submissionCodes = scores
                 .Select(s => s.SubmissionId)
@@ -98,7 +121,7 @@ namespace SEAL.NET.Services.Implementations
                     Round = s.RoundName,
                     SubmissionCode = submissionCodes[s.SubmissionId],
                     JudgeCode = judgeCodes[s.JudgeId],
-                    JudgeType = IsInternalJudge(s.JudgeEmail) ? "Internal" : "Guest/External",
+                    JudgeType = s.JudgeType.ToString(),
                     Criterion = s.CriteriaName,
                     Score = Math.Round(s.Value, 2),
                     MaxScore = Math.Round(s.MaxScore, 2),
@@ -127,6 +150,94 @@ namespace SEAL.NET.Services.Implementations
             return result;
         }
 
+
+        /// <summary>
+        /// Score spread for a calibration round, shown back to the judges so they can
+        /// see where they diverge and talk it through before real judging starts.
+        /// </summary>
+        public async Task<CalibrationDistributionDto?> GetCalibrationDistributionAsync(
+            Guid roundId, Guid? currentUserId, bool isAdmin)
+        {
+            var round = await _context.Rounds.AsNoTracking()
+                .FirstOrDefaultAsync(r => r.RoundId == roundId);
+
+            if (round == null) return null;
+
+            // Only ever a calibration round. Without this a judge could pass a real
+            // round's id and read every other judge's live scores, which both breaks
+            // independent marking and contaminates the inter-rater data the research
+            // depends on.
+            if (!round.IsCalibration) return null;
+
+            // And only a judge actually on that round. Admins oversee, so they are
+            // exempt; anyone else is treated as if the round did not exist.
+            if (!isAdmin)
+            {
+                if (currentUserId == null) return null;
+
+                var onThisRound = await _context.JudgeAssignments
+                    .AnyAsync(a => a.RoundId == roundId && a.JudgeId == currentUserId.Value);
+
+                if (!onThisRound) return null;
+            }
+
+            var rows = await _context.Scores.AsNoTracking()
+                .Include(s => s.Criteria)
+                .Include(s => s.Judge)
+                .Where(s => s.Submission!.RoundId == roundId)
+                .Select(s => new
+                {
+                    s.CriteriaId,
+                    CriterionName = s.Criteria!.CriteriaName,
+                    s.Criteria.MaxScore,
+                    s.JudgeId,
+                    JudgeName = s.Judge!.FullName,
+                    s.ScoreValue
+                })
+                .ToListAsync();
+
+            var result = new CalibrationDistributionDto
+            {
+                RoundId = round.RoundId,
+                RoundName = round.RoundName,
+                IsCalibration = round.IsCalibration,
+                JudgeCount = rows.Select(r => r.JudgeId).Distinct().Count()
+            };
+
+            result.ByCriterion = rows
+                .GroupBy(r => new { r.CriteriaId, r.CriterionName, r.MaxScore })
+                .Select(g =>
+                {
+                    var values = g.Select(x => x.ScoreValue).ToList();
+                    return new CalibrationCriterionDto
+                    {
+                        CriteriaId = g.Key.CriteriaId,
+                        Criterion = g.Key.CriterionName,
+                        MaxScore = g.Key.MaxScore,
+                        Min = values.Min(),
+                        Max = values.Max(),
+                        Mean = Math.Round(values.Average(), 2),
+                        Spread = values.Max() - values.Min(),
+                        Scores = g
+                            // A judge may have scored more than one sample submission
+                            // in the round; average so each judge appears once.
+                            .GroupBy(x => new { x.JudgeId, x.JudgeName })
+                            .Select(jg => new CalibrationJudgeScoreDto
+                            {
+                                Judge = jg.Key.JudgeName,
+                                Score = Math.Round(jg.Average(x => x.ScoreValue), 2)
+                            })
+                            .OrderByDescending(j => j.Score)
+                            .ToList()
+                    };
+                })
+                // Widest disagreement first — that is what needs discussing.
+                .OrderByDescending(c => c.Spread)
+                .ToList();
+
+            return result;
+        }
+
         private static string AgreementLabel(double? icc)
         {
             if (!icc.HasValue) return "Insufficient data";
@@ -136,8 +247,6 @@ namespace SEAL.NET.Services.Implementations
             return "Low";
         }
 
-        private static bool IsInternalJudge(string email)
-            => email.EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase);
 
         // One-way random effects ICC(1) from (target, rating) pairs.
         private static double? ComputeOneWayIcc(IEnumerable<(Guid Target, double Value)> data)
@@ -178,6 +287,45 @@ namespace SEAL.NET.Services.Implementations
             return Math.Round(icc, 3);
         }
 
+        /// Normalises each raw score to its criterion's own 0..1 scale before pooling,
+        /// so a group mixing a 10-point and a 100-point criterion is not dominated by
+        /// the larger scale.
+        /// Alpha's unit of analysis is one submission judged on one criterion — the
+        /// thing several judges rated independently. Scores are normalised to their
+        /// criterion's own scale first so pooled groups are not skewed by a
+        /// criterion that happens to be marked out of 100 instead of 10.
+        private static double? ComputeAlpha(IEnumerable<ScoreRow> rows)
+        {
+            var units = rows
+                .Where(r => r.MaxScore > 0)
+                .GroupBy(r => new { r.SubmissionId, r.CriteriaId })
+                .Select(g => (IReadOnlyList<double>)g.Select(r => r.Value / r.MaxScore).ToList())
+                .ToList();
+
+            return KrippendorffAlpha.ComputeInterval(units);
+        }
+
+        private static GroupReliabilityDto BuildGroupReliability(string group, IEnumerable<ScoreRow> rows)
+        {
+            var list = rows.ToList();
+            var normalised = list
+                .Where(r => r.MaxScore > 0)
+                .Select(r => (r.SubmissionId, Value: r.Value / r.MaxScore))
+                .ToList();
+
+            var icc = ComputeOneWayIcc(normalised);
+            var groupAlpha = ComputeAlpha(list);
+
+            return new GroupReliabilityDto
+            {
+                Group = group,
+                Icc = icc.HasValue ? Math.Round(icc.Value, 3) : null,
+                Alpha = groupAlpha.HasValue ? Math.Round(groupAlpha.Value, 3) : null,
+                AvgScore = list.Count > 0 ? Math.Round(list.Average(r => r.Value), 2) : 0,
+                ScoreCount = list.Count
+            };
+        }
+
         private class ScoreRow
         {
             public Guid CriteriaId { get; set; }
@@ -191,6 +339,8 @@ namespace SEAL.NET.Services.Implementations
             public Guid JudgeId { get; set; }
             public string JudgeName { get; set; } = string.Empty;
             public string JudgeEmail { get; set; } = string.Empty;
+            public CriterionType CriterionType { get; set; }
+            public JudgeType JudgeType { get; set; }
             public double Value { get; set; }
         }
     }
