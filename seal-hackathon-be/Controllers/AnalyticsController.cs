@@ -19,7 +19,6 @@ namespace SEAL.NET.Controllers
         }
 
         [HttpGet("inter-rater")]
-        [HttpGet("/api/research-stats/inter-rater")]
         public async Task<IActionResult> GetInterRater([FromQuery] Guid? eventId)
             => Ok(await _analyticsService.GetInterRaterAsync(eventId));
 
@@ -28,7 +27,6 @@ namespace SEAL.NET.Controllers
         /// they diverge before real judging begins.
         /// </summary>
         [HttpGet("calibration/{roundId:guid}")]
-        [HttpGet("/api/research-stats/calibration/{roundId:guid}")]
         public async Task<IActionResult> GetCalibrationDistribution(Guid roundId)
         {
             var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
