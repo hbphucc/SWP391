@@ -39,7 +39,7 @@ type CalibrationDistribution = {
 export default function CalibrationDistributionPanel({ roundId }: { roundId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["calibration-distribution", roundId],
-    queryFn: () => apiRequest<CalibrationDistribution>(`/Analytics/calibration/${roundId}`),
+    queryFn: () => apiRequest<CalibrationDistribution>(`/research-stats/calibration/${roundId}`),
     enabled: !!roundId,
   });
 
