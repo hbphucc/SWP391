@@ -55,8 +55,27 @@ export default function TeamChatPanel({ teamId, disabled = false, disabledReason
     refetchInterval: 4000,
   });
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialLoadRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesList.length === 0) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    const isNewMessageAdded = messagesList.length > prevMessageCountRef.current;
+
+    if (isInitialLoadRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      isInitialLoadRef.current = false;
+    } else if (isNewMessageAdded && isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+
+    prevMessageCountRef.current = messagesList.length;
   }, [messagesList]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,7 +164,7 @@ export default function TeamChatPanel({ teamId, disabled = false, disabledReason
       </div>
 
       {/* Messages Feed */}
-      <div className={styles.messagesFeed}>
+      <div className={styles.messagesFeed} ref={messagesContainerRef}>
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
             <Spin size="large" />

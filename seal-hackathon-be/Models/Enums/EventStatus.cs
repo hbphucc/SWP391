@@ -1,5 +1,8 @@
-﻿namespace SEAL.NET.Models.Enums
+using System.Text.Json.Serialization;
+
+namespace SEAL.NET.Models.Enums
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum EventStatus
     {
         Ongoing = 1,

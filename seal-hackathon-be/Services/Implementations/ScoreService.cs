@@ -292,7 +292,9 @@ namespace SEAL.NET.Services.Implementations
 
             var roundCriteriaIds = roundCriteria.Select(c => c.CriteriaId).ToHashSet();
 
-            foreach (var item in request.Scores)
+            var distinctScores = request.Scores.GroupBy(s => s.CriteriaId).Select(g => g.Last()).ToList();
+
+            foreach (var item in distinctScores)
             {
                 if (!roundCriteriaIds.Contains(item.CriteriaId))
                     return ServiceResult.BadRequest($"Criteria {item.CriteriaId} does not belong to this submission's round.");

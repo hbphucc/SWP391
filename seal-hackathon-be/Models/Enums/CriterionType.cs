@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SEAL.NET.Models.Enums
 {
     /// <summary>

@@ -153,6 +153,31 @@ namespace SEAL.NET.Services.Implementations
                         $"This judge mentors {string.Join(", ", names)} and cannot be assigned to score them.");
                 }
             }
+            else
+            {
+                // Category-wide assignment: check if judge mentors any team in this category
+                var categoryTeamIds = await _context.Teams
+                    .Where(t => t.CategoryId == request.CategoryId && t.CurrentRoundId == request.RoundId)
+                    .Select(t => t.TeamId)
+                    .ToListAsync();
+
+                if (categoryTeamIds.Any())
+                {
+                    var mentoredInCategory = await ConflictOfInterest.MentoredTeamsAmongAsync(
+                        _context, request.JudgeId, categoryTeamIds);
+
+                    if (mentoredInCategory.Count > 0)
+                    {
+                        var names = await _context.Teams
+                            .Where(t => mentoredInCategory.Contains(t.TeamId))
+                            .Select(t => t.TeamName)
+                            .ToListAsync();
+
+                        return ServiceResult.BadRequest(
+                            $"This judge mentors {string.Join(", ", names)} in this track and cannot be assigned category-wide.");
+                    }
+                }
+            }
 
             // Remove existing assignments for this specific judge, round, and category combination
             // (to update or replace this judge's assigned teams without overwriting assignments of other judges).
