@@ -25,15 +25,11 @@ namespace SEAL.NET.Controllers
 
         /// <summary>
         /// Per-round summary for one event. Returns one row per round with:
-        ///  - teamsInRound: active (Approved) teams whose CurrentRoundId is this round.
-        ///  - activeJudgeCount: distinct judges with at least one JudgeAssignment in this round.
-        ///  - activeMentorCount: distinct mentors with an active MentorAssignment on a team
-        ///    currently in this round. Mentor assignments are not round-scoped in the schema,
-        ///    so this answers "how many mentors are actively coaching teams that are in this
-        ///    round right now" — useful for staffing visibility, not a per-round attribution.
+        ///  - teamsInRound: historical count of teams that participated in / reached this round.
+        ///  - activeJudgeCount: distinct judges assigned to this round.
+        ///  - activeMentorCount: distinct mentors coaching teams that participated in / reached this round.
         /// </summary>
         [HttpGet("event/{eventId:guid}/round-summary")]
-        [HttpGet("/api/admin/round-summary-reports/event/{eventId:guid}")]
         public async Task<IActionResult> GetRoundSummary(Guid eventId)
         {
             var eventExists = await _context.Events.AnyAsync(e => e.EventId == eventId);
@@ -46,41 +42,53 @@ namespace SEAL.NET.Controllers
                 .Select(r => new { r.RoundId, r.RoundName, r.RoundOrder })
                 .ToListAsync();
 
-            // One grouped query per dimension is cheaper than N round-specific queries.
             var judgeCounts = await _context.JudgeAssignments
                 .Where(ja => ja.Round.EventId == eventId)
                 .GroupBy(ja => ja.RoundId)
                 .Select(g => new { RoundId = g.Key, Count = g.Select(x => x.JudgeId).Distinct().Count() })
                 .ToDictionaryAsync(x => x.RoundId, x => x.Count);
 
-            var teamsByRound = await _context.Teams
-                .Where(t => t.CurrentRoundId != null
-                            && t.Category.EventId == eventId
-                            && t.Status == TeamStatus.Approved)
-                .GroupBy(t => t.CurrentRoundId!.Value)
-                .Select(g => new { RoundId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.RoundId, x => x.Count);
+            var eventTeams = await _context.Teams
+                .Include(t => t.CurrentRound)
+                .Include(t => t.Submissions)
+                .Where(t => t.Category.EventId == eventId)
+                .ToListAsync();
 
-            // Attribute mentors via the team's current round. Same mentor on two teams in the same round counts once.
-            var mentorsByRound = await _context.MentorAssignments
+            var eventMentorAssignments = await _context.MentorAssignments
+                .Include(ma => ma.Team).ThenInclude(t => t!.CurrentRound)
                 .Where(ma => ma.IsActive
-                             && ma.TeamId != null
-                             && ma.Team != null
-                             && ma.Team.CurrentRoundId != null
-                             && ma.Team.Category.EventId == eventId
-                             && ma.Team.Status == TeamStatus.Approved)
-                .GroupBy(ma => ma.Team!.CurrentRoundId!.Value)
-                .Select(g => new { RoundId = g.Key, Count = g.Select(ma => ma.MentorUserId).Distinct().Count() })
-                .ToDictionaryAsync(x => x.RoundId, x => x.Count);
+                             && ((ma.RoundId != null && ma.Round != null && ma.Round.EventId == eventId)
+                                 || (ma.TeamId != null && ma.Team != null && ma.Team.Category.EventId == eventId)))
+                .ToListAsync();
 
-            var result = rounds.Select(r => new
+            var minRoundOrder = rounds.Count > 0 ? rounds.Min(r => r.RoundOrder) : 0;
+
+            var result = rounds.Select(r =>
             {
-                roundId = r.RoundId,
-                roundName = r.RoundName,
-                roundOrder = r.RoundOrder,
-                teamsInRound = teamsByRound.TryGetValue(r.RoundId, out var t) ? t : 0,
-                activeJudgeCount = judgeCounts.TryGetValue(r.RoundId, out var j) ? j : 0,
-                activeMentorCount = mentorsByRound.TryGetValue(r.RoundId, out var m) ? m : 0,
+                var teamsInThisRound = eventTeams.Where(t =>
+                    t.Submissions.Any(s => s.RoundId == r.RoundId)
+                    || (t.CurrentRound != null && t.CurrentRound.RoundOrder >= r.RoundOrder)
+                    || (r.RoundOrder == minRoundOrder)
+                ).ToList();
+
+                var teamIdsInThisRound = teamsInThisRound.Select(t => t.TeamId).ToHashSet();
+
+                var mentorsInThisRound = eventMentorAssignments
+                    .Where(ma => ma.RoundId == r.RoundId
+                                 || (ma.TeamId.HasValue && teamIdsInThisRound.Contains(ma.TeamId.Value)))
+                    .Select(ma => ma.MentorUserId)
+                    .Distinct()
+                    .Count();
+
+                return new
+                {
+                    roundId = r.RoundId,
+                    roundName = r.RoundName,
+                    roundOrder = r.RoundOrder,
+                    teamsInRound = teamsInThisRound.Count,
+                    activeJudgeCount = judgeCounts.TryGetValue(r.RoundId, out var j) ? j : 0,
+                    activeMentorCount = mentorsInThisRound,
+                };
             });
 
             return Ok(result);

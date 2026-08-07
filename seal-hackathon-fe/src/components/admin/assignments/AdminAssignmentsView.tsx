@@ -272,25 +272,8 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
       return () => clearTimeout(timer);
     }
 
-    // 2. If no assignment for this specific judge, but there is ANY assignment for this round and category,
-    // auto-select the first assigned judge to reflect the current state.
-    const anyAssignment = judgeAssignments.find(
-      (a) => a.round.roundId === selectedRoundId && a.category.categoryId === selectedCategoryId
-    );
-
-    if (anyAssignment) {
-      const timer = setTimeout(() => {
-        setSelectedJudgeId(anyAssignment.judge.judgeId);
-        if (anyAssignment.isCategoryWide) {
-          setSelectedTeamIds([]);
-        } else {
-          setSelectedTeamIds(anyAssignment.category.teams?.map((t) => t.teamId) ?? []);
-        }
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-
-    // 3. If there are no assignments for this round and category at all, reset team selections.
+    // 2. If no assignment for this specific judge, reset team selection so admin can choose teams or assign category-wide.
+    // Do NOT override selectedJudgeId back to another judge, as that breaks selecting unassigned judges from the dropdown.
     const timer = setTimeout(() => {
       setSelectedTeamIds([]);
     }, 0);
