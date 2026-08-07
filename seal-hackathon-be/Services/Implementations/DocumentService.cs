@@ -119,7 +119,22 @@ namespace SEAL.NET.Services.Implementations
                         .Select(m => m.DocumentId!.Value)
                         .ToListAsync();
 
-                    query = query.Where(d => (d.UploaderId != null && teamMemberIds.Contains(d.UploaderId.Value)) || chatDocIds.Contains(d.DocumentId));
+                    var myEventIds = await _context.Teams
+                        .Where(t => myTeamIds.Contains(t.TeamId) && t.Category != null)
+                        .Select(t => t.Category!.EventId)
+                        .Distinct()
+                        .ToListAsync();
+
+                    var promptDocIds = await _context.Rounds
+                        .Where(r => r.PromptDocumentId != null && myEventIds.Contains(r.EventId))
+                        .Select(r => r.PromptDocumentId!.Value)
+                        .Distinct()
+                        .ToListAsync();
+
+                    query = query.Where(d =>
+                        (d.UploaderId != null && teamMemberIds.Contains(d.UploaderId.Value)) ||
+                        chatDocIds.Contains(d.DocumentId) ||
+                        promptDocIds.Contains(d.DocumentId));
                 }
             }
 
@@ -213,6 +228,14 @@ namespace SEAL.NET.Services.Implementations
 
         public async Task<DocumentDownload?> GetDownloadAsync(Guid id, Guid? currentUserId, IList<string> roles)
         {
+            var isPrompt = await _context.Rounds.AnyAsync(r => r.PromptDocumentId == id);
+            if (isPrompt)
+            {
+                var promptDoc = await _context.Documents.AsNoTracking().FirstOrDefaultAsync(d => d.DocumentId == id);
+                if (promptDoc != null)
+                    return new DocumentDownload(promptDoc.Content, promptDoc.ContentType, promptDoc.FileName);
+            }
+
             // Same scope as the listing: a document the caller cannot see is
             // reported as missing rather than served, so knowing an id is not by
             // itself permission to read it.

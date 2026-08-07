@@ -55,6 +55,12 @@ namespace SEAL.NET.Services.Implementations
             if (!isStaff)
                 return ServiceResult.BadRequest("This user does not have a staff role (Mentor or Judge).");
 
+            var roleName = role.ToString();
+            if (!await _userManager.IsInRoleAsync(user, roleName))
+            {
+                await _userManager.AddToRoleAsync(user, roleName);
+            }
+
             var registeredForEvent = await _context.Events
                 .Where(e => e.EventId == round.EventId)
                 .AnyAsync(e => e.RegisteredMentors.Any(u => u.Id == userId) || e.RegisteredJudges.Any(u => u.Id == userId));

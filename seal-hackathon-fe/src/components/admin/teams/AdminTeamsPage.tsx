@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Search, CheckCircle, XCircle, Shield, Filter, RefreshCw, CalendarDays, UserCheck } from "lucide-react";
+import { Users, Search, CheckCircle, XCircle, Shield, Filter, RefreshCw, CalendarDays, UserCheck, GraduationCap } from "lucide-react";
 import { App } from "antd";
 import { apiRequest } from "@/lib/api";
 import styles from "./AdminTeamsPage.module.css";
@@ -41,6 +41,18 @@ type JudgeAssignment = {
   };
 };
 
+type MentorAssignment = {
+  id: string;
+  mentorUserId: string;
+  mentorName: string;
+  mentorEmail: string;
+  roundId?: string | null;
+  roundName?: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
+  isActive: boolean;
+};
+
 export default function AdminTeamsPage() {
   const { message, modal } = App.useApp();
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -61,15 +73,22 @@ export default function AdminTeamsPage() {
     queryKey: ["admin-judge-assignments"],
     queryFn: () => apiRequest<JudgeAssignment[]>("/admin/judge-assignments"),
   });
+  const mentorAssignmentsQuery = useQuery({
+    queryKey: ["admin-mentor-assignments", selectedEventId],
+    queryFn: () => apiRequest<MentorAssignment[]>(`/admin/mentors/assignments?eventId=${selectedEventId}`),
+    enabled: !!selectedEventId,
+  });
 
   const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data]);
   const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
   const judgeAssignments = useMemo(() => assignmentsQuery.data ?? [], [assignmentsQuery.data]);
-  const loading = teamsQuery.isFetching || eventsQuery.isFetching || assignmentsQuery.isFetching;
-  const loadError = teamsQuery.error ?? eventsQuery.error ?? assignmentsQuery.error;
+  const mentorAssignments = useMemo(() => mentorAssignmentsQuery.data ?? [], [mentorAssignmentsQuery.data]);
+
+  const loading = teamsQuery.isFetching || eventsQuery.isFetching || assignmentsQuery.isFetching || mentorAssignmentsQuery.isFetching;
+  const loadError = teamsQuery.error ?? eventsQuery.error ?? assignmentsQuery.error ?? mentorAssignmentsQuery.error;
 
   const loadTeams = () =>
-    Promise.all([teamsQuery.refetch(), eventsQuery.refetch(), assignmentsQuery.refetch()]);
+    Promise.all([teamsQuery.refetch(), eventsQuery.refetch(), assignmentsQuery.refetch(), mentorAssignmentsQuery.refetch()]);
 
   // Reset the event selection if the chosen event disappears from the list.
   useEffect(() => {
@@ -139,6 +158,22 @@ export default function AdminTeamsPage() {
     }
     return result;
   }, [eventJudgeAssignments, eventTeams]);
+
+  const mentorsByTeam = useMemo(() => {
+    const result = new Map<string, { key: string; name: string; email: string; roundName: string }[]>();
+    for (const team of eventTeams) {
+      const assignments = mentorAssignments
+        .filter((ma) => ma.isActive && ma.teamId === team.teamId)
+        .map((ma) => ({
+          key: ma.id,
+          name: ma.mentorName,
+          email: ma.mentorEmail,
+          roundName: ma.roundName ?? "Event-wide",
+        }));
+      result.set(team.teamId, assignments);
+    }
+    return result;
+  }, [mentorAssignments, eventTeams]);
 
   const filteredTeams = useMemo(() => {
     return eventTeams.filter((team) => {
@@ -223,7 +258,7 @@ export default function AdminTeamsPage() {
           <div className="empty-state">
             <CalendarDays size={48} className="empty-icon" />
             <div className="empty-title">Select an event</div>
-            <div className="empty-desc">Choose an event above to view its participating teams and judges.</div>
+            <div className="empty-desc">Choose an event above to view its participating teams, judges, and mentors.</div>
           </div>
         ) : (
           <table className={styles.teamTable}>
@@ -233,6 +268,7 @@ export default function AdminTeamsPage() {
                 <th className={styles.cell}>Category</th>
                 <th className={styles.cell}>Members</th>
                 <th className={styles.cell}>Judge(s)</th>
+                <th className={styles.cell}>Mentor(s)</th>
                 <th className={styles.cell}>Status</th>
                 <th className={styles.cellRight}>Actions</th>
               </tr>
@@ -264,6 +300,23 @@ export default function AdminTeamsPage() {
                             <div>
                               <div className={styles.judgeName}>{judge.name}</div>
                               <div className={styles.judgeRound}>{judge.roundName}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className={styles.judgeCell}>
+                    {(mentorsByTeam.get(team.teamId) ?? []).length === 0 ? (
+                      <span className={styles.teamMeta}>Not assigned</span>
+                    ) : (
+                      <div className={styles.judgeList}>
+                        {(mentorsByTeam.get(team.teamId) ?? []).map((mentor) => (
+                          <div key={mentor.key} className={styles.judgeItem} title={mentor.email}>
+                            <GraduationCap size={14} className={styles.judgeIcon} style={{ color: "var(--color-emerald)" }} />
+                            <div>
+                              <div className={styles.judgeName}>{mentor.name}</div>
+                              <div className={styles.judgeRound}>{mentor.roundName}</div>
                             </div>
                           </div>
                         ))}
@@ -311,7 +364,7 @@ export default function AdminTeamsPage() {
               ))}
               {filteredTeams.length === 0 && (
                 <tr>
-                  <td colSpan={6} className={styles.emptyCell}>
+                  <td colSpan={7} className={styles.emptyCell}>
                     <Shield size={48} className={styles.emptyIcon} />
                     <div>No teams in this event match the current filter.</div>
                   </td>

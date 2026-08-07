@@ -36,7 +36,6 @@ namespace SEAL.NET.Services.Implementations
                                     t.Status != TeamStatus.Rejected &&
                                     t.Status != TeamStatus.Withdrawn)
                         .Select(t => new { t.TeamId, t.TeamName, t.CurrentRoundId })
-                        .ToList()
                 })
                 .ToListAsync();
 

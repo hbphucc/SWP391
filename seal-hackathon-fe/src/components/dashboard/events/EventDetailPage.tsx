@@ -68,11 +68,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const canRegisterTeam =
     !!currentUser && !isRouteDeniedForRoles("/dashboard/teams", currentUser.roles);
 
+  // Same key the teams, dashboard and matchmaking screens use. A key of its own
+  // would miss the invalidation they fire after a team is created or left, and
+  // this button would go on offering to register a team that already exists.
   const { data: myTeam } = useQuery({
-    queryKey: ["my-team-event-detail"],
+    queryKey: ["my-team"],
     queryFn: async () => {
       try {
-        return await apiRequest<{ teamId: string; teamName: string }>("/teams/my-team");
+        return await apiRequest<{
+          teamId: string;
+          teamName: string;
+          category?: { categoryId: string };
+        }>("/teams/my-team");
       } catch {
         return null;
       }
@@ -110,6 +117,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const totalTeams = event.categories.reduce((sum, c) => sum + (c.teamCount ?? 0), 0);
   const sortedRounds = [...event.rounds].sort((a, b) => a.roundOrder - b.roundOrder);
 
+  // A person can compete in more than one event, and /teams/my-team answers for
+  // the account rather than for this event. Offering "View My Team" in this
+  // header without checking would point at a team competing somewhere else.
+  const myTeamCategoryId = myTeam?.category?.categoryId;
+  const myTeamIsInThisEvent =
+    !!myTeamCategoryId && event.categories.some((c) => c.categoryId === myTeamCategoryId);
+
   return (
     <div className={styles.root}>
       {/* Event Details Banner */}
@@ -124,7 +138,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <span className={`badge ${STATUS_BADGE[event.status] || "badge-neutral"}`}>{event.status}</span>
           </div>
         </div>
-        {!canRegisterTeam ? null : myTeam ? (
+        {!canRegisterTeam ? null : myTeamIsInThisEvent ? (
           <Link href="/dashboard/teams">
             <button className="btn btn-secondary">
               <Users size={15} /> View My Team
@@ -132,7 +146,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </Link>
         ) : (
           <Link href="/dashboard/teams">
-            <button className="btn btn-primary" disabled={event.categories.length === 0}>
+            <button
+              className="btn btn-primary"
+              disabled={event.categories.length === 0}
+              title={event.categories.length === 0 ? "This event has no tracks open yet." : ""}
+            >
               <Users size={15} /> Register Your Team
             </button>
           </Link>
