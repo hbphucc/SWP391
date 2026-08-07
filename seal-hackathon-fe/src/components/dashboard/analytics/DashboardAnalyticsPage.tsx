@@ -353,7 +353,7 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
               </h4>
               <div className={styles.criteriaStack}>
                 {data.byCriterion.map((item) => {
-                  const averageScorePercent = Math.max(0, Math.min(100, item.avgScore));
+                  const averageScorePercent = Math.max(0, Math.min(100, item.avgScore <= 10 ? item.avgScore * 10 : item.avgScore));
                   return (
                     <div key={item.criteriaId} className={styles.criterionRow}>
                       <div className={styles.criteriaHeader}>

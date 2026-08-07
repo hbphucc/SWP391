@@ -30,6 +30,7 @@ namespace SEAL.NET.Controllers
         ///  - activeMentorCount: distinct mentors coaching teams that participated in / reached this round.
         /// </summary>
         [HttpGet("event/{eventId:guid}/round-summary")]
+        [HttpGet("event/{eventId:guid}")]
         public async Task<IActionResult> GetRoundSummary(Guid eventId)
         {
             var eventExists = await _context.Events.AnyAsync(e => e.EventId == eventId);
@@ -43,7 +44,9 @@ namespace SEAL.NET.Controllers
                 .ToListAsync();
 
             var judgeCounts = await _context.JudgeAssignments
-                .Where(ja => ja.Round.EventId == eventId)
+                .Where(ja => (ja.Round != null && ja.Round.EventId == eventId)
+                             || (ja.Category != null && ja.Category.EventId == eventId)
+                             || (ja.Team != null && ja.Team.Category != null && ja.Team.Category.EventId == eventId))
                 .GroupBy(ja => ja.RoundId)
                 .Select(g => new { RoundId = g.Key, Count = g.Select(x => x.JudgeId).Distinct().Count() })
                 .ToDictionaryAsync(x => x.RoundId, x => x.Count);
@@ -51,14 +54,14 @@ namespace SEAL.NET.Controllers
             var eventTeams = await _context.Teams
                 .Include(t => t.CurrentRound)
                 .Include(t => t.Submissions)
-                .Where(t => t.Category.EventId == eventId)
+                .Where(t => t.Category != null && t.Category.EventId == eventId)
                 .ToListAsync();
 
             var eventMentorAssignments = await _context.MentorAssignments
                 .Include(ma => ma.Team).ThenInclude(t => t!.CurrentRound)
                 .Where(ma => ma.IsActive
                              && ((ma.RoundId != null && ma.Round != null && ma.Round.EventId == eventId)
-                                 || (ma.TeamId != null && ma.Team != null && ma.Team.Category.EventId == eventId)))
+                                 || (ma.TeamId != null && ma.Team != null && ma.Team.Category != null && ma.Team.Category.EventId == eventId)))
                 .ToListAsync();
 
             var minRoundOrder = rounds.Count > 0 ? rounds.Min(r => r.RoundOrder) : 0;
@@ -66,7 +69,7 @@ namespace SEAL.NET.Controllers
             var result = rounds.Select(r =>
             {
                 var teamsInThisRound = eventTeams.Where(t =>
-                    t.Submissions.Any(s => s.RoundId == r.RoundId)
+                    (t.Submissions != null && t.Submissions.Any(s => s.RoundId == r.RoundId))
                     || (t.CurrentRound != null && t.CurrentRound.RoundOrder >= r.RoundOrder)
                     || (r.RoundOrder == minRoundOrder)
                 ).ToList();

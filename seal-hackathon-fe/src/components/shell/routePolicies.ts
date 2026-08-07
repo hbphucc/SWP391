@@ -51,6 +51,8 @@ const ROLE_DENIED_ROUTES: Record<string, string[]> = {
  */
 const ROUTE_REQUIRED_ROLES: Record<string, string[]> = {
   "/dashboard/mentor": ["Mentor", "Admin"],
+  "/dashboard/judging": ["Judge", "Admin"],
+  "/dashboard/analytics": ["Judge", "Admin"],
 };
 
 /**

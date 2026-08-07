@@ -528,13 +528,13 @@ namespace SEAL.NET.Services.Implementations
         public async Task<object> GetEventReportAsync(Guid eventId)
         {
             var eventItem = await _context.Events.FindAsync(eventId);
-            var allRounds = await _context.Rounds
-                .Where(r => r.EventId == eventId)
+            var allRounds = await _context.Rounds.AsNoTracking()
+                .Where(r => r.EventId == eventId && !r.IsCalibration)
                 .OrderBy(r => r.RoundOrder)
                 .ToListAsync();
             var isCompleted = (eventItem != null && eventItem.Status == EventStatus.Completed) || (allRounds.Count > 0 && allRounds.All(r => r.IsCompleted));
 
-            var teams = await _context.Teams
+            var teams = await _context.Teams.AsNoTracking()
                 .Include(t => t.Category)
                 .Include(t => t.CurrentRound)
                 .Include(t => t.Submissions)

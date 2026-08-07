@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SEAL.NET.Models.Enums
 {
     /// <summary>
@@ -5,6 +7,7 @@ namespace SEAL.NET.Models.Enums
     /// profile metadata and is NOT an authentication/authorization role — it has
     /// nothing to do with Identity roles (Admin, Judge, TeamLeader, Member).
     /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum DeveloperRole
     {
         Backend = 0,

@@ -231,7 +231,18 @@ export default function MentorTeamDetailDrawer({ open, teamId, onClose }: Mentor
             </div>
             <TeamChatPanel
               teamId={team.teamId}
-              disabled={team.category.eventStatus === "Completed" || team.category.eventStatus === "Cancelled"}
+              disabled={
+                team.category.eventStatus === "Completed" ||
+                team.category.eventStatus === "Cancelled" ||
+                team.status === "Eliminated" ||
+                team.status === "Withdrawn" ||
+                team.status === "Rejected"
+              }
+              disabledReason={
+                team.status === "Eliminated" || team.status === "Withdrawn" || team.status === "Rejected"
+                  ? "Chat is disabled because this team is no longer active."
+                  : undefined
+              }
             />
           </div>
         </div>

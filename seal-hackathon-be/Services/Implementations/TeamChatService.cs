@@ -105,6 +105,11 @@ namespace SEAL.NET.Services.Implementations
                 return ServiceResult.BadRequest("Chat is disabled because this event has ended.");
             }
 
+            if (team.Status == TeamStatus.Eliminated || team.Status == TeamStatus.Withdrawn || team.Status == TeamStatus.Rejected)
+            {
+                return ServiceResult.BadRequest("Chat is disabled because this team is no longer active in the event.");
+            }
+
             var (isAuthorized, roleName) = await CheckPermissionAndRoleAsync(teamId, currentUserId, roles);
             if (!isAuthorized) return ServiceResult.Forbidden();
 
