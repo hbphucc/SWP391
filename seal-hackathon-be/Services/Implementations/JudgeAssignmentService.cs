@@ -86,9 +86,9 @@ namespace SEAL.NET.Services.Implementations
             if (judge == null)
                 return ServiceResult.NotFound("Judge not found.");
 
-            var isJudge = await _userManager.IsInRoleAsync(judge, "Judge");
-            if (!isJudge)
-                return ServiceResult.BadRequest("This user is not a Judge.");
+            var isStaff = await _userManager.IsInRoleAsync(judge, "Judge") || await _userManager.IsInRoleAsync(judge, "Mentor") || await _userManager.IsInRoleAsync(judge, "Admin");
+            if (!isStaff)
+                return ServiceResult.BadRequest("This user is not a staff member.");
 
             var round = await _context.Rounds.FindAsync(request.RoundId);
             if (round == null)
@@ -102,14 +102,13 @@ namespace SEAL.NET.Services.Implementations
                 return ServiceResult.BadRequest("Round and category must belong to the same event.");
 
             // The judge must have registered for this event (added themselves via the
-            // event registration flow). Having the global "Judge" role is necessary but
-            // not sufficient — registration is what scopes a judge to an event.
+            // event registration flow). Having a global staff role is necessary but
+            // not sufficient — registration is what scopes a staff member to an event.
             var isRegistered = await _context.Events
                 .Where(e => e.EventId == round.EventId)
-                .SelectMany(e => e.RegisteredJudges)
-                .AnyAsync(u => u.Id == request.JudgeId);
+                .AnyAsync(e => e.RegisteredJudges.Any(u => u.Id == request.JudgeId) || e.RegisteredMentors.Any(u => u.Id == request.JudgeId));
             if (!isRegistered)
-                return ServiceResult.BadRequest("Selected judge has not registered for this event.");
+                return ServiceResult.BadRequest("Selected staff member has not registered for this event.");
 
             var isOnRoster = await _context.RoundStaffAssignments.AnyAsync(a =>
                 a.UserId == request.JudgeId && a.RoundId == request.RoundId && a.Role == RoundStaffRole.Judge && a.IsActive);
