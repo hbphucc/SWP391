@@ -81,6 +81,20 @@ async function parseResponse<T>(response: Response): Promise<T> {
     } else if (isRecord(data)) {
       if (typeof data.message === "string") {
         message = data.message;
+      } else if (isRecord(data.errors)) {
+        const errorMsgs: string[] = [];
+        for (const [key, val] of Object.entries(data.errors)) {
+          if (Array.isArray(val)) {
+            errorMsgs.push(`${key}: ${val.join(", ")}`);
+          } else if (typeof val === "string") {
+            errorMsgs.push(`${key}: ${val}`);
+          }
+        }
+        if (errorMsgs.length > 0) {
+          message = errorMsgs.join(" | ");
+        } else if (typeof data.title === "string") {
+          message = data.title;
+        }
       } else if (typeof data.title === "string") {
         message = data.title;
       }
