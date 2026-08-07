@@ -46,18 +46,11 @@ namespace SEAL.NET.Repositories.Implementations
 
         public async Task HardDeleteAsync(Guid eventId)
         {
+            _context.ChangeTracker.Clear();
+
             var strategy = _context.Database.CreateExecutionStrategy();
             await strategy.ExecuteAsync(async () =>
             {
-                // Callers reach here after loading the event with its categories and
-                // rounds, and every delete below goes straight to the database without
-                // telling the change tracker. Those tracked children would still look
-                // alive, so removing the event at the end would cascade onto them and
-                // issue deletes for rows that are already gone — which EF reports as a
-                // concurrency failure. Dropping them first also gives a retry a clean
-                // slate, since the strategy replays this whole block.
-                _context.ChangeTracker.Clear();
-
                 await using var transaction = await _context.Database.BeginTransactionAsync();
 
                 // 1. Delete Scores
@@ -124,29 +117,44 @@ namespace SEAL.NET.Repositories.Implementations
                     .Where(t => t.Category != null && t.Category.EventId == eventId)
                     .ExecuteDeleteAsync();
 
+                // A round's prompt file is reachable only through the round, and some
+                // were stored without an EventId of their own. Note them down before
+                // the rounds go, or nothing can find them afterwards.
+                var promptDocumentIds = await _context.Rounds
+                    .Where(r => r.EventId == eventId && r.PromptDocumentId != null)
+                    .Select(r => r.PromptDocumentId!.Value)
+                    .ToListAsync();
+
                 // 10. Delete Prizes, Categories, Rounds
                 await _context.Prizes.Where(p => p.EventId == eventId).ExecuteDeleteAsync();
                 await _context.Categories.Where(c => c.EventId == eventId).ExecuteDeleteAsync();
                 await _context.Rounds.Where(r => r.EventId == eventId).ExecuteDeleteAsync();
 
-                // 11. Clear join tables (RegisteredMentors / RegisteredJudges) and remove Event
-                var eventItem = await _context.Events
-                    .Include(e => e.RegisteredMentors)
-                    .Include(e => e.RegisteredJudges)
-                    .FirstOrDefaultAsync(e => e.EventId == eventId);
+                // 11. Delete this event's documents.
+                //
+                // Documents.EventId is the one foreign key into Events that is not
+                // cascading — an optional relationship with no OnDelete declared
+                // becomes ClientSetNull, which EF honours by nulling the column on
+                // tracked entities. ExecuteDelete never loads anything, so the
+                // database constraint is what applies, and deleting the event while a
+                // document still points at it fails with a foreign key violation.
+                //
+                // Deleted rather than detached because the file bytes live in this
+                // table: orphaned rows would sit in the database with nothing left
+                // able to reach them. Safe here because the only things that reference
+                // a document — a round's prompt and a chat attachment — are already
+                // gone by this point.
+                await _context.Documents
+                    .Where(d => d.EventId == eventId || promptDocumentIds.Contains(d.DocumentId))
+                    .ExecuteDeleteAsync();
 
-                if (eventItem != null)
-                {
-                    eventItem.RegisteredMentors.Clear();
-                    eventItem.RegisteredJudges.Clear();
-                    await _context.SaveChangesAsync();
-
-                    _context.Events.Remove(eventItem);
-                    await _context.SaveChangesAsync();
-                }
+                // 12. Delete Event itself directly via SQL
+                await _context.Events.Where(e => e.EventId == eventId).ExecuteDeleteAsync();
 
                 await transaction.CommitAsync();
             });
+
+            _context.ChangeTracker.Clear();
         }
     }
 }

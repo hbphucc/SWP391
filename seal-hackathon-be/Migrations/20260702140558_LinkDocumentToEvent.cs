@@ -9,40 +9,41 @@ namespace SEAL.NET.Migrations
     public partial class LinkDocumentToEvent : Migration
     {
         /// <inheritdoc />
+        /// <remarks>
+        /// This body was once commented out with the note "Columns already exist",
+        /// because the database it was written against had been changed by hand
+        /// first. That left the migration claiming to link documents to events while
+        /// creating nothing, so a database built from these migrations came out
+        /// without Documents.EventId at all and the documents screen failed on it.
+        ///
+        /// Written as idempotent SQL rather than the usual builder calls so it is
+        /// correct from either starting point: it creates what is missing on a fresh
+        /// database and does nothing on one that already has these.
+        ///
+        /// The foreign key is left with the default NO ACTION, matching what the
+        /// deployed database already enforces. EventRepository.HardDeleteAsync
+        /// removes an event's documents before the event for that reason.
+        /// </remarks>
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Columns already exist
-            // migrationBuilder.AddColumn<string>(
-            //     name: "PosterUrl",
-            //     table: "Events",
-            //     type: "character varying(2048)",
-            //     maxLength: 2048,
-            //     nullable: true);
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Events"" ADD COLUMN IF NOT EXISTS ""PosterUrl"" character varying(2048);
+                ALTER TABLE ""Events"" ADD COLUMN IF NOT EXISTS ""WinnerImageUrl"" character varying(2048);
+                ALTER TABLE ""Documents"" ADD COLUMN IF NOT EXISTS ""EventId"" uuid;
 
-            // migrationBuilder.AddColumn<string>(
-            //     name: "WinnerImageUrl",
-            //     table: "Events",
-            //     type: "character varying(2048)",
-            //     maxLength: 2048,
-            //     nullable: true);
+                CREATE INDEX IF NOT EXISTS ""IX_Documents_EventId"" ON ""Documents"" (""EventId"");
 
-            // migrationBuilder.AddColumn<Guid>(
-            //     name: "EventId",
-            //     table: "Documents",
-            //     type: "uuid",
-            //     nullable: true);
-
-            // migrationBuilder.CreateIndex(
-            //     name: "IX_Documents_EventId",
-            //     table: "Documents",
-            //     column: "EventId");
-
-            // migrationBuilder.AddForeignKey(
-            //     name: "FK_Documents_Events_EventId",
-            //     table: "Documents",
-            //     column: "EventId",
-            //     principalTable: "Events",
-            //     principalColumn: "EventId");
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint WHERE conname = 'FK_Documents_Events_EventId'
+                    ) THEN
+                        ALTER TABLE ""Documents""
+                            ADD CONSTRAINT ""FK_Documents_Events_EventId""
+                            FOREIGN KEY (""EventId"") REFERENCES ""Events"" (""EventId"");
+                    END IF;
+                END $$;
+            ");
         }
 
         /// <inheritdoc />
