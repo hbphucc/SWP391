@@ -7,7 +7,7 @@ import { ThemeContext } from "./ThemeProvider";
 
 // Routes whose layout already renders a theme toggle in the TopBar — no need
 // to show the floating duplicate there.
-const ROUTES_WITH_TOPBAR_TOGGLE = ["/dashboard", "/admin", "/mentor"];
+const ROUTES_WITH_TOPBAR_TOGGLE = ["/dashboard", "/admin"];
 
 export default function FloatingThemeToggle() {
   const pathname = usePathname();

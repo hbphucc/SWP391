@@ -51,49 +51,9 @@ namespace SEAL.NET.Services.Implementations
         }
 
         /// <summary>
-        /// Step one of the two-step allocation: put a mentor on a round. No team is
-        /// chosen yet, so this grants nothing on its own — it is the roster the
-        /// organiser then draws teams from.
-        /// </summary>
-        public async Task<ServiceResult> AssignMentorToRoundAsync(Guid? adminUserId, Guid mentorUserId, Guid roundId)
-        {
-            var round = await _context.Rounds.FirstOrDefaultAsync(r => r.RoundId == roundId);
-            if (round == null)
-                return ServiceResult.NotFound("Round not found.");
-
-            var mentor = await _context.Users.FirstOrDefaultAsync(u => u.Id == mentorUserId);
-            if (mentor == null)
-                return ServiceResult.NotFound("Mentor user not found.");
-
-            // Postgres treats NULLs as distinct, so the unique index cannot catch a
-            // repeat of the team-less row. Check for it here instead.
-            var alreadyOnRound = await _context.MentorAssignments
-                .AnyAsync(ma => ma.MentorUserId == mentorUserId
-                    && ma.RoundId == roundId
-                    && ma.TeamId == null
-                    && ma.IsActive);
-
-            if (alreadyOnRound)
-                return ServiceResult.BadRequest("This mentor is already assigned to that round.");
-
-            _context.MentorAssignments.Add(new MentorAssignment
-            {
-                RoundId = roundId,
-                TeamId = null,
-                MentorUserId = mentorUserId,
-                AssignedByUserId = adminUserId,
-                Status = InvitationStatus.Accepted,
-                IsActive = true,
-                AssignedAt = DateTime.UtcNow
-            });
-
-            await _context.SaveChangesAsync();
-            return ServiceResult.OkMessage("Mentor assigned to round successfully.");
-        }
-
-        /// <summary>
-        /// Step two: point a mentor already on the round at one of its teams. This is
-        /// the row that actually grants access to the team's chat and documents.
+        /// Points a mentor already on the round's roster at one of its teams. This is
+        /// the row that actually grants access to the team's chat and documents;
+        /// getting onto the roster in the first place is RoundStaffService's job.
         /// </summary>
         public async Task<ServiceResult> AssignMentorAsync(Guid? adminUserId, Guid mentorUserId, Guid roundId, Guid teamId)
         {

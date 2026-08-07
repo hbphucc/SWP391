@@ -130,7 +130,7 @@ export default function MentorWorkspacePage() {
   const renderTeamsTab = () => (
     teams.length === 0 ? (
       <div className="glass-card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-        <Empty description="You have not been assigned to mentor any teams yet." />
+        <Empty description="Teams appear here once an organiser assigns you to mentor a round." />
       </div>
     ) : (
       <>
@@ -260,7 +260,7 @@ export default function MentorWorkspacePage() {
     <div className={styles.chatSplitContainer}>
       {teams.length === 0 ? (
         <div className={styles.emptyStateCard}>
-          <Empty description="You are not assigned to any teams yet." />
+          <Empty description="Chat opens once an organiser assigns you a team to mentor." />
         </div>
       ) : (
         <>

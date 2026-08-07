@@ -1,4 +1,7 @@
-// Same Documents library the dashboard portal serves. DocumentsPage already
-// scopes its list to the mentor's assigned teams (the "Team: X" view switcher),
-// so the mentor portal reuses it rather than growing a parallel copy.
-export { default } from "@/components/dashboard/documents/DocumentsPage";
+import { redirect } from "next/navigation";
+
+// There was never a separate mentor document library — this route re-exported the
+// dashboard one, which already scopes its list to the mentor's assigned teams.
+export default function MentorDocumentsRedirect() {
+  redirect("/dashboard/documents");
+}

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SEAL.NET.DTOs.Auth;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
@@ -21,14 +22,17 @@ namespace SEAL.NET.Controllers
         private string? CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         [HttpPost("register")]
+        [EnableRateLimiting(RateLimitPolicies.Auth)]
         public async Task<IActionResult> Register([FromBody] RegisterRequest model)
             => this.ToActionResult(await _authService.RegisterAsync(model));
 
         [HttpPost("login")]
+        [EnableRateLimiting(RateLimitPolicies.Auth)]
         public async Task<IActionResult> Login([FromBody] LoginRequest model)
             => this.ToActionResult(await _authService.LoginAsync(model));
 
         [HttpPost("google-login")]
+        [EnableRateLimiting(RateLimitPolicies.Auth)]
         public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest model)
             => this.ToActionResult(await _authService.GoogleLoginAsync(model));
 
@@ -75,10 +79,12 @@ namespace SEAL.NET.Controllers
             => this.ToActionResult(await _authService.ChangePasswordAsync(CurrentUserId(), request));
 
         [HttpPost("forgot-password")]
+        [EnableRateLimiting(RateLimitPolicies.Auth)]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest model)
             => this.ToActionResult(await _authService.ForgotPasswordAsync(model));
 
         [HttpPost("reset-password")]
+        [EnableRateLimiting(RateLimitPolicies.Auth)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest model)
             => this.ToActionResult(await _authService.ResetPasswordAsync(model));
 

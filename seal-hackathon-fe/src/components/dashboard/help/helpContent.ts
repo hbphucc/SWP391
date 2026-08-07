@@ -143,7 +143,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       "Focus on questions and tradeoffs rather than rewriting the team's solution.",
     ],
     links: [
-      { label: "Mentor Workspace", href: "/mentor" },
+      { label: "Mentor Workspace", href: "/dashboard/mentor" },
       { label: "Team Workspace", href: "/dashboard/teams" },
     ],
   },

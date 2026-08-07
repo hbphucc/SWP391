@@ -280,15 +280,22 @@ export default function ScoreSubmissionForm({ submissionId, backHref, readOnly =
                         </div>
                       </div>
                     </div>
-                    <input
-                      type="range" min="0" max={Number(c.maxScore)} step="1"
-                      className="score-slider"
-                      aria-label={`Score for ${c.criteriaName}`}
-                      disabled={isLocked}
-                      value={scores[c.criteriaId] ?? 0}
-                      onChange={e => setScores({ ...scores, [c.criteriaId]: +e.target.value })}
-                      style={{ background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) ${((scores[c.criteriaId] ?? 0) / Number(c.maxScore)) * 100}%, rgba(148,163,184,0.15) 100%)` }}
-                    />
+                    {(() => {
+                      const maxScore = Number(c.maxScore) || 0;
+                      const scoreVal = scores[c.criteriaId] ?? 0;
+                      const pct = maxScore > 0 ? Math.min(100, Math.max(0, (scoreVal / maxScore) * 100)) : 0;
+                      return (
+                        <input
+                          type="range" min="0" max={maxScore} step="1"
+                          className="score-slider"
+                          aria-label={`Score for ${c.criteriaName}`}
+                          disabled={isLocked}
+                          value={scoreVal}
+                          onChange={e => setScores({ ...scores, [c.criteriaId]: +e.target.value })}
+                          style={{ background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${pct}%, rgba(148,163,184,0.15) ${pct}%, rgba(148,163,184,0.15) 100%)` }}
+                        />
+                      );
+                    })()}
                     <div className={styles.sliderScale}>
                       <span>0 – Poor</span><span>{Math.round(Number(c.maxScore) / 2)} – Average</span><span>{Number(c.maxScore)} – Excellent</span>
                     </div>

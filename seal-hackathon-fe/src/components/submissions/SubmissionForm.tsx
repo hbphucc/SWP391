@@ -19,6 +19,19 @@ interface SubmissionFormProps {
   isApproved: boolean;
   teamStatus?: string;
   eventStatus?: string | null;
+  isLeader?: boolean;
+  submissionDeadline?: string | null;
+}
+
+export function isValidGithubUrl(url: string): boolean {
+  const clean = url.trim();
+  if (!clean) return false;
+  try {
+    const parsed = new URL(clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`);
+    return parsed.hostname === "github.com" || parsed.hostname.endsWith(".github.com");
+  } catch {
+    return false;
+  }
 }
 
 export default function SubmissionForm({
@@ -30,11 +43,14 @@ export default function SubmissionForm({
   isApproved,
   teamStatus,
   eventStatus,
+  isLeader = true,
+  submissionDeadline,
 }: SubmissionFormProps) {
-  const fieldsDisabled = submitting || !isApproved || eventStatus !== "Ongoing";
+  const isDeadlinePassed = Boolean(submissionDeadline && new Date() > new Date(submissionDeadline));
+  const fieldsDisabled = submitting || !isApproved || eventStatus !== "Ongoing" || isDeadlinePassed || !isLeader;
 
-  const cleanRepo = form.repositoryUrl.trim().toLowerCase();
-  const isRepoInvalid = cleanRepo.length > 0 && !cleanRepo.includes("github.com/");
+  const cleanRepo = form.repositoryUrl.trim();
+  const isRepoInvalid = cleanRepo.length > 0 && !isValidGithubUrl(cleanRepo);
 
   const cleanSlide = form.slideUrl.trim().toLowerCase();
   const isSlideValid =
@@ -54,6 +70,18 @@ export default function SubmissionForm({
 
   return (
     <>
+      {!isLeader && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "var(--color-warning)", marginBottom: "1rem", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: "var(--radius-md)", padding: "0.75rem" }}>
+          <AlertCircle size={16} /> Only the team leader can submit or update project links.
+        </div>
+      )}
+
+      {isDeadlinePassed && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "var(--color-danger)", marginBottom: "1rem", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-md)", padding: "0.75rem" }}>
+          <AlertCircle size={16} /> Submission deadline for this round has passed.
+        </div>
+      )}
+
       {!isApproved && (
         <div style={{ fontSize: "0.85rem", color: "var(--color-warning)", marginBottom: "1rem" }}>
           Only approved teams can submit. Current team status: {teamStatus || "Pending"}.
