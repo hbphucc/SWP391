@@ -7,52 +7,45 @@ namespace SEAL.NET.Migrations
     /// <inheritdoc />
     public partial class SyncMentorAssignmentUniqueIndex : Migration
     {
-        /// <inheritdoc />
+        /// <remarks>
+        /// Written as IF EXISTS / IF NOT EXISTS rather than the usual builder calls.
+        /// This database has been changed by hand more than once, so its indexes do
+        /// not always match what the migration history claims — the plain DropIndex
+        /// this was first generated as brought the service down at startup on an
+        /// index that was not there.
+        ///
+        /// Migrations run during boot here, so one that assumes a shape it has not
+        /// checked takes the whole application with it.
+        /// </remarks>
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_MentorAssignments_MentorUserId_RoundId_TeamId",
-                table: "MentorAssignments");
+            migrationBuilder.Sql(@"
+                DROP INDEX IF EXISTS ""IX_MentorAssignments_MentorUserId_RoundId_TeamId"";
+                DROP INDEX IF EXISTS ""IX_MentorAssignments_RoundId"";
 
-            migrationBuilder.DropIndex(
-                name: "IX_MentorAssignments_RoundId",
-                table: "MentorAssignments");
+                CREATE INDEX IF NOT EXISTS ""IX_MentorAssignments_MentorUserId""
+                    ON ""MentorAssignments"" (""MentorUserId"");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_MentorAssignments_MentorUserId",
-                table: "MentorAssignments",
-                column: "MentorUserId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_MentorAssignments_RoundId_TeamId",
-                table: "MentorAssignments",
-                columns: new[] { "RoundId", "TeamId" },
-                unique: true,
-                filter: "\"IsActive\" = TRUE AND \"TeamId\" IS NOT NULL");
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_MentorAssignments_RoundId_TeamId""
+                    ON ""MentorAssignments"" (""RoundId"", ""TeamId"")
+                    WHERE ""IsActive"" = TRUE AND ""TeamId"" IS NOT NULL;
+            ");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_MentorAssignments_MentorUserId",
-                table: "MentorAssignments");
+            migrationBuilder.Sql(@"
+                DROP INDEX IF EXISTS ""IX_MentorAssignments_MentorUserId"";
+                DROP INDEX IF EXISTS ""IX_MentorAssignments_RoundId_TeamId"";
 
-            migrationBuilder.DropIndex(
-                name: "IX_MentorAssignments_RoundId_TeamId",
-                table: "MentorAssignments");
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_MentorAssignments_MentorUserId_RoundId_TeamId""
+                    ON ""MentorAssignments"" (""MentorUserId"", ""RoundId"", ""TeamId"")
+                    WHERE ""IsActive"" = TRUE;
 
-            migrationBuilder.CreateIndex(
-                name: "IX_MentorAssignments_MentorUserId_RoundId_TeamId",
-                table: "MentorAssignments",
-                columns: new[] { "MentorUserId", "RoundId", "TeamId" },
-                unique: true,
-                filter: "\"IsActive\" = TRUE");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_MentorAssignments_RoundId",
-                table: "MentorAssignments",
-                column: "RoundId");
+                CREATE INDEX IF NOT EXISTS ""IX_MentorAssignments_RoundId""
+                    ON ""MentorAssignments"" (""RoundId"");
+            ");
         }
     }
 }
