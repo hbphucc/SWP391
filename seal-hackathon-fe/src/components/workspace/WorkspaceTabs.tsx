@@ -25,11 +25,21 @@ function WorkspaceTabsInner({ tabs, defaultTab }: WorkspaceTabsProps) {
 
   const fallback = defaultTab ?? tabs[0]?.id ?? "";
   const requested = searchParams.get("tab");
-  const active = tabs.some((t) => t.id === requested) ? (requested as string) : fallback;
+  const initialActive = tabs.some((t) => t.id === requested) ? (requested as string) : fallback;
+
+  const [activeState, setActiveState] = useState<string>(initialActive);
+
+  // Sync state if searchParams changes externally
+  React.useEffect(() => {
+    if (requested && tabs.some((t) => t.id === requested)) {
+      setActiveState(requested);
+    }
+  }, [requested, tabs]);
+
+  const active = activeState;
 
   // Panels stay mounted once visited so switching back doesn't refetch,
   // but tabs never visited don't fire their API calls at all.
-  // State is adjusted during render (not in an effect) per React guidance.
   const [visited, setVisited] = useState<string[]>(() => [active]);
   if (!visited.includes(active)) {
     setVisited([...visited, active]);
@@ -37,6 +47,7 @@ function WorkspaceTabsInner({ tabs, defaultTab }: WorkspaceTabsProps) {
   const mounted = visited.includes(active) ? visited : [...visited, active];
 
   const selectTab = (id: string) => {
+    setActiveState(id);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", id);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
