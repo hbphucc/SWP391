@@ -4,6 +4,7 @@ using SEAL.NET.Data;
 using SEAL.NET.DTOs.Document;
 using SEAL.NET.DTOs.TeamChat;
 using SEAL.NET.Models.Entities;
+using SEAL.NET.Models.Enums;
 using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Interfaces;
 
@@ -92,8 +93,17 @@ namespace SEAL.NET.Services.Implementations
             if (string.IsNullOrWhiteSpace(message) && (file == null || file.Length == 0))
                 return ServiceResult.BadRequest("Message or file attachment is required.");
 
-            var team = await _context.Teams.Include(t => t.Category).FirstOrDefaultAsync(t => t.TeamId == teamId);
+            var team = await _context.Teams
+                .Include(t => t.Category)
+                    .ThenInclude(c => c!.Event)
+                .FirstOrDefaultAsync(t => t.TeamId == teamId);
             if (team == null) return ServiceResult.NotFound("Team not found.");
+
+            var eventStatus = team.Category?.Event?.Status;
+            if (eventStatus == EventStatus.Completed || eventStatus == EventStatus.Cancelled)
+            {
+                return ServiceResult.BadRequest("Chat is disabled because this event has ended.");
+            }
 
             var (isAuthorized, roleName) = await CheckPermissionAndRoleAsync(teamId, currentUserId, roles);
             if (!isAuthorized) return ServiceResult.Forbidden();

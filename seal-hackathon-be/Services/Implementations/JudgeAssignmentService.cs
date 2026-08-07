@@ -154,38 +154,14 @@ namespace SEAL.NET.Services.Implementations
                 }
             }
 
-            // 1. Remove existing assignments for this specific judge, round, and category combination (to avoid duplicates or update assignments)
+            // Remove existing assignments for this specific judge, round, and category combination
+            // (to update or replace this judge's assigned teams without overwriting assignments of other judges).
             var existingForJudge = await _context.JudgeAssignments
                 .Where(a => a.JudgeId == request.JudgeId && a.RoundId == request.RoundId && a.CategoryId == request.CategoryId)
                 .ToListAsync();
             if (existingForJudge.Any())
             {
                 _context.JudgeAssignments.RemoveRange(existingForJudge);
-            }
-
-            // 2. Remove existing assignments for the selected teams for this round and category, REGARDLESS of the judge,
-            // because a team should only have one judge managing/grading them for a specific round & category.
-            if (request.TeamIds != null && request.TeamIds.Any())
-            {
-                var existingForTeams = await _context.JudgeAssignments
-                    .Where(a => a.RoundId == request.RoundId && a.CategoryId == request.CategoryId && a.TeamId != null && request.TeamIds.Contains(a.TeamId.Value))
-                    .ToListAsync();
-                if (existingForTeams.Any())
-                {
-                    _context.JudgeAssignments.RemoveRange(existingForTeams);
-                }
-            }
-            else
-            {
-                // If it is a category-wide assignment (TeamIds is empty/null), we remove any existing category-wide assignments (TeamId is null)
-                // for this round and category, regardless of the judge.
-                var existingCategoryWide = await _context.JudgeAssignments
-                    .Where(a => a.RoundId == request.RoundId && a.CategoryId == request.CategoryId && a.TeamId == null)
-                    .ToListAsync();
-                if (existingCategoryWide.Any())
-                {
-                    _context.JudgeAssignments.RemoveRange(existingCategoryWide);
-                }
             }
 
             // Create assignments

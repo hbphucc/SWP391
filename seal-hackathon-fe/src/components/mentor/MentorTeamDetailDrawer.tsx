@@ -33,6 +33,7 @@ interface MentorTeamDetail {
     categoryName: string;
     eventId: string;
     eventName: string;
+    eventStatus?: string | null;
   };
   currentRound: {
     roundId: string;
@@ -228,7 +229,10 @@ export default function MentorTeamDetailDrawer({ open, teamId, onClose }: Mentor
               <MessageSquare size={17} style={{ color: "var(--color-primary)" }} />
               <h3 style={{ margin: 0, fontSize: "1.05rem" }}>Private Chat Channel</h3>
             </div>
-            <TeamChatPanel teamId={team.teamId} />
+            <TeamChatPanel
+              teamId={team.teamId}
+              disabled={team.category.eventStatus === "Completed" || team.category.eventStatus === "Cancelled"}
+            />
           </div>
         </div>
       )}

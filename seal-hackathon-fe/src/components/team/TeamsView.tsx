@@ -100,7 +100,10 @@ export default function TeamsView() {
       <MentorJudgePanels myTeam={myTeam} isLeader={isLeader} />
 
       <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
-        <TeamChatPanel teamId={myTeam.teamId} />
+        <TeamChatPanel
+          teamId={myTeam.teamId}
+          disabled={myTeam.eventStatus === "Completed" || myTeam.eventStatus === "Cancelled"}
+        />
       </div>
 
       {canModifyMembers && (

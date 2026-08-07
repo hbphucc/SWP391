@@ -42,7 +42,16 @@ namespace SEAL.NET.Services.Implementations
                     r.IsCompleted,
                     r.IsCalibration,
                     r.PromptDocumentId,
-                    PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null
+                    PromptFileName = r.PromptDocument != null ? r.PromptDocument.FileName : null,
+                    criteria = r.CriteriaList.Select(c => new
+                    {
+                        c.CriteriaId,
+                        c.CriteriaName,
+                        c.Description,
+                        c.Weight,
+                        c.MaxScore,
+                        criterionType = c.CriterionType.ToString()
+                    }).ToList()
                 })
                 .ToListAsync();
 
