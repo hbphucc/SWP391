@@ -30,6 +30,7 @@ type TeamData = {
   teamId: string;
   teamName: string;
   status: string;
+  eventStatus?: string | null;
   registeredAt: string;
   eliminationReason?: string | null;
   eliminatedAt?: string | null;
@@ -40,6 +41,7 @@ type TeamData = {
     categoryName: string;
     eventId: string;
     eventName: string;
+    eventStatus?: string | null;
   };
   currentRound: {
     roundId: string;
@@ -216,7 +218,10 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
 
       {tab === "chat" && (
         <div className="mt-4">
-          <TeamChatPanel teamId={team.teamId} />
+          <TeamChatPanel
+            teamId={team.teamId}
+            disabled={team.eventStatus === "Completed" || team.eventStatus === "Cancelled" || team.category?.eventStatus === "Completed" || team.category?.eventStatus === "Cancelled"}
+          />
         </div>
       )}
     </div>

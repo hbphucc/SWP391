@@ -96,7 +96,8 @@ namespace SEAL.NET.Services.Implementations
                     team.Category!.CategoryId,
                     team.Category.CategoryName,
                     eventId = team.Category.EventId,
-                    eventName = team.Category.Event?.EventName
+                    eventName = team.Category.Event?.EventName,
+                    eventStatus = team.Category.Event?.Status.ToString()
                 },
                 currentRound = team.CurrentRound == null ? null : new
                 {

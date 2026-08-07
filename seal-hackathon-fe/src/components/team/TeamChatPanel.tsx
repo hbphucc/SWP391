@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Send, Paperclip, FileText, Download, X, MessageSquare, Loader2 } from "lucide-react";
+import { Send, Paperclip, FileText, Download, X, MessageSquare, Loader2, AlertCircle } from "lucide-react";
 import { App, Spin, Tag, Tooltip } from "antd";
 import { apiRequest, apiUpload, apiDownload } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
@@ -22,6 +22,8 @@ interface ChatMessage {
 
 interface TeamChatPanelProps {
   teamId: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 function formatBytes(bytes?: number | null): string {
@@ -31,7 +33,7 @@ function formatBytes(bytes?: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-export default function TeamChatPanel({ teamId }: TeamChatPanelProps) {
+export default function TeamChatPanel({ teamId, disabled = false, disabledReason }: TeamChatPanelProps) {
   const { user } = useAuth();
   const { message } = App.useApp();
 
@@ -228,70 +230,79 @@ export default function TeamChatPanel({ teamId }: TeamChatPanelProps) {
 
       {/* Input Area */}
       <div className={styles.inputArea}>
-        {/* Selected File Preview */}
-        {selectedFile && (
-          <div className={styles.filePreviewBar}>
-            <div className={styles.filePreviewInfo}>
-              <FileText size={16} style={{ color: "var(--color-primary-2)" }} />
-              <span className={styles.filePreviewName}>
-                {selectedFile.name}
-              </span>
-              <span className={styles.filePreviewSize}>({formatBytes(selectedFile.size)})</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedFile(null)}
-              className={styles.removeFileBtn}
-            >
-              <X size={15} />
-            </button>
+        {disabled ? (
+          <div style={{ padding: "0.9rem 1rem", background: "var(--color-surface-2)", borderTop: "1px solid var(--color-border-2)", fontSize: "0.85rem", color: "var(--color-text-3)", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
+            <AlertCircle size={16} style={{ color: "var(--color-amber)" }} />
+            <span>{disabledReason || "This chat channel is closed because the event has ended."}</span>
           </div>
-        )}
-
-        <form onSubmit={handleSend} className={styles.formRow}>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            className={styles.hiddenFileInput}
-          />
-
-          <Tooltip title="Attach document or file (max 10MB)">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={styles.attachBtn}
-            >
-              <Paperclip size={19} />
-            </button>
-          </Tooltip>
-
-          <input
-            type="text"
-            placeholder="Type a message to your team / mentor..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            className={styles.textInput}
-          />
-
-          <button
-            type="submit"
-            disabled={sending || (!inputText.trim() && !selectedFile)}
-            className={styles.sendBtn}
-          >
-            {sending ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>Sending</span>
-              </>
-            ) : (
-              <>
-                <span>Send</span>
-                <Send size={16} />
-              </>
+        ) : (
+          <>
+            {/* Selected File Preview */}
+            {selectedFile && (
+              <div className={styles.filePreviewBar}>
+                <div className={styles.filePreviewInfo}>
+                  <FileText size={16} style={{ color: "var(--color-primary-2)" }} />
+                  <span className={styles.filePreviewName}>
+                    {selectedFile.name}
+                  </span>
+                  <span className={styles.filePreviewSize}>({formatBytes(selectedFile.size)})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFile(null)}
+                  className={styles.removeFileBtn}
+                >
+                  <X size={15} />
+                </button>
+              </div>
             )}
-          </button>
-        </form>
+
+            <form onSubmit={handleSend} className={styles.formRow}>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className={styles.hiddenFileInput}
+              />
+
+              <Tooltip title="Attach document or file (max 10MB)">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={styles.attachBtn}
+                >
+                  <Paperclip size={19} />
+                </button>
+              </Tooltip>
+
+              <input
+                type="text"
+                placeholder="Type a message to your team / mentor..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                className={styles.textInput}
+              />
+
+              <button
+                type="submit"
+                disabled={sending || (!inputText.trim() && !selectedFile)}
+                className={styles.sendBtn}
+              >
+                {sending ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Sending</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Send</span>
+                    <Send size={16} />
+                  </>
+                )}
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

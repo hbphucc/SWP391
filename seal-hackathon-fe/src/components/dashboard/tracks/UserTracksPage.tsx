@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Bot, Globe, Smartphone, Shield, Lightbulb, Search, RefreshCw } from "lucide-react";
+import { Users, Bot, Globe, Smartphone, Shield, Lightbulb, Search, RefreshCw, ListChecks } from "lucide-react";
 import { App, Input } from "antd";
 import { apiRequest } from "@/lib/api";
 import PageHeader from "@/components/workspace/PageHeader";
@@ -17,6 +17,23 @@ type CategoryDto = {
   categoryId: string;
   categoryName: string;
   description?: string | null;
+};
+
+type CriterionDto = {
+  criteriaId: string;
+  criteriaName: string;
+  description?: string | null;
+  weight: number;
+  maxScore: number;
+  criterionType?: string | null;
+};
+
+type RoundWithCriteriaDto = {
+  roundId: string;
+  roundName: string;
+  roundOrder: number;
+  isCalibration: boolean;
+  criteria?: CriterionDto[];
 };
 
 export default function UserTracksPage() {
@@ -50,6 +67,16 @@ export default function UserTracksPage() {
     enabled: !!eventId,
   });
 
+  const {
+    data: rounds = [],
+    isLoading: roundsLoading,
+    refetch: refetchRounds,
+  } = useQuery({
+    queryKey: ["event-rounds-criteria", eventId],
+    queryFn: () => apiRequest<RoundWithCriteriaDto[]>(`/events/${eventId}/rounds`),
+    enabled: !!eventId,
+  });
+
   useEffect(() => {
     if (eventsError) message.error(eventsError instanceof Error ? eventsError.message : "Could not load events.");
   }, [eventsError, message]);
@@ -57,7 +84,7 @@ export default function UserTracksPage() {
     if (tracksError) message.error(tracksError instanceof Error ? tracksError.message : "Could not load categories.");
   }, [tracksError, message]);
 
-  const loading = eventsLoading || (!!eventId && tracksLoading);
+  const loading = eventsLoading || (!!eventId && (tracksLoading || roundsLoading));
 
   const getIcon = (name: string) => {
     if (!name) return <Lightbulb size={24} style={{ color: "var(--color-amber)" }} />;
@@ -92,7 +119,7 @@ export default function UserTracksPage() {
             className={styles.searchInput}
             prefix={<Search size={16} />}
           />
-          <button className="btn btn-secondary btn-icon" onClick={() => { refetchEvents(); refetchTracks(); }} disabled={loading}>
+          <button className="btn btn-secondary btn-icon" onClick={() => { refetchEvents(); refetchTracks(); refetchRounds(); }} disabled={loading}>
             <RefreshCw size={15} />
           </button>
         </div>
@@ -102,7 +129,7 @@ export default function UserTracksPage() {
       {loading ? (
         <div className="empty-state">
           <span className="spinner" />
-          <div className="empty-title">Loading tracks</div>
+          <div className="empty-title">Loading tracks &amp; criteria</div>
         </div>
       ) : (
         <div className="grid-3">
@@ -122,7 +149,43 @@ export default function UserTracksPage() {
                 {t.description || "No description provided for this track."}
               </p>
 
-              <div className={styles.meta}>
+              {/* Round Criteria section */}
+              <div className={styles.criteriaSection}>
+                <div className={styles.criteriaSectionTitle}>
+                  <ListChecks size={15} style={{ color: "var(--color-primary)" }} />
+                  Evaluation Criteria per Round
+                </div>
+                {rounds.length === 0 ? (
+                  <div className={styles.noCriteria}>No rounds configured for this event yet.</div>
+                ) : (
+                  rounds.map((round) => (
+                    <div key={round.roundId} className={styles.roundBlock}>
+                      <div className={styles.roundTitle}>
+                        {round.roundName} {round.isCalibration ? "(Calibration)" : ""}
+                      </div>
+                      {!round.criteria || round.criteria.length === 0 ? (
+                        <div className={styles.noCriteria}>No criteria configured.</div>
+                      ) : (
+                        <div className={styles.criteriaList}>
+                          {round.criteria.map((c) => (
+                            <div key={c.criteriaId} className={styles.criterionBadge}>
+                              <span className={styles.criterionName}>{c.criteriaName}</span>
+                              <span className={styles.criterionMeta}>
+                                (Max {c.maxScore} • Weight {c.weight}%)
+                              </span>
+                              {c.description && (
+                                <div className={styles.criterionDesc}>{c.description}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className={styles.meta} style={{ marginTop: "1rem" }}>
                 <div className={styles.metaItem}>
                   <Users size={15} className={styles.blueIcon} /> Teams are tracked by backend event/category data.
                 </div>
