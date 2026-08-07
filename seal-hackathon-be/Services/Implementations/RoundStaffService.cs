@@ -51,9 +51,9 @@ namespace SEAL.NET.Services.Implementations
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null || !user.IsApproved) return ServiceResult.BadRequest("Staff user is not approved.");
 
-            var roleName = role.ToString();
-            if (!await _userManager.IsInRoleAsync(user, roleName))
-                return ServiceResult.BadRequest($"This user does not have the {roleName} role.");
+            var isStaff = await _userManager.IsInRoleAsync(user, "Mentor") || await _userManager.IsInRoleAsync(user, "Judge") || await _userManager.IsInRoleAsync(user, "Admin");
+            if (!isStaff)
+                return ServiceResult.BadRequest("This user does not have a staff role (Mentor or Judge).");
 
             var registeredForEvent = await _context.Events
                 .Where(e => e.EventId == round.EventId)
