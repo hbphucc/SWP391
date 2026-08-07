@@ -172,8 +172,8 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
     return [...unique.values()];
   }, [mentors, judges]);
   const rosterCandidates = useMemo(
-    () => staffCandidates.filter((staff) => staff.roles.includes(selectedRosterRole)),
-    [staffCandidates, selectedRosterRole],
+    () => staffCandidates,
+    [staffCandidates],
   );
   const mentorRoster = useMemo(
     () => roundStaff.filter((staff) => staff.isActive && staff.role === "Mentor" && staff.roundId === selectedMentorRoundId),
@@ -242,10 +242,6 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   useEffect(() => {
     setSelectedMentorTeamId("");
   }, [selectedMentorRoundId]);
-
-  useEffect(() => {
-    setSelectedRosterUserId("");
-  }, [selectedRosterRole]);
 
   // Synchronize Judge and Team selection with existing assignments when round, category, or judge changes
   useEffect(() => {
