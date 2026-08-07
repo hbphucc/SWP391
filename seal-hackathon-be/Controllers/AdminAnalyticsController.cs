@@ -11,6 +11,7 @@ namespace SEAL.NET.Controllers
     /// this controller hosts the per-round mentor/judge rollups the assignments page needs.
     /// </summary>
     [Route("api/admin/analytics")]
+    [Route("api/admin/round-summary-reports")]
     [ApiController]
     [Authorize(Roles = "Admin")]
     public class AdminAnalyticsController : ControllerBase
@@ -32,6 +33,7 @@ namespace SEAL.NET.Controllers
         ///    round right now" — useful for staffing visibility, not a per-round attribution.
         /// </summary>
         [HttpGet("event/{eventId:guid}/round-summary")]
+        [HttpGet("/api/admin/round-summary-reports/event/{eventId:guid}")]
         public async Task<IActionResult> GetRoundSummary(Guid eventId)
         {
             var eventExists = await _context.Events.AnyAsync(e => e.EventId == eventId);
@@ -59,15 +61,15 @@ namespace SEAL.NET.Controllers
                 .Select(g => new { RoundId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.RoundId, x => x.Count);
 
-            // MentorAssignment has no RoundId — we attribute mentors via the team's
-            // current round. Same mentor on two teams in the same round counts once.
+            // Attribute mentors via the team's current round. Same mentor on two teams in the same round counts once.
             var mentorsByRound = await _context.MentorAssignments
                 .Where(ma => ma.IsActive
-                             && ma.RoundId != null
                              && ma.TeamId != null
-                             && ma.Round != null
-                             && ma.Round.EventId == eventId)
-                .GroupBy(ma => ma.RoundId!.Value)
+                             && ma.Team != null
+                             && ma.Team.CurrentRoundId != null
+                             && ma.Team.Category.EventId == eventId
+                             && ma.Team.Status == TeamStatus.Approved)
+                .GroupBy(ma => ma.Team!.CurrentRoundId!.Value)
                 .Select(g => new { RoundId = g.Key, Count = g.Select(ma => ma.MentorUserId).Distinct().Count() })
                 .ToDictionaryAsync(x => x.RoundId, x => x.Count);
 

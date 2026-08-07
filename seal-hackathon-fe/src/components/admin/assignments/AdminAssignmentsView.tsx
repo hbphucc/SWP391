@@ -113,7 +113,7 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   });
   const roundSummaryQuery = useQuery({
     queryKey: ["round-summary", eventId],
-    queryFn: () => apiRequest<RoundSummaryDto[]>(`/admin/analytics/event/${eventId}/round-summary`),
+    queryFn: () => apiRequest<RoundSummaryDto[]>(`/admin/round-summary-reports/event/${eventId}`),
     enabled: activeTab === "summary" && !!eventId,
   });
   const roundsQuery = useQuery({

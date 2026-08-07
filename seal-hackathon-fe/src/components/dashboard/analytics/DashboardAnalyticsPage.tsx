@@ -179,7 +179,7 @@ export default function AnalyticsPage({ audience = "judge" }: { audience?: Analy
     queryKey: ["inter-rater", selectedEventId],
     queryFn: () =>
       apiRequest<InterRaterAnalytics>(
-        `/Analytics/inter-rater${selectedEventId === "all" ? "" : `?eventId=${selectedEventId}`}`,
+        `/research-stats/inter-rater${selectedEventId === "all" ? "" : `?eventId=${selectedEventId}`}`,
       ),
   });
 
