@@ -30,9 +30,9 @@ export type NavSection = {
   items: NavItem[];
 };
 
-// Every nav item across all 3 portals, flattened. Each item belongs to
+// Every nav item across both portals, flattened. Each item belongs to
 // exactly one portal — extracted 1:1 from Sidebar.tsx's previous inline
-// portal-branching (isAdminPortal / pathname.startsWith("/mentor") / default)
+// portal-branching (isAdminPortal / default)
 // with one simplification: the old code additionally hid System/Judging
 // items from non-admins by section+label name on the dashboard portal, but
 // every item that rule targeted (User Approvals, Audit Logs, System
@@ -42,19 +42,19 @@ export type NavSection = {
 const NAV_ITEMS: NavItem[] = [
   // --- Dashboard portal (Member / TeamLeader / Judge / Admin-while-here) ---
   { id: "dash-home", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: null, portals: ["dashboard"], section: "Main" },
-  { id: "dash-events", label: "Events", href: "/dashboard/events", icon: Calendar, roles: null, portals: ["dashboard", "mentor"], section: "Events" },
-  { id: "dash-tracks", label: "Tracks", href: "/dashboard/tracks", icon: Tag, roles: null, portals: ["dashboard", "mentor"], section: "Events" },
+  { id: "dash-events", label: "Events", href: "/dashboard/events", icon: Calendar, roles: null, portals: ["dashboard"], section: "Events" },
+  { id: "dash-tracks", label: "Tracks", href: "/dashboard/tracks", icon: Tag, roles: null, portals: ["dashboard"], section: "Events" },
   { id: "dash-criteria", label: "Criteria", href: "/admin/events?tab=criteria", icon: FileText, roles: ["Admin"], portals: ["dashboard"], section: "Judging" },
   { id: "dash-scoring", label: "Scoring", href: "/dashboard/judging", icon: Target, roles: ["Judge", "Admin"], portals: ["dashboard"], section: "Judging" },
-  { id: "dash-rankings", label: "Rankings", href: "/dashboard/rankings", icon: Trophy, roles: null, portals: ["dashboard", "mentor"], section: "Judging" },
-  { id: "dash-help", label: "Guide", href: "/dashboard/help", icon: CircleHelp, roles: null, portals: ["dashboard", "mentor"], section: "Content" },
+  { id: "dash-rankings", label: "Rankings", href: "/dashboard/rankings", icon: Trophy, roles: null, portals: ["dashboard"], section: "Judging" },
+  { id: "dash-help", label: "Guide", href: "/dashboard/help", icon: CircleHelp, roles: null, portals: ["dashboard"], section: "Content" },
   { id: "dash-documents", label: "Documents", href: "/dashboard/documents", icon: FileText, roles: null, portals: ["dashboard"], section: "Content" },
   { id: "dash-storage", label: "Storage", href: "/dashboard/storage", icon: Cloud, roles: ["Admin"], portals: ["dashboard"], section: "Content" },
   { id: "dash-analytics", label: "Analytics", href: "/dashboard/analytics", icon: BookOpen, roles: ["Judge"], portals: ["dashboard"], section: "Content" },
   { id: "dash-user-approvals", label: "User Approvals", href: "/admin/users", icon: Users, roles: ["Admin"], portals: ["dashboard"], section: "System" },
   { id: "dash-audit-logs", label: "Audit Logs", href: "/admin/audit-logs", icon: FileText, roles: ["Admin"], portals: ["dashboard"], section: "System" },
   { id: "dash-system-notifications", label: "System Notifications", href: "/admin/system-notifications", icon: Bell, roles: ["Admin"], portals: ["dashboard"], section: "System" },
-  { id: "dash-settings", label: "Settings", href: "/dashboard/settings", icon: Settings, roles: null, portals: ["dashboard", "mentor"], section: "System" },
+  { id: "dash-settings", label: "Settings", href: "/dashboard/settings", icon: Settings, roles: null, portals: ["dashboard"], section: "System" },
 
   // --- Admin portal ---
   { id: "admin-home", label: "Admin Dashboard", href: "/admin", icon: LayoutDashboard, roles: ["Admin"], portals: ["admin"], section: "Main" },
@@ -67,9 +67,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: "admin-system-notifications", label: "System Notifications", href: "/admin/system-notifications", icon: Bell, roles: ["Admin"], portals: ["admin"], section: "System" },
   { id: "admin-settings", label: "Settings", href: "/admin/settings", icon: Settings, roles: ["Admin"], portals: ["admin"], section: "System" },
 
-  // --- Mentor portal ---
-  { id: "mentor-home", label: "Mentor Workspace", href: "/mentor", icon: LayoutDashboard, roles: ["Mentor", "Admin"], portals: ["mentor", "dashboard"], section: "Main" },
-  { id: "mentor-documents", label: "Documents", href: "/mentor/documents", icon: FileText, roles: ["Mentor", "Admin"], portals: ["mentor"], section: "Content" },
+  // --- Mentor ---
+  // The workspace lives inside the dashboard rather than a portal of its own, so
+  // that someone holding both Mentor and Judge sees one sidebar carrying both
+  // jobs instead of two that hide each other's entries. Documents is not
+  // repeated here: dash-documents already serves mentors, scoped to their teams.
+  { id: "mentor-home", label: "Mentor Workspace", href: "/dashboard/mentor", icon: LayoutDashboard, roles: ["Mentor", "Admin"], portals: ["dashboard"], section: "Main" },
 ];
 
 // Section render order is the same for every portal (matches the original

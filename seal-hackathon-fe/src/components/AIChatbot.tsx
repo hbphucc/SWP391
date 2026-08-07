@@ -5,6 +5,7 @@ import { Button, Input, Avatar, Tooltip } from "antd";
 import { MessageOutlined, CloseOutlined, MinusOutlined, SendOutlined, RobotOutlined, UserOutlined, ArrowRightOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./AuthProvider";
+import { isRouteDeniedForRoles } from "./shell/routePolicies";
 
 type MessageType = {
   id: number;
@@ -118,6 +119,14 @@ export default function AIChatbot() {
       } else {
         botMessage.text = "I can help with registration, deadlines, submissions, rules, prizes, teams, matchmaking, mentors, results, and the guide page.";
         botMessage.action = { label: "Open Guide", path: "/dashboard/help" };
+      }
+
+      // Several answers point at the competition pages, which staff cannot open.
+      // Offering the button anyway would bounce them straight back with nothing
+      // said, so drop it and leave the explanation standing. Asked once here
+      // rather than branch by branch, so a change to the rules carries over.
+      if (botMessage.action && isRouteDeniedForRoles(botMessage.action.path, user?.roles)) {
+        botMessage.action = null;
       }
 
       setMessages((prev) => [...prev, botMessage]);

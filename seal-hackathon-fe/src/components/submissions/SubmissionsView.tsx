@@ -8,7 +8,7 @@ import { apiRequest, fetchCurrentUser, apiDownload } from "@/lib/api";
 import FinalResultsBanner from "./FinalResultsBanner";
 import EvaluationFeedbackPanel, { type EvaluationDto } from "./EvaluationFeedbackPanel";
 import RoundInfoPanel from "./RoundInfoPanel";
-import SubmissionForm, { type SubmissionFormState } from "./SubmissionForm";
+import SubmissionForm, { type SubmissionFormState, isValidGithubUrl } from "./SubmissionForm";
 
 type TeamDto = {
   teamId: string;
@@ -142,9 +142,9 @@ export default function SubmissionsView() {
       return;
     }
 
-    const cleanRepo = form.repositoryUrl.trim().toLowerCase();
-    if (!cleanRepo.includes("github.com/")) {
-      message.error("GitHub Repository URL must be a valid GitHub repository link. YouTube or other external platforms are not permitted.");
+    const cleanRepo = form.repositoryUrl.trim();
+    if (!isValidGithubUrl(cleanRepo)) {
+      message.error("GitHub Repository URL must be a valid GitHub repository link (e.g., https://github.com/username/repository). YouTube or other external platforms are not permitted.");
       return;
     }
 
@@ -250,6 +250,8 @@ export default function SubmissionsView() {
           isApproved={isApproved}
           teamStatus={team?.status}
           eventStatus={team?.eventStatus}
+          isLeader={team ? team.leaderId === currentUserId : false}
+          submissionDeadline={team?.currentRound?.submissionDeadline}
         />
       </div>
     </div>

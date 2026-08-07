@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Merged into the mentor workspace — kept as a redirect so old links keep working.
+// Merged into the mentor workspace, which now lives inside the dashboard.
 export default function MentorTeamsRedirect() {
-  redirect("/mentor");
+  redirect("/dashboard/mentor");
 }

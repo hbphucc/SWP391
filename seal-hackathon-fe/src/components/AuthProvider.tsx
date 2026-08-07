@@ -13,7 +13,7 @@ type AuthContextValue = {
   user: CurrentUser | null;
   isLoading: boolean;
   // True from the moment logout() is invoked until the next route change.
-  // Protected layouts (dashboard/admin/mentor) read this to suppress their
+  // Protected layouts (dashboard/admin) read this to suppress their
   // own "redirect to login" effect during sign-out, otherwise they race the
   // caller's router.push and the last push wins — landing the user on
   // /admin/login instead of their chosen post-logout route.

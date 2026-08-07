@@ -261,7 +261,7 @@ export function useTeamsData() {
   };
 
   const handleLeaveTeam = () => {
-    const isDisband = isLeader && (myTeam?.status === "Champion" || myTeam?.status === "Eliminated" || myTeam?.eventStatus === "Completed");
+    const isDisband = isLeader;
     modal.confirm({
       title: isDisband ? "Disband team" : "Leave team",
       content: isDisband

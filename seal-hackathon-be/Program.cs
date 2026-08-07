@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -11,9 +12,11 @@ using SEAL.NET.Helpers;
 using SEAL.NET.Models.Entities;
 using SEAL.NET.Repositories.Implementations;
 using SEAL.NET.Repositories.Interfaces;
+using SEAL.NET.Services.Common;
 using SEAL.NET.Services.Implementations;
 using SEAL.NET.Services.Interfaces;
 using System.Net.Sockets;
+using System.Threading.RateLimiting;
 using System.Security.Claims;
 using System.Text;
 
@@ -173,6 +176,37 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// Only the endpoints a stranger can reach are limited: signing in, registering,
+// and the password-reset pair, which sends mail to an address the caller chose.
+// Everything else already needs a valid cookie, and a limit there would punish
+// the chat panel and the judging queue, both of which poll.
+//
+// Partitioned by client IP. Behind Render's proxy that is the forwarded address,
+// which UseForwardedHeaders has already resolved by the time this runs.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy(RateLimitPolicies.Auth, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                // Room for a few typos and a retry, not for guessing passwords.
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"message\":\"Too many attempts. Wait a minute and try again.\"}",
+            cancellationToken);
+    };
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -273,6 +307,7 @@ app.UseCors("AllowFrontend");
 
 app.UseMiddleware<SEAL.NET.Middleware.CsrfOriginValidationMiddleware>();
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

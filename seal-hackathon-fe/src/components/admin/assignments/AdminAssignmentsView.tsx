@@ -96,6 +96,8 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   // Kept separate from selectedRoundId so switching tabs does not move the other
   // tab's selection out from under them.
   const [selectedMentorRoundId, setSelectedMentorRoundId] = useState("");
+  // Whether this assignment names one team or covers a whole track.
+  const [mentorTarget, setMentorTarget] = useState<"team" | "track">("team");
   const [selectedMentorTeamId, setSelectedMentorTeamId] = useState("");
   const [selectedMentorCategoryId, setSelectedMentorCategoryId] = useState("");
   const [selectedRosterRoundId, setSelectedRosterRoundId] = useState("");
@@ -365,24 +367,38 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
     });
   };
 
+  // One assignment, two shapes of target. Splitting this into two forms hid the
+  // fact that both need the same round and mentor, which left the track button
+  // dead with nothing on screen explaining why.
   const handleAssignMentor = async () => {
     if (busyAction) return;
-    if (!selectedMentorId || !selectedMentorRoundId || !selectedMentorTeamId) {
-      message.warning("Select a round, a mentor and a team.");
+
+    const toTrack = mentorTarget === "track";
+    const targetId = toTrack ? selectedMentorCategoryId : selectedMentorTeamId;
+
+    if (!selectedMentorRoundId || !selectedMentorId || !targetId) {
+      message.warning(`Select a round, a mentor and a ${toTrack ? "track" : "team"}.`);
       return;
     }
+
     setBusyAction("assign-mentor");
     try {
-      await apiRequest("/admin/mentors/assignments", {
-        method: "POST",
-        body: JSON.stringify({
-          mentorUserId: selectedMentorId,
-          roundId: selectedMentorRoundId,
-          teamId: selectedMentorTeamId,
-        }),
-      });
-      message.success("Mentor assigned successfully.");
-      setSelectedMentorTeamId("");
+      const res = await apiRequest<{ message: string }>(
+        toTrack ? "/admin/mentors/assignments/category" : "/admin/mentors/assignments",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            mentorUserId: selectedMentorId,
+            roundId: selectedMentorRoundId,
+            ...(toTrack ? { categoryId: targetId } : { teamId: targetId }),
+          }),
+        },
+      );
+      // The track endpoint reports how many teams it covered; the team one has
+      // nothing to add, so fall back to a plain confirmation.
+      message.success(res?.message ?? "Mentor assigned.");
+      if (toTrack) setSelectedMentorCategoryId("");
+      else setSelectedMentorTeamId("");
       await queryClient.invalidateQueries({ queryKey: ["mentor-assignments", eventId] });
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Could not assign mentor.");
@@ -395,31 +411,6 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
   // Bulk shortcut: covers every team in a track for the chosen round. The backend
   // fans this out to one assignment per team, so everything that reads mentorship
   // (chat, documents, the conflict check) keeps working off a single model.
-  const handleAssignMentorToCategory = async () => {
-    if (busyAction) return;
-    if (!selectedMentorId || !selectedMentorRoundId || !selectedMentorCategoryId) {
-      message.warning("Select a round, a mentor and a track.");
-      return;
-    }
-    setBusyAction("assign-mentor-category");
-    try {
-      const res = await apiRequest<{ message: string }>("/admin/mentors/assignments/category", {
-        method: "POST",
-        body: JSON.stringify({
-          mentorUserId: selectedMentorId,
-          roundId: selectedMentorRoundId,
-          categoryId: selectedMentorCategoryId,
-        }),
-      });
-      message.success(res.message);
-      setSelectedMentorCategoryId("");
-      await queryClient.invalidateQueries({ queryKey: ["mentor-assignments", eventId] });
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Could not assign mentor to track.");
-    } finally {
-      setBusyAction(null);
-    }
-  };
 
   const handleAssignJudge = async () => {
     if (busyAction) return;
@@ -606,8 +597,8 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                 <Target size={18} className={styles.primaryIcon} /> Assign Mentor
               </h3>
               <p className={`form-hint ${styles.hintSpacing}`}>
-                Pick the round first, then the team. A team has one mentor per round, so
-                the same mentor can carry a team forward or hand it over between rounds.
+                A team has one mentor per round, so the same mentor can carry a team
+                forward or hand it over between rounds.
               </p>
               <div className={styles.formColumn}>
                 <div className="form-group">
@@ -625,32 +616,62 @@ export default function AdminAssignmentsView({ eventId }: { eventId: string }) {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Team</label>
-                  <select className="form-select" value={selectedMentorTeamId} onChange={(e) => setSelectedMentorTeamId(e.target.value)}>
-                    <option value="">Select a team...</option>
-                    {mentorRoundTeams.map((t) => (<option key={t.teamId} value={t.teamId}>{t.teamName} ({t.categoryName})</option>))}
-                  </select>
+                  <label className="form-label">Assign to</label>
+                  <div className={styles.targetGroup}>
+                    <label className={styles.targetOption}>
+                      <input
+                        type="radio"
+                        name="mentor-target"
+                        checked={mentorTarget === "team"}
+                        onChange={() => setMentorTarget("team")}
+                      />
+                      <span className={styles.targetLabel}>One team</span>
+                    </label>
+                    <label className={styles.targetOption}>
+                      <input
+                        type="radio"
+                        name="mentor-target"
+                        checked={mentorTarget === "track"}
+                        onChange={() => setMentorTarget("track")}
+                      />
+                      <span className={styles.targetLabel}>A whole track</span>
+                    </label>
+                  </div>
                 </div>
-                <button className="btn btn-primary" onClick={handleAssignMentor} disabled={loading || busyAction !== null || !selectedMentorRoundId || !selectedMentorId || !selectedMentorTeamId}>
-                  {busyAction === "assign-mentor" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Mentor</>}
-                </button>
 
-                <div className="form-group" style={{ marginTop: "1.25rem", borderTop: "1px solid var(--color-border-2)", paddingTop: "1rem" }}>
-                  <label className="form-label">…or assign to a whole track</label>
-                  <select className="form-select" value={selectedMentorCategoryId} onChange={(e) => setSelectedMentorCategoryId(e.target.value)}>
-                    <option value="">Select a track...</option>
-                    {categories.map((c) => (<option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>))}
-                  </select>
-                  <span className="form-hint">
-                    Covers every team in the track today. Teams that register later need this applied again.
-                  </span>
-                </div>
+                {mentorTarget === "team" ? (
+                  <div className="form-group">
+                    <label className="form-label">Team</label>
+                    <select className="form-select" value={selectedMentorTeamId} onChange={(e) => setSelectedMentorTeamId(e.target.value)}>
+                      <option value="">Select a team...</option>
+                      {mentorRoundTeams.map((t) => (<option key={t.teamId} value={t.teamId}>{t.teamName} ({t.categoryName})</option>))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label className="form-label">Track</label>
+                    <select className="form-select" value={selectedMentorCategoryId} onChange={(e) => setSelectedMentorCategoryId(e.target.value)}>
+                      <option value="">Select a track...</option>
+                      {categories.map((c) => (<option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>))}
+                    </select>
+                    <span className="form-hint">
+                      Covers every team in the track today. Teams that register later need this applied again.
+                    </span>
+                  </div>
+                )}
+
                 <button
-                  className="btn btn-secondary"
-                  onClick={handleAssignMentorToCategory}
-                  disabled={loading || busyAction !== null || !selectedMentorRoundId || !selectedMentorId || !selectedMentorCategoryId}
+                  className="btn btn-primary"
+                  onClick={handleAssignMentor}
+                  disabled={
+                    loading ||
+                    busyAction !== null ||
+                    !selectedMentorRoundId ||
+                    !selectedMentorId ||
+                    !(mentorTarget === "track" ? selectedMentorCategoryId : selectedMentorTeamId)
+                  }
                 >
-                  {busyAction === "assign-mentor-category" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign to Track</>}
+                  {busyAction === "assign-mentor" ? <span className="spinner" /> : <><UserCheck size={16} /> Assign Mentor</>}
                 </button>
               </div>
             </div>

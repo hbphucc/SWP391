@@ -343,7 +343,20 @@ export default function JudgingPortalPage() {
         </div>
       </div>
 
-      {visibleTeams.length === 0 ? (
+      {/* Nothing assigned and nothing matching a filter look identical in the
+          list but have opposite remedies, so they say different things. Someone
+          who judges one round and mentors the next lands here with an empty
+          queue and no filters set — telling them to clear a filter sends them
+          hunting for a cause that is not there. */}
+      {teams.length === 0 ? (
+        <div className="empty-state">
+          <Target size={48} className="empty-icon" />
+          <div className="empty-title">No teams to score yet</div>
+          <div className="empty-desc">
+            Teams appear here once an organiser assigns you to judge a round.
+          </div>
+        </div>
+      ) : visibleTeams.length === 0 ? (
         <div className="empty-state">
           <Target size={48} className="empty-icon" />
           <div className="empty-title">No teams match these filters</div>

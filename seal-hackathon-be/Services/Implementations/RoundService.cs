@@ -109,12 +109,33 @@ namespace SEAL.NET.Services.Implementations
             _context.Rounds.Add(round);
             await _context.SaveChangesAsync();
 
+            // A team takes its starting round when it registers, so a team that
+            // signed up before this event had any rounds got none, and nothing ever
+            // went back for it. Such a team can never be given a mentor or make a
+            // submission — both match on CurrentRoundId — with nothing on screen
+            // saying why. Placing them in the event's lowest-order round heals that
+            // the same way whichever round is being added, and never pushes a team
+            // past a round it has not competed in.
+            var openingRound = await _context.Rounds
+                .Where(r => r.EventId == eventId)
+                .OrderBy(r => r.RoundOrder)
+                .Select(r => new { r.RoundId, r.RoundName })
+                .FirstAsync();
+
+            var adopted = await _context.Teams
+                .Where(t => t.CurrentRoundId == null && t.Category.EventId == eventId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.CurrentRoundId, openingRound.RoundId));
+
             return ServiceResult.Created(
                 "GetRoundById",
                 new { eventId, roundId = round.RoundId },
                 new
                 {
-                    message = "Round created successfully.",
+                    // Names the round they landed in, which is not necessarily the
+                    // one just created.
+                    message = adopted == 0
+                        ? "Round created successfully."
+                        : $"Round created successfully. {adopted} team(s) registered earlier were placed in {openingRound.RoundName}.",
                     round.RoundId
                 });
         }

@@ -6,7 +6,8 @@ import { ChevronLeft, Users, Target, Clock, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { App } from "antd";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, fetchCurrentUser } from "@/lib/api";
+import { isRouteDeniedForRoles } from "@/components/shell/routePolicies";
 import styles from "./EventDetailPage.module.css";
 
 interface RoundDto {
@@ -58,6 +59,27 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const { message } = App.useApp();
   const [tab, setTab] = useState("overview");
 
+  const { data: currentUser = null } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: fetchCurrentUser,
+  });
+  // Hidden until the roles are known, so the button never flashes up for staff
+  // on the way to being hidden again.
+  const canRegisterTeam =
+    !!currentUser && !isRouteDeniedForRoles("/dashboard/teams", currentUser.roles);
+
+  const { data: myTeam } = useQuery({
+    queryKey: ["my-team-event-detail"],
+    queryFn: async () => {
+      try {
+        return await apiRequest<{ teamId: string; teamName: string }>("/teams/my-team");
+      } catch {
+        return null;
+      }
+    },
+    enabled: canRegisterTeam,
+  });
+
   const {
     data: event = null,
     isLoading: loading,
@@ -102,13 +124,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <span className={`badge ${STATUS_BADGE[event.status] || "badge-neutral"}`}>{event.status}</span>
           </div>
         </div>
-        {/* Team registration requires 2–4 teammates and approval; the Teams
-            page owns that validated flow rather than duplicating it here. */}
-        <Link href="/dashboard/teams">
-          <button className="btn btn-primary" disabled={event.categories.length === 0}>
-            <Users size={15} /> Register Your Team
-          </button>
-        </Link>
+        {!canRegisterTeam ? null : myTeam ? (
+          <Link href="/dashboard/teams">
+            <button className="btn btn-secondary">
+              <Users size={15} /> View My Team
+            </button>
+          </Link>
+        ) : (
+          <Link href="/dashboard/teams">
+            <button className="btn btn-primary" disabled={event.categories.length === 0}>
+              <Users size={15} /> Register Your Team
+            </button>
+          </Link>
+        )}
       </div>
 
       {/* Quick Stats */}
